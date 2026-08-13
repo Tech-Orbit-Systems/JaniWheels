@@ -6,7 +6,7 @@ import { abs } from "@/lib/seo/jsonld";
 import { FinanceCalculator } from "./FinanceCalculator";
 
 export const metadata: Metadata = {
-  title: "Car Finance Pakistan — Compare Car Loan Plans | AutoBazaar",
+  title: "Car Finance Pakistan — Compare Car Loan Plans | JaniWheels",
   description:
     "Work out your monthly car instalment and get matched with banks offering car finance in Pakistan. Free, no obligation.",
   alternates: { canonical: abs("/car-finance") },
@@ -43,7 +43,7 @@ export default async function CarFinancePage() {
           bank will actually quote you.
         </p>
         <p className="mt-2 text-xs text-slate-500">
-          AutoBazaar is not a lender and does not arrange credit. We pass your
+          JaniWheels is not a lender and does not arrange credit. We pass your
           details to partner banks who will contact you with their own terms.
           Rates shown are illustrative — the rate you are offered depends on
           the bank, your income and your credit history.

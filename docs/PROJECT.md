@@ -1,4 +1,4 @@
-# AutoBazaar — Project Documentation
+# JaniWheels — Project Documentation
 
 A vehicle classifieds marketplace for Pakistan: used cars, motorcycles and
 auto parts, with dealer tooling, paid promotion, and an independent vehicle

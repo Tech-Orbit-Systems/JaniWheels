@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Start AutoBazaar locally.
+# Start JaniWheels locally.
 #
 #   Right-click this file -> "Run with PowerShell"
 #   or from a terminal:  .\start-dev.ps1
@@ -21,7 +21,7 @@ function Test-Port($Port) {
 }
 
 Write-Host ''
-Write-Host '  AutoBazaar - starting local environment' -ForegroundColor Cyan
+Write-Host '  JaniWheels - starting local environment' -ForegroundColor Cyan
 Write-Host '  --------------------------------------'
 
 # --- 1. PostgreSQL ---------------------------------------------------------

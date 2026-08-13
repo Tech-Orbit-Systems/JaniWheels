@@ -82,7 +82,7 @@ export async function requestOtp(
     requestIp: ip ?? null,
   });
 
-  await sendSms(phone, `Your AutoBazaar code is ${code}. Valid for 10 minutes.`);
+  await sendSms(phone, `Your JaniWheels code is ${code}. Valid for 10 minutes.`);
 
   // In development the console provider prints the code; returning it too
   // keeps the login form usable without an SMS gateway configured.

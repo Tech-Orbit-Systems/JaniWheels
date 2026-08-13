@@ -269,7 +269,7 @@ async function seedCommerce() {
 }
 
 async function main() {
-  console.log("Seeding AutoBazaar\n" + "=".repeat(40));
+  console.log("Seeding JaniWheels\n" + "=".repeat(40));
 
   assertNoSlugCollisions();
   console.log("Slug collision check passed.");

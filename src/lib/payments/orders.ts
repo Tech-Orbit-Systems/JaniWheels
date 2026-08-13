@@ -34,9 +34,9 @@ export interface CreateOrderInput {
   adPackageId: number;
 }
 
-/** AB-2026-4839217 — short enough to read over the phone to support. */
+/** JW-2026-4839217 — short enough to read over the phone to support. */
 function newReference(): string {
-  return `AB-${new Date().getFullYear()}-${randomInt(1_000_000, 9_999_999)}`;
+  return `JW-${new Date().getFullYear()}-${randomInt(1_000_000, 9_999_999)}`;
 }
 
 export async function createOrder(input: CreateOrderInput) {

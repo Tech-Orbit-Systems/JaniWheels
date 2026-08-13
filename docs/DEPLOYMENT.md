@@ -1,6 +1,6 @@
 # Going Live — Deployment and Cost
 
-Everything needed to put AutoBazaar into production, and what it costs at
+Everything needed to put JaniWheels into production, and what it costs at
 three realistic stages of growth.
 
 Costs are given in **USD and PKR at ~PKR 280 / USD**. Rates move; treat the
@@ -194,7 +194,7 @@ npm run db:migrate && npm run db:seed
 ### 5.4 Run
 
 ```bash
-pm2 start npm --name autobazaar -- start && pm2 save && pm2 startup
+pm2 start npm --name janiwheels -- start && pm2 save && pm2 startup
 ```
 
 Put nginx in front, terminate TLS with certbot, proxy to `localhost:3000`.

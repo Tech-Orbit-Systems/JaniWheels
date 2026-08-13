@@ -11,7 +11,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: "Car Dealers in Pakistan | AutoBazaar",
+  title: "Car Dealers in Pakistan | JaniWheels",
   description:
     "Browse verified used car dealers across Pakistan. See each showroom's live inventory before you visit.",
   alternates: { canonical: abs("/dealers") },

@@ -12,7 +12,7 @@
 import type { FacetState } from "./facets";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? "AutoBazaar";
+const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? "JaniWheels";
 
 export function abs(path: string): string {
   return path.startsWith("http") ? path : `${SITE_URL}${path}`;

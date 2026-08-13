@@ -8,7 +8,7 @@ import { abs } from "@/lib/seo/jsonld";
 import { InspectionForm } from "./InspectionForm";
 
 export const metadata: Metadata = {
-  title: "Car Inspection in Pakistan — 200+ Checkpoints | AutoBazaar",
+  title: "Car Inspection in Pakistan — 200+ Checkpoints | JaniWheels",
   description:
     "Book an independent 200-point car inspection before you buy. Engine, suspension, body and accident history, checked at your doorstep across 12 cities.",
   alternates: { canonical: abs("/inspection") },

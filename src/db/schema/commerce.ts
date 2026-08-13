@@ -169,7 +169,7 @@ export const orders = pgTable(
   "orders",
   {
     id: bigserial("id", { mode: "number" }).primaryKey(),
-    /** Human-readable, shown on receipts: AB-2026-000123 */
+    /** Human-readable, shown on receipts: JW-2026-000123 */
     reference: text("reference").notNull(),
     userId: integer("user_id")
       .notNull()

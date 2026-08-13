@@ -1,4 +1,4 @@
-# AutoBazaar
+# JaniWheels
 
 A vehicle classifieds marketplace for Pakistan — used cars, bikes and auto parts.
 

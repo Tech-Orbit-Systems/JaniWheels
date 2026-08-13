@@ -5,7 +5,7 @@ import { organizationJsonLd, websiteJsonLd } from "@/lib/seo/jsonld";
 import { AccountMenu } from "@/components/AccountMenu";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? "AutoBazaar";
+const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? "JaniWheels";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

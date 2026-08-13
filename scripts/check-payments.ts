@@ -137,7 +137,7 @@ async function main() {
 
   // ---- 1. signature verification ----------------------------------------
   const forged = {
-    pp_TxnRefNo: "AB-2026-0000001",
+    pp_TxnRefNo: "JW-2026-0000001",
     pp_Amount: "150000",
     pp_ResponseCode: "000",
     pp_SecureHash: "DEADBEEF",
@@ -288,7 +288,7 @@ async function main() {
   process.env.EASYPAISA_HASH_KEY ||= "TESTHASHKEY12345";
 
   const epCheckout = easypaisa.buildCheckout({
-    orderReference: "AB-2026-EPTEST",
+    orderReference: "JW-2026-EPTEST",
     amountPkr: 1500,
     description: "Test",
     returnUrl: "https://example.com/cb",
@@ -308,7 +308,7 @@ async function main() {
 
   // THE hole: an unsigned callback must never be trusted.
   const epUnsigned = easypaisa.verifyCallback({
-    orderRefNum: "AB-2026-EPTEST",
+    orderRefNum: "JW-2026-EPTEST",
     status: "0000",
     transactionAmount: "1500",
   });
@@ -320,7 +320,7 @@ async function main() {
   );
 
   const epForged = easypaisa.verifyCallback({
-    orderRefNum: "AB-2026-EPTEST",
+    orderRefNum: "JW-2026-EPTEST",
     status: "0000",
     transactionAmount: "1500",
     hashResponse: "bm90LWEtcmVhbC1oYXNo",
@@ -330,7 +330,7 @@ async function main() {
 
   // Round-trip: sign a payload with the driver's own scheme and verify it.
   const epPayload: Record<string, string> = {
-    orderRefNum: "AB-2026-EPTEST",
+    orderRefNum: "JW-2026-EPTEST",
     status: "0000",
     transactionAmount: "1500",
     transactionId: "EP123456",
@@ -340,7 +340,7 @@ async function main() {
     hashResponse: easypaisaSign(epPayload),
   });
   check("easypaisa accepts a correctly signed callback", epValid.ok, true);
-  check("easypaisa reads the order reference", epValid.orderReference, "AB-2026-EPTEST");
+  check("easypaisa reads the order reference", epValid.orderReference, "JW-2026-EPTEST");
   check("easypaisa reads rupees as rupees", epValid.amountPkr, 1500);
 
   const epDeclined = easypaisa.verifyCallback({

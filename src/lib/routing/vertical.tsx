@@ -114,7 +114,7 @@ export async function verticalMetadata(
     const isLive = listing.status === "active";
 
     return {
-      title: `${listing.title} for sale in ${listing.cityName} | AutoBazaar`,
+      title: `${listing.title} for sale in ${listing.cityName} | JaniWheels`,
       description:
         listing.description?.slice(0, 155) ??
         `${listing.title} for sale in ${listing.cityName}.`,
@@ -141,7 +141,7 @@ export async function verticalMetadata(
     state.model?.name ?? state.make?.name ?? state.category?.name ?? NOUN[vertical];
 
   return {
-    title: `${title} | AutoBazaar`,
+    title: `${title} | JaniWheels`,
     description: `Find ${subject} for sale in ${where}. Compare prices and condition, see how each price compares to the market, and contact sellers directly.`,
     alternates: { canonical: abs(decision.canonicalPath) },
     robots: { index: decision.robots.startsWith("index"), follow: true },

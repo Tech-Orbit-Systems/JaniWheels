@@ -51,7 +51,7 @@ export async function generateMetadata({
   if (!dealer) return { title: "Dealer not found" };
 
   return {
-    title: `${dealer.businessName} — Used Cars in ${dealer.cityName} | AutoBazaar`,
+    title: `${dealer.businessName} — Used Cars in ${dealer.cityName} | JaniWheels`,
     description:
       dealer.about?.slice(0, 155) ??
       `Browse used cars for sale by ${dealer.businessName} in ${dealer.cityName}.`,

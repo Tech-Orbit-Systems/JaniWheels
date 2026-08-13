@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Stop AutoBazaar locally: the dev server and PostgreSQL.
+# Stop JaniWheels locally: the dev server and PostgreSQL.
 #
 #   .\stop-dev.ps1
 #

@@ -2,7 +2,7 @@
 
 Instructions for AI coding agents working in this repository.
 
-AutoBazaar is a vehicle classifieds marketplace for Pakistan (cars, bikes,
+JaniWheels is a vehicle classifieds marketplace for Pakistan (cars, bikes,
 auto parts) built with Next.js 15, TypeScript, PostgreSQL and Drizzle.
 
 Read `docs/PROJECT.md` for the full architecture. This file covers what will

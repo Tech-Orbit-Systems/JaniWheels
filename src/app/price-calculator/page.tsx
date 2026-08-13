@@ -11,7 +11,7 @@ import { buildListingPath } from "@/lib/listings/slug";
 import { CalculatorForm } from "./CalculatorForm";
 
 export const metadata: Metadata = {
-  title: "Car Price Calculator Pakistan — What Is My Car Worth? | AutoBazaar",
+  title: "Car Price Calculator Pakistan — What Is My Car Worth? | JaniWheels",
   description:
     "Find out what your car is worth today, based on real asking and sold prices for the same variant, year and city. Free, instant, no signup.",
   alternates: { canonical: abs("/price-calculator") },
