@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+/*
+ * Declare the content sources explicitly.
+ *
+ * Tailwind v4 auto-detects sources by scanning outward from the process CWD.
+ * That silently produces a stylesheet containing preflight and nothing else
+ * whenever the dev server is started from a different directory than the
+ * project root — the page renders as unstyled HTML with no error anywhere,
+ * which is a genuinely hard failure to diagnose.
+ *
+ * Paths are relative to this file (src/app/), so `../` covers all of src/.
+ */
+@source "../**/*.{ts,tsx}";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+/*
+ * Performance budget for this project: < 150 KB of JS and < 1.5s LCP on a
+ * mid-range Android over 4G. That is not an aspiration, it is the operating
+ * constraint — most of the traffic is exactly that device on exactly that
+ * connection, and a slow search page loses buyers before they ever see a car.
+ *
+ * Practical consequence: default to server components. A component becomes a
+ * client component only when it genuinely needs state or an event handler.
+ */
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: var(--font-sans);
+}
+
+/* Tap targets. Anything interactive clears 44px on touch, no exceptions —
+   the incumbent ships 55 sub-32px targets on its mobile home page and it is
+   noticeably annoying to use. */
+@media (pointer: coarse) {
+  a,
+  button,
+  select,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 44px;
+  }
+
+  /* Inline links inside prose are exempt; the rule above is for controls. */
+  p a,
+  li a.inline-link {
+    min-height: 0;
+  }
+}

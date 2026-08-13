@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="No photo available">
+  <rect width="400" height="300" fill="#e2e8f0"/>
+  <g fill="#94a3b8">
+    <path d="M92 178h216a8 8 0 0 0 8-8v-26a20 20 0 0 0-13-18.7l-18-6.6-20-26.9A24 24 0 0 0 246 82h-92a24 24 0 0 0-19 9.8l-20 26.9-18 6.6A20 20 0 0 0 84 144v26a8 8 0 0 0 8 8Zm62-80h92a8 8 0 0 1 6.4 3.2L268 120H132l15.6-18.8A8 8 0 0 1 154 98Z"/>
+    <circle cx="130" cy="184" r="16"/>
+    <circle cx="270" cy="184" r="16"/>
+  </g>
+  <text x="200" y="238" font-family="system-ui,sans-serif" font-size="15" fill="#94a3b8" text-anchor="middle">No photo</text>
+</svg>

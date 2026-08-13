@@ -1,0 +1,342 @@
+"use client";
+
+import { useActionState, useEffect, useState } from "react";
+import {
+  createCarListingAction,
+  type SellState,
+} from "@/lib/listings/sell-actions";
+
+interface Option {
+  id: number;
+  name: string;
+}
+interface FeatureOption extends Option {
+  groupName: string;
+}
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: CURRENT_YEAR - 1969 }, (_, i) => CURRENT_YEAR - i);
+
+/**
+ * The listing wizard.
+ *
+ * One scrolling page rather than a multi-step flow. Every step boundary is a
+ * place a seller on a phone drops out, and this form is short enough not to
+ * need them. The only genuinely required decisions are variant, city, year,
+ * price, mileage and one photo.
+ *
+ * Make/model/variant cascade from the taxonomy API — a seller cannot type a
+ * model name, which is what keeps facet pages and price analytics coherent.
+ */
+export function SellForm({
+  makes,
+  cities,
+  features,
+}: {
+  makes: Option[];
+  cities: Option[];
+  features: FeatureOption[];
+}) {
+  const [state, action, pending] = useActionState<SellState, FormData>(
+    createCarListingAction,
+    {},
+  );
+
+  const [makeId, setMakeId] = useState("");
+  const [modelId, setModelId] = useState("");
+  const [cityId, setCityId] = useState("");
+  const [models, setModels] = useState<Option[]>([]);
+  const [variants, setVariants] = useState<Option[]>([]);
+  const [areas, setAreas] = useState<Option[]>([]);
+  const [imageKeys, setImageKeys] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!makeId) return setModels([]);
+    fetch(`/api/taxonomy?makeId=${makeId}`)
+      .then((r) => r.json())
+      .then((d) => setModels(d.models ?? []));
+    setModelId("");
+    setVariants([]);
+  }, [makeId]);
+
+  useEffect(() => {
+    if (!modelId) return setVariants([]);
+    fetch(`/api/taxonomy?modelId=${modelId}`)
+      .then((r) => r.json())
+      .then((d) => setVariants(d.variants ?? []));
+  }, [modelId]);
+
+  useEffect(() => {
+    if (!cityId) return setAreas([]);
+    fetch(`/api/taxonomy?cityId=${cityId}`)
+      .then((r) => r.json())
+      .then((d) => setAreas(d.areas ?? []));
+  }, [cityId]);
+
+  async function upload(files: FileList | null) {
+    if (!files?.length) return;
+    setUploading(true);
+    setUploadError(null);
+
+    const body = new FormData();
+    Array.from(files).forEach((f) => body.append("files", f));
+
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body });
+      const data = await res.json();
+      if (data.keys?.length) setImageKeys((k) => [...k, ...data.keys]);
+      if (data.errors?.length) setUploadError(data.errors.join(" "));
+      if (!res.ok) setUploadError(data.error ?? "Upload failed.");
+    } catch {
+      setUploadError("Upload failed. Check your connection.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const err = (f: string) => state.fieldErrors?.[f];
+
+  const grouped = features.reduce<Record<string, FeatureOption[]>>((acc, f) => {
+    (acc[f.groupName] ??= []).push(f);
+    return acc;
+  }, {});
+
+  return (
+    <form action={action} className="space-y-6">
+      {state.error && (
+        <p role="alert" className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {state.error}
+        </p>
+      )}
+
+      <Section title="Which car?">
+        <Field label="Make" error={err("variantId")}>
+          <select
+            value={makeId}
+            onChange={(e) => setMakeId(e.target.value)}
+            className={selectClass}
+            required
+          >
+            <option value="">Select make</option>
+            {makes.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Model">
+          <select
+            value={modelId}
+            onChange={(e) => setModelId(e.target.value)}
+            className={selectClass}
+            disabled={!models.length}
+            required
+          >
+            <option value="">Select model</option>
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        </Field>
+
+        <Field
+          label="Variant"
+          hint="Exact variant — this is what powers the price comparison buyers see."
+          error={err("variantId")}
+        >
+          <select name="variantId" className={selectClass} disabled={!variants.length} required>
+            <option value="">Select variant</option>
+            {variants.map((v) => (
+              <option key={v.id} value={v.id}>{v.name}</option>
+            ))}
+          </select>
+        </Field>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Model year" error={err("year")}>
+            <select name="year" className={selectClass} required>
+              <option value="">Select year</option>
+              {YEARS.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Mileage (km)" error={err("mileageKm")}>
+            <input name="mileageKm" type="number" inputMode="numeric" min={0} placeholder="73000" className={inputClass} required />
+          </Field>
+        </div>
+      </Section>
+
+      <Section title="Where is it?">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="City" error={err("cityId")}>
+            <select
+              name="cityId"
+              value={cityId}
+              onChange={(e) => setCityId(e.target.value)}
+              className={selectClass}
+              required
+            >
+              <option value="">Select city</option>
+              {cities.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Area (optional)">
+            <select name="areaId" className={selectClass} disabled={!areas.length}>
+              <option value="">Select area</option>
+              {areas.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      </Section>
+
+      <Section title="Condition & price">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Price (PKR)" hint="Enter the full amount, e.g. 4800000" error={err("pricePkr")}>
+            <input name="pricePkr" type="number" inputMode="numeric" min={50000} placeholder="4800000" className={inputClass} required />
+          </Field>
+
+          <Field label="Assembly">
+            <select name="assembly" className={selectClass} defaultValue="local">
+              <option value="local">Local</option>
+              <option value="imported">Imported</option>
+            </select>
+          </Field>
+
+          <Field label="Colour">
+            <input name="color" type="text" placeholder="White" className={inputClass} />
+          </Field>
+
+          <Field label="Number of owners">
+            <input name="ownerCount" type="number" inputMode="numeric" min={1} max={20} className={inputClass} />
+          </Field>
+        </div>
+
+        <div className="flex flex-wrap gap-5 pt-1">
+          <Check name="isNegotiable" label="Price negotiable" />
+          <Check name="isUnregistered" label="Un-registered" />
+          <Check name="hasAuctionSheet" label="Auction sheet available" />
+        </div>
+      </Section>
+
+      <Section title="Photos" hint="Listings without photos barely sell. Six or more is ideal.">
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(e) => upload(e.target.files)}
+          className="block w-full text-sm text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-medium"
+        />
+        {uploading && <p className="mt-2 text-sm text-slate-500">Uploading…</p>}
+        {uploadError && <p role="alert" className="mt-2 text-sm text-red-600">{uploadError}</p>}
+        {err("imageKeys") && <p role="alert" className="mt-2 text-sm text-red-600">{err("imageKeys")}</p>}
+
+        {imageKeys.length > 0 && (
+          <p className="mt-2 text-sm text-emerald-700">
+            {imageKeys.length} photo{imageKeys.length === 1 ? "" : "s"} added
+          </p>
+        )}
+        {imageKeys.map((k) => (
+          <input key={k} type="hidden" name="imageKeys" value={k} />
+        ))}
+      </Section>
+
+      <Section title="Features">
+        {Object.entries(grouped).map(([group, items]) => (
+          <div key={group} className="mb-3">
+            <h3 className="mb-1.5 text-xs uppercase tracking-wide text-slate-500">{group}</h3>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {items.map((f) => (
+                <label key={f.id} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" name="featureIds" value={f.id} className="h-4 w-4" />
+                  {f.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </Section>
+
+      <Section
+        title="Description"
+        hint="Phone numbers and links are removed automatically — buyers reach you through the Show number button, which is how we can prove the ad worked."
+      >
+        <textarea
+          name="description"
+          rows={6}
+          maxLength={5000}
+          placeholder="Condition, service history, anything that needs attention…"
+          className={inputClass}
+        />
+      </Section>
+
+      <button
+        type="submit"
+        disabled={pending || uploading}
+        className="w-full rounded bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+      >
+        {pending ? "Posting…" : "Post ad — free"}
+      </button>
+    </form>
+  );
+}
+
+const inputClass =
+  "w-full rounded border border-slate-300 px-3 py-2.5 text-base text-slate-900";
+const selectClass = inputClass + " bg-white";
+
+function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5">
+      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+      {hint && <p className="mb-3 mt-0.5 text-xs text-slate-500">{hint}</p>}
+      <div className={hint ? "space-y-4" : "mt-3 space-y-4"}>{children}</div>
+    </section>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  error,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-700">{label}</label>
+      <div className="mt-1">{children}</div>
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+      {error && <p role="alert" className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+function Check({ name, label }: { name: string; label: string }) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-slate-700">
+      <input type="checkbox" name={name} className="h-4 w-4" />
+      {label}
+    </label>
+  );
+}

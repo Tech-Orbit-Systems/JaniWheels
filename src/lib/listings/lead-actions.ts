@@ -1,0 +1,118 @@
+"use server";
+
+import { headers } from "next/headers";
+import { cookies } from "next/headers";
+import { randomBytes } from "node:crypto";
+import { eq, sql } from "drizzle-orm";
+import { db } from "@/db";
+import { listings } from "@/db/schema/listings";
+import { users } from "@/db/schema/users";
+import { leadEvents } from "@/db/schema/analytics";
+import { getCurrentUser } from "@/lib/auth/session";
+import { displayPkPhone } from "@/lib/format";
+
+/**
+ * PHONE REVEAL
+ *
+ * This is the moment the product created value, and therefore the most
+ * important event in the system. It is:
+ *   - the north-star metric (leads per listing, not pageviews),
+ *   - the evidence that justifies a dealer subscription price,
+ *   - the input to ranking,
+ *   - the only honest basis for pricing a featured slot.
+ *
+ * The number is deliberately NOT in the initial HTML. If it were, scrapers
+ * would harvest every seller's number in one crawl and you would have no
+ * lead data at all — which is precisely why the incumbent gates it too.
+ */
+
+const ANON_COOKIE = "ab_anon";
+
+async function anonId(): Promise<string> {
+  const jar = await cookies();
+  const existing = jar.get(ANON_COOKIE)?.value;
+  if (existing) return existing;
+
+  const id = randomBytes(16).toString("hex");
+  jar.set(ANON_COOKIE, id, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+  return id;
+}
+
+export type RevealResult =
+  | { ok: true; phone: string }
+  | { ok: false; error: string };
+
+export async function revealPhoneAction(
+  listingId: number,
+  source = "detail",
+): Promise<RevealResult> {
+  const [row] = await db
+    .select({
+      id: listings.id,
+      status: listings.status,
+      phone: users.phone,
+    })
+    .from(listings)
+    .innerJoin(users, eq(listings.sellerId, users.id))
+    .where(eq(listings.id, listingId))
+    .limit(1);
+
+  if (!row) return { ok: false, error: "Listing not found." };
+  if (row.status !== "active") {
+    return { ok: false, error: "This listing is no longer available." };
+  }
+
+  const user = await getCurrentUser();
+  const anon = user ? null : await anonId();
+  const h = await headers();
+
+  // Logging must never break the reveal. A buyer who clicks and gets an error
+  // because the analytics insert failed is a lead you actually lost.
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(leadEvents).values({
+        listingId,
+        userId: user?.id ?? null,
+        anonId: anon,
+        type: "phone_reveal",
+        source,
+        referrer: h.get("referer")?.slice(0, 500) ?? null,
+      });
+
+      await tx
+        .update(listings)
+        .set({ leadCount: sql`${listings.leadCount} + 1` })
+        .where(eq(listings.id, listingId));
+    });
+  } catch (err) {
+    console.error("lead_event insert failed", err);
+  }
+
+  return { ok: true, phone: displayPkPhone(row.phone) };
+}
+
+export async function logLeadAction(
+  listingId: number,
+  type: "whatsapp_click" | "message_sent" | "finance_enquiry",
+  source = "detail",
+): Promise<void> {
+  const user = await getCurrentUser();
+  const anon = user ? null : await anonId();
+
+  try {
+    await db.insert(leadEvents).values({
+      listingId,
+      userId: user?.id ?? null,
+      anonId: anon,
+      type,
+      source,
+    });
+  } catch (err) {
+    console.error("lead_event insert failed", err);
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "name": "autobazaar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "build:safe": "cross-env NEXT_DIST_DIR=.next-build next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "check:seo": "tsx scripts/check-seo.ts",
+    "check:payments": "cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/check-payments.ts",
+    "check:import": "cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/check-import.ts",
+    "sweep": "cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/sweep.ts",
+    "check": "npm run typecheck && npm run check:seo && npm run check:payments && npm run check:import",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx src/db/seed/run.ts",
+    "db:reset": "drizzle-kit push --force && npm run db:seed"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.44.0",
+    "lucide-react": "^0.475.0",
+    "next": "^15.5.0",
+    "postgres": "^3.4.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "server-only": "^0.0.1",
+    "slugify": "^1.6.6",
+    "tailwind-merge": "^3.0.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.13.0",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "cross-env": "^10.1.0",
+    "drizzle-kit": "^0.31.0",
+    "eslint": "^9.19.0",
+    "eslint-config-next": "^15.5.0",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}
