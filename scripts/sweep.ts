@@ -32,7 +32,6 @@ const EXPECT_REDIRECT = new Set([
   "/sell",
   "/dashboard",
   "/dashboard/dealer",
-  "/dashboard/dealer/bulk",
   "/admin/moderation",
   "/dealers/register",
 ]);
@@ -125,16 +124,12 @@ async function main() {
     "/auto-parts",
     "/dealers",
     "/dealers/register",
-    "/price-calculator",
-    "/car-finance",
     "/inspection",
     "/login",
     "/sell",
     "/dashboard",
     "/dashboard/dealer",
-    "/dashboard/dealer/bulk",
     "/admin/moderation",
-    "/promote/failed",
   ];
   for (const r of staticRoutes) await visit(r);
 
@@ -227,10 +222,6 @@ async function main() {
   // ---- dealer storefronts ------------------------------------------------
   const dealerRows = await db.select({ slug: dealers.slug }).from(dealers).limit(5);
   for (const d of dealerRows) await visit(`/dealers/${d.slug}`);
-
-  // ---- price calculator, both branches ----------------------------------
-  await visit("/price-calculator?variantId=1&year=2019&modelName=Alto");
-  await visit("/price-calculator?variantId=99999&year=2019");
 
   console.log(`\n  ${checked} URLs checked, ${issues.length} issues\n`);
   for (const i of issues) console.error(`  ✗ ${i.url}\n      ${i.problem}`);

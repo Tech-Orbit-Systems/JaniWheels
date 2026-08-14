@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     template: `%s`,
   },
   description:
-    "Buy and sell used cars, bikes and auto parts in Pakistan. See how every price compares to the market before you call the seller.",
+    "Buy and sell used cars, bikes and auto parts through a trusted classified marketplace in Pakistan.",
   openGraph: { siteName: SITE_NAME, locale: "en_PK", type: "website" },
 };
 
@@ -63,9 +63,6 @@ export default function RootLayout({
               </Link>
               <Link href="/dealers" className="hover:text-slate-900">
                 Dealers
-              </Link>
-              <Link href="/price-calculator" className="hover:text-slate-900">
-                Price Calculator
               </Link>
               <Link href="/inspection" className="hover:text-slate-900">
                 Inspection

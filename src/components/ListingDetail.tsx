@@ -9,11 +9,9 @@ import {
 } from "@/lib/format";
 import { buildPath } from "@/lib/seo/facets";
 import { buildListingPath } from "@/lib/listings/slug";
-import { getPricePosition } from "@/lib/listings/price-position";
 import type { ListingDetailRow } from "@/lib/listings/detail";
 import { getSimilarListings } from "@/lib/listings/detail";
 import { PhoneReveal } from "./PhoneReveal";
-import { PriceBadge } from "./PriceBadge";
 import { ReportListing } from "./ReportListing";
 
 function imageUrl(key: string, width: number): string {
@@ -32,26 +30,13 @@ function titleCase(s: string): string {
 }
 
 export async function ListingDetail({ listing }: { listing: ListingDetailRow }) {
-  const [position, similar] = await Promise.all([
-    // Parts have no variant/year, so the price model does not apply — the
-    // function returns "unknown" and the badge renders nothing.
-    getPricePosition({
-      pricePkr: listing.pricePkr,
-      variantId: listing.variantId,
-      modelId: listing.modelId,
-      year: listing.year,
-      cityId: listing.cityId,
-      cityName: listing.cityName,
-      modelName: listing.modelName,
-    }),
-    getSimilarListings({
+  const similar = await getSimilarListings({
       id: listing.id,
       vertical: listing.vertical,
       modelId: listing.modelId,
       cityId: listing.cityId,
       pricePkr: listing.pricePkr,
-    }),
-  ]);
+    });
 
   const registered = listing.isUnregistered
     ? "Un-Registered"
@@ -247,8 +232,6 @@ export async function ListingDetail({ listing }: { listing: ListingDetailRow }) 
             <p className="text-xs text-slate-500">Negotiable</p>
           )}
 
-          <PriceBadge position={position} />
-
           <div className="mt-4">
             <PhoneReveal
               listingId={listing.id}
@@ -285,7 +268,7 @@ export async function ListingDetail({ listing }: { listing: ListingDetailRow }) 
           <ReportListing listingId={listing.id} />
         </div>
 
-        {listing.vertical === "car" && listing.inspectionScore == null && (
+        {listing.vertical === "car" && (
           <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
             <p className="text-sm font-semibold text-blue-900">
               Not sure about this one?

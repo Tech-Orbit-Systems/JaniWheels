@@ -142,7 +142,7 @@ export async function verticalMetadata(
 
   return {
     title: `${title} | JaniWheels`,
-    description: `Find ${subject} for sale in ${where}. Compare prices and condition, see how each price compares to the market, and contact sellers directly.`,
+    description: `Find ${subject} for sale in ${where}. Compare listing details and condition, then contact sellers directly.`,
     alternates: { canonical: abs(decision.canonicalPath) },
     robots: { index: decision.robots.startsWith("index"), follow: true },
     openGraph: { title, url: abs(decision.canonicalPath), type: "website" },

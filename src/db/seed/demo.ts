@@ -3,15 +3,11 @@
  *
  * Development data only — never run this against production.
  *
- * It also computes price_snapshots afterwards, so the price-vs-market badge
- * has something to render. That badge deliberately shows nothing below eight
- * comparable sales, so the generator makes sure a few variant/year buckets
- * clear the threshold; otherwise you would look at an empty rail and assume
- * the feature was broken.
+ * It creates enough inventory to exercise browsing, filtering and SEO routes.
  */
 
 import "dotenv/config";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../index";
 import {
   listings,
@@ -29,7 +25,6 @@ import {
   features,
 } from "../schema/taxonomy";
 import { cities } from "../schema/geo";
-import { priceSnapshots } from "../schema/analytics";
 import { buildListingSlug } from "../../lib/listings/slug";
 
 const SELLER_PHONES = [
@@ -128,10 +123,8 @@ async function main() {
   /**
    * Concentrate listings on a few model years rather than scattering them.
    *
-   * getPricePosition keys on (variant, year) and refuses to render below
-   * MIN_SAMPLE=8 comparables. Spreading N listings across nine years leaves
-   * every bucket at one or two, so the badge correctly hides itself and the
-   * feature looks broken in dev. Ten per year per variant clears the floor.
+   * Concentrated inventory also ensures common facet pages clear the minimum
+   * listing threshold used by the SEO indexation policy.
    */
   const FOCUS_YEARS = [2019, 2021, 2023];
   const PER_YEAR = 10;
@@ -180,14 +173,7 @@ async function main() {
           assembly: "local",
           status: "active",
           publishedAt: new Date(),
-          bumpedAt: new Date(Date.now() - Math.random() * 14 * 86_400_000),
           expiresAt: new Date(Date.now() + 30 * 86_400_000),
-          featuredUntil:
-            Math.random() > 0.85
-              ? new Date(Date.now() + 7 * 86_400_000)
-              : null,
-          inspectionScore:
-            Math.random() > 0.8 ? 70 + Math.floor(Math.random() * 30) : null,
         })
         .returning({ id: listings.id });
 
@@ -271,7 +257,6 @@ async function main() {
             engineCc: v.engineCc,
             status: "active",
             publishedAt: new Date(),
-            bumpedAt: new Date(Date.now() - Math.random() * 10 * 86_400_000),
             expiresAt: new Date(Date.now() + 30 * 86_400_000),
           })
           .returning({ id: listings.id });
@@ -332,7 +317,6 @@ async function main() {
           cityId: city.id,
           status: "active",
           publishedAt: new Date(),
-          bumpedAt: new Date(Date.now() - Math.random() * 10 * 86_400_000),
           expiresAt: new Date(Date.now() + 30 * 86_400_000),
         })
         .returning({ id: listings.id });
@@ -381,45 +365,6 @@ async function main() {
       .onConflictDoNothing();
   }
   console.log(`  feature links                 ${featureLinks.length}`);
-
-  // --- price snapshots ----------------------------------------------------
-  // Percentiles per (variant, year), national. This is the nightly rollup the
-  // price badge reads; running it here makes the feature visible in dev.
-  await db.delete(priceSnapshots);
-
-  const buckets = await db
-    .select({
-      variantId: listings.variantId,
-      modelId: listings.modelId,
-      makeId: listings.makeId,
-      year: listings.year,
-      n: sql<number>`COUNT(*)::int`,
-      p25: sql<number>`PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY ${listings.pricePkr})::int`,
-      p50: sql<number>`PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY ${listings.pricePkr})::int`,
-      p75: sql<number>`PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY ${listings.pricePkr})::int`,
-    })
-    .from(listings)
-    .where(and(eq(listings.vertical, "car"), eq(listings.status, "active")))
-    .groupBy(listings.variantId, listings.modelId, listings.makeId, listings.year)
-    .having(sql`COUNT(*) >= 3`);
-
-  if (buckets.length) {
-    await db.insert(priceSnapshots).values(
-      buckets.map((b) => ({
-        vertical: "car" as const,
-        makeId: b.makeId,
-        modelId: b.modelId,
-        variantId: b.variantId,
-        year: b.year,
-        cityId: null,
-        p25Pkr: b.p25,
-        p50Pkr: b.p50,
-        p75Pkr: b.p75,
-        sampleSize: b.n,
-      })),
-    );
-  }
-  console.log(`  price snapshots               ${buckets.length}`);
 
   console.log("\nDone.\n");
   process.exit(0);

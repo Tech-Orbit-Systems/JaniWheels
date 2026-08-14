@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
+import { randomBytes } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
@@ -11,7 +12,6 @@ import { listings } from "@/db/schema/listings";
 import { users } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { normalizePkPhone } from "@/lib/format";
-import { INSPECTION_PACKAGES } from "@/db/seed/commerce";
 
 /**
  * Trust actions: reporting bad listings, booking an inspection, and the
@@ -64,7 +64,16 @@ export async function reportListingAction(
 
   const user = await getCurrentUser();
   const jar = await cookies();
-  const anonId = jar.get("ab_anon")?.value ?? null;
+  let anonId = user ? null : (jar.get("jw_anon")?.value ?? null);
+  if (!user && !anonId) {
+    anonId = randomBytes(16).toString("hex");
+    jar.set("jw_anon", anonId, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+  }
 
   // One report per person per listing. Without this, a competitor can file
   // fifty reports and trip any automated threshold you set.
@@ -93,7 +102,7 @@ export async function reportListingAction(
     reporterAnonId: anonId,
     reason: parsed.data.reason,
     comment: parsed.data.comment ?? null,
-  });
+  }).onConflictDoNothing();
 
   /**
    * "Sold" is a helpful signal, not an accusation — treat one report as
@@ -135,7 +144,6 @@ export async function reportListingAction(
 // ---------------------------------------------------------------------------
 
 const inspectionSchema = z.object({
-  packageSlug: z.enum(["basic", "standard", "premium", "pdi"]),
   cityId: z.number().int().positive("Choose a city."),
   address: z.string().trim().min(5, "Where should the inspector go?").max(240),
   // Every constraint needs its own message. Without one Zod emits its raw
@@ -165,7 +173,6 @@ export async function bookInspectionAction(
   const listingIdRaw = Number(formData.get("listingId"));
 
   const parsed = inspectionSchema.safeParse({
-    packageSlug: formData.get("packageSlug"),
     cityId: Number(formData.get("cityId")),
     address: formData.get("address"),
     contactPhone: formData.get("contactPhone"),
@@ -188,17 +195,11 @@ export async function bookInspectionAction(
     };
   }
 
-  const pkg = INSPECTION_PACKAGES.find((p) => p.slug === parsed.data.packageSlug);
-  if (!pkg) return { error: "Unknown inspection package." };
-
   const [row] = await db
     .insert(inspections)
     .values({
       listingId: parsed.data.listingId ?? null,
       requestedByUserId: user.id,
-      packageSlug: pkg.slug,
-      // Price from the server-side catalogue, never from the form.
-      pricePkr: pkg.pricePkr,
       cityId: parsed.data.cityId,
       address: parsed.data.address,
       contactPhone: phone,

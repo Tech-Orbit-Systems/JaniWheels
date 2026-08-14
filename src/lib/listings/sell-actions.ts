@@ -65,17 +65,12 @@ export async function createCarListingAction(
   }
 
   const [dealer] = await db
-    .select({ id: dealers.id })
+    .select({ id: dealers.id, verifiedAt: dealers.verifiedAt })
     .from(dealers)
     .where(eq(dealers.userId, user.id))
     .limit(1);
 
-  /**
-   * Quota check. Charge for VISIBILITY, not for existence — a young
-   * marketplace that charges to list at all simply stays empty. But an
-   * unbounded free tier is how you get a hundred listings from one curbstoner
-   * pretending to be a private seller.
-   */
+  /** Prevent individuals from operating unreviewed dealer-scale inventory. */
   if (!dealer) {
     const [{ active }] = await db
       .select({ active: sql<number>`COUNT(*)::int` })
@@ -95,7 +90,7 @@ export async function createCarListingAction(
     dealerId: dealer?.id,
     // Dealers with a verified account skip the moderation queue; everyone
     // else is reviewed. Fraud arrives with traction, not after it.
-    autoApprove: Boolean(dealer),
+    autoApprove: Boolean(dealer?.verifiedAt),
   });
 
   revalidatePath("/used-cars");

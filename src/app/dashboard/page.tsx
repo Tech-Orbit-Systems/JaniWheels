@@ -66,12 +66,6 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/*
-        Leads before views, deliberately. Views are a vanity number; a phone
-        reveal is someone who wants the car. Showing sellers the metric that
-        actually matters is also what makes an upsell to Featured credible
-        later — you are selling more of a thing they can already measure.
-      */}
       <dl className="mb-6 grid grid-cols-3 gap-3">
         <Stat label="Phone reveals" value={totalLeads} emphasis />
         <Stat label="Views" value={totalViews} />
@@ -134,14 +128,6 @@ export default async function DashboardPage() {
                     {r.leadCount} phone reveal{r.leadCount === 1 ? "" : "s"}
                   </span>
                   <span className="text-slate-500">{r.viewCount} views</span>
-                  {r.status === "active" && (
-                    <Link
-                      href={`/promote/${r.id}`}
-                      className="font-medium text-blue-700 hover:underline"
-                    >
-                      Promote
-                    </Link>
-                  )}
                   {r.status === "active" && <MarkSoldButton listingId={r.id} />}
                 </div>
               </div>

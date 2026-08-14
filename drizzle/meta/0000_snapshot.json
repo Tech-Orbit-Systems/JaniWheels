@@ -1,5 +1,5 @@
 {
-  "id": "ec4d4a6e-1050-4442-a780-5da848cb9d2a",
+  "id": "de3b929e-e1af-4c43-bbe7-32655a63c1ab",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1116,100 +1116,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.otp_codes": {
-      "name": "otp_codes",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "code_hash": {
-          "name": "code_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "consumed_at": {
-          "name": "consumed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "request_ip": {
-          "name": "request_ip",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "otp_phone_idx": {
-          "name": "otp_phone_idx",
-          "columns": [
-            {
-              "expression": "phone",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "otp_expires_idx": {
-          "name": "otp_expires_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.sessions": {
       "name": "sessions",
       "schema": "",
@@ -1306,6 +1212,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "phone_verified_at": {
           "name": "phone_verified_at",
           "type": "timestamp with time zone",
@@ -1352,6 +1264,13 @@
           "notNull": true,
           "default": false
         },
+        "is_admin": {
+          "name": "is_admin",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1372,6 +1291,21 @@
           "columns": [
             {
               "expression": "phone",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "users_email_uq": {
+          "name": "users_email_uq",
+          "columns": [
+            {
+              "expression": "email",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1886,31 +1820,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "featured_until": {
-          "name": "featured_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "bumped_at": {
-          "name": "bumped_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "inspection_score": {
-          "name": "inspection_score",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "is_certified": {
-          "name": "is_certified",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "view_count": {
           "name": "view_count",
           "type": "integer",
@@ -1994,7 +1903,7 @@
               "nulls": "last"
             },
             {
-              "expression": "bumped_at",
+              "expression": "published_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2027,7 +1936,7 @@
               "nulls": "last"
             },
             {
-              "expression": "bumped_at",
+              "expression": "published_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2082,21 +1991,6 @@
             },
             {
               "expression": "year",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "listings_featured_idx": {
-          "name": "listings_featured_idx",
-          "columns": [
-            {
-              "expression": "featured_until",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2667,234 +2561,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.price_snapshots": {
-      "name": "price_snapshots",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "vertical": {
-          "name": "vertical",
-          "type": "vertical",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "make_id": {
-          "name": "make_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "model_id": {
-          "name": "model_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "variant_id": {
-          "name": "variant_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "year": {
-          "name": "year",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "city_id": {
-          "name": "city_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "p25_pkr": {
-          "name": "p25_pkr",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "p50_pkr": {
-          "name": "p50_pkr",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "p75_pkr": {
-          "name": "p75_pkr",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sample_size": {
-          "name": "sample_size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "median_days_to_sell": {
-          "name": "median_days_to_sell",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "computed_at": {
-          "name": "computed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "price_snapshots_key_uq": {
-          "name": "price_snapshots_key_uq",
-          "columns": [
-            {
-              "expression": "variant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "year",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "city_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "computed_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "price_snapshots_lookup_idx": {
-          "name": "price_snapshots_lookup_idx",
-          "columns": [
-            {
-              "expression": "variant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "year",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "city_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "price_snapshots_model_idx": {
-          "name": "price_snapshots_model_idx",
-          "columns": [
-            {
-              "expression": "model_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "year",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "price_snapshots_make_id_makes_id_fk": {
-          "name": "price_snapshots_make_id_makes_id_fk",
-          "tableFrom": "price_snapshots",
-          "tableTo": "makes",
-          "columnsFrom": [
-            "make_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "price_snapshots_model_id_models_id_fk": {
-          "name": "price_snapshots_model_id_models_id_fk",
-          "tableFrom": "price_snapshots",
-          "tableTo": "models",
-          "columnsFrom": [
-            "model_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "price_snapshots_variant_id_variants_id_fk": {
-          "name": "price_snapshots_variant_id_variants_id_fk",
-          "tableFrom": "price_snapshots",
-          "tableTo": "variants",
-          "columnsFrom": [
-            "variant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "price_snapshots_city_id_cities_id_fk": {
-          "name": "price_snapshots_city_id_cities_id_fk",
-          "tableFrom": "price_snapshots",
-          "tableTo": "cities",
-          "columnsFrom": [
-            "city_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.saved_listings": {
       "name": "saved_listings",
       "schema": "",
@@ -3085,536 +2751,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.ad_packages": {
-      "name": "ad_packages",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "slug": {
-          "name": "slug",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "vertical": {
-          "name": "vertical",
-          "type": "vertical",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "price_pkr": {
-          "name": "price_pkr",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "duration_days": {
-          "name": "duration_days",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 30
-        },
-        "featured_days": {
-          "name": "featured_days",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "bump_count": {
-          "name": "bump_count",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "photo_limit": {
-          "name": "photo_limit",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 10
-        },
-        "homepage_slot": {
-          "name": "homepage_slot",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        }
-      },
-      "indexes": {
-        "ad_packages_slug_uq": {
-          "name": "ad_packages_slug_uq",
-          "columns": [
-            {
-              "expression": "slug",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.dealer_plans": {
-      "name": "dealer_plans",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "slug": {
-          "name": "slug",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "monthly_price_pkr": {
-          "name": "monthly_price_pkr",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "listing_quota": {
-          "name": "listing_quota",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "featured_quota": {
-          "name": "featured_quota",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "bulk_upload": {
-          "name": "bulk_upload",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "branded_storefront": {
-          "name": "branded_storefront",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "lead_analytics": {
-          "name": "lead_analytics",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "priority_support": {
-          "name": "priority_support",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        }
-      },
-      "indexes": {
-        "dealer_plans_slug_uq": {
-          "name": "dealer_plans_slug_uq",
-          "columns": [
-            {
-              "expression": "slug",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.dealer_subscriptions": {
-      "name": "dealer_subscriptions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "dealer_id": {
-          "name": "dealer_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "plan_id": {
-          "name": "plan_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "starts_at": {
-          "name": "starts_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ends_at": {
-          "name": "ends_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "auto_renew": {
-          "name": "auto_renew",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "cancelled_at": {
-          "name": "cancelled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "dealer_subs_dealer_idx": {
-          "name": "dealer_subs_dealer_idx",
-          "columns": [
-            {
-              "expression": "dealer_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dealer_subs_active_idx": {
-          "name": "dealer_subs_active_idx",
-          "columns": [
-            {
-              "expression": "ends_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "dealer_subscriptions_dealer_id_dealers_id_fk": {
-          "name": "dealer_subscriptions_dealer_id_dealers_id_fk",
-          "tableFrom": "dealer_subscriptions",
-          "tableTo": "dealers",
-          "columnsFrom": [
-            "dealer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "dealer_subscriptions_plan_id_dealer_plans_id_fk": {
-          "name": "dealer_subscriptions_plan_id_dealer_plans_id_fk",
-          "tableFrom": "dealer_subscriptions",
-          "tableTo": "dealer_plans",
-          "columnsFrom": [
-            "plan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.orders": {
-      "name": "orders",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "bigserial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "reference": {
-          "name": "reference",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "listing_id": {
-          "name": "listing_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ad_package_id": {
-          "name": "ad_package_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dealer_plan_id": {
-          "name": "dealer_plan_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "amount_pkr": {
-          "name": "amount_pkr",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "order_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "gateway": {
-          "name": "gateway",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "gateway_ref": {
-          "name": "gateway_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "gateway_payload": {
-          "name": "gateway_payload",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "paid_at": {
-          "name": "paid_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "orders_reference_uq": {
-          "name": "orders_reference_uq",
-          "columns": [
-            {
-              "expression": "reference",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "orders_user_idx": {
-          "name": "orders_user_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "orders_status_idx": {
-          "name": "orders_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "orders_user_id_users_id_fk": {
-          "name": "orders_user_id_users_id_fk",
-          "tableFrom": "orders",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "orders_listing_id_listings_id_fk": {
-          "name": "orders_listing_id_listings_id_fk",
-          "tableFrom": "orders",
-          "tableTo": "listings",
-          "columnsFrom": [
-            "listing_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "orders_ad_package_id_ad_packages_id_fk": {
-          "name": "orders_ad_package_id_ad_packages_id_fk",
-          "tableFrom": "orders",
-          "tableTo": "ad_packages",
-          "columnsFrom": [
-            "ad_package_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "orders_dealer_plan_id_dealer_plans_id_fk": {
-          "name": "orders_dealer_plan_id_dealer_plans_id_fk",
-          "tableFrom": "orders",
-          "tableTo": "dealer_plans",
-          "columnsFrom": [
-            "dealer_plan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.inspections": {
       "name": "inspections",
       "schema": "",
@@ -3633,18 +2769,6 @@
         },
         "requested_by_user_id": {
           "name": "requested_by_user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "package_slug": {
-          "name": "package_slug",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "price_pkr": {
-          "name": "price_pkr",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
@@ -3669,47 +2793,10 @@
         },
         "status": {
           "name": "status",
-          "type": "inspection_status",
-          "typeSchema": "public",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "default": "'requested'"
-        },
-        "scheduled_at": {
-          "name": "scheduled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "inspector_id": {
-          "name": "inspector_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "overall_score": {
-          "name": "overall_score",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "section_scores": {
-          "name": "section_scores",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "report_pdf_key": {
-          "name": "report_pdf_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -3745,7 +2832,7 @@
               "nulls": "last"
             },
             {
-              "expression": "scheduled_at",
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3805,19 +2892,6 @@
           "tableTo": "cities",
           "columnsFrom": [
             "city_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "inspections_inspector_id_users_id_fk": {
-          "name": "inspections_inspector_id_users_id_fk",
-          "tableFrom": "inspections",
-          "tableTo": "users",
-          "columnsFrom": [
-            "inspector_id"
           ],
           "columnsTo": [
             "id"
@@ -3933,6 +3007,48 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "listing_reports_user_uq": {
+          "name": "listing_reports_user_uq",
+          "columns": [
+            {
+              "expression": "listing_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "reporter_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "listing_reports_anon_uq": {
+          "name": "listing_reports_anon_uq",
+          "columns": [
+            {
+              "expression": "listing_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "reporter_anon_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -4167,26 +3283,13 @@
         "lpg"
       ]
     },
-    "public.inspection_status": {
-      "name": "inspection_status",
-      "schema": "public",
-      "values": [
-        "requested",
-        "scheduled",
-        "in_progress",
-        "completed",
-        "cancelled"
-      ]
-    },
     "public.lead_type": {
       "name": "lead_type",
       "schema": "public",
       "values": [
         "phone_reveal",
         "whatsapp_click",
-        "message_sent",
         "dealer_profile_click",
-        "finance_enquiry",
         "inspection_enquiry"
       ]
     },
@@ -4201,17 +3304,6 @@
         "expired",
         "rejected",
         "removed"
-      ]
-    },
-    "public.order_status": {
-      "name": "order_status",
-      "schema": "public",
-      "values": [
-        "pending",
-        "paid",
-        "failed",
-        "refunded",
-        "cancelled"
       ]
     },
     "public.part_condition": {

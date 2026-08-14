@@ -49,16 +49,6 @@ export function ListingCard({
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover"
           />
-          {row.isFeatured && (
-            <span className="absolute left-2 top-2 rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">
-              Featured
-            </span>
-          )}
-          {row.inspectionScore != null && (
-            <span className="absolute right-2 top-2 rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
-              Inspected {(row.inspectionScore / 10).toFixed(1)}/10
-            </span>
-          )}
         </div>
 
         <div className="p-3">
@@ -76,7 +66,7 @@ export function ListingCard({
 
           <p className="mt-2 flex items-center justify-between text-xs text-slate-400">
             <span>{row.cityName}</span>
-            {row.bumpedAt && <span>{relativeTime(row.bumpedAt)}</span>}
+            {row.publishedAt && <span>{relativeTime(row.publishedAt)}</span>}
           </p>
         </div>
       </Link>

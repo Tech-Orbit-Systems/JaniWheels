@@ -61,26 +61,8 @@ export const partConditionEnum = pgEnum("part_condition", [
 export const leadTypeEnum = pgEnum("lead_type", [
   "phone_reveal",
   "whatsapp_click",
-  "message_sent",
   "dealer_profile_click",
-  "finance_enquiry",
   "inspection_enquiry",
-]);
-
-export const orderStatusEnum = pgEnum("order_status", [
-  "pending",
-  "paid",
-  "failed",
-  "refunded",
-  "cancelled",
-]);
-
-export const inspectionStatusEnum = pgEnum("inspection_status", [
-  "requested",
-  "scheduled",
-  "in_progress",
-  "completed",
-  "cancelled",
 ]);
 
 export const reportReasonEnum = pgEnum("report_reason", [

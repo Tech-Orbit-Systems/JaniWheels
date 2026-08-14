@@ -29,7 +29,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
  * split this into generateSitemaps() shards by vertical — the structure below
  * is already grouped for it.
  */
-export const revalidate = 86400;
+export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [
@@ -37,12 +37,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/used-cars`, changeFrequency: "hourly", priority: 0.9 },
     { url: `${SITE_URL}/used-bikes`, changeFrequency: "hourly", priority: 0.8 },
     { url: `${SITE_URL}/auto-parts`, changeFrequency: "daily", priority: 0.7 },
-    // Tool and service pages. The price calculator in particular targets one
-    // of the highest-volume queries in this market ("what is my car worth"),
-    // so it earns a high priority despite not being a listing page.
-    { url: `${SITE_URL}/price-calculator`, changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE_URL}/inspection`, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${SITE_URL}/car-finance`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${SITE_URL}/dealers`, changeFrequency: "daily", priority: 0.7 },
     { url: `${SITE_URL}/dealers/register`, changeFrequency: "monthly", priority: 0.5 },
   ];

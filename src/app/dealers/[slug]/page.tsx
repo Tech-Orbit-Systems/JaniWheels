@@ -15,8 +15,7 @@ import { PAGE_SIZE } from "@/lib/listings/search";
  *
  * Indexable, unlike the seller dashboard — a dealer's inventory page is a
  * genuine landing page ("Al-Karam Motors Lahore"), and it is also the thing
- * you are selling them in the Showroom plan. Branded storefronts are the
- * single feature dealers reliably pay for, alongside bulk upload.
+ * included in the core dealer experience.
  */
 
 async function getDealer(slug: string) {
@@ -87,9 +86,7 @@ export default async function DealerPage({
       fuel: sql<string | null>`${listings.fuel}::text`,
       transmission: sql<string | null>`${listings.transmission}::text`,
       engineCc: listings.engineCc,
-      isFeatured: sql<boolean>`(${listings.featuredUntil} IS NOT NULL AND ${listings.featuredUntil} > NOW())`,
-      inspectionScore: listings.inspectionScore,
-      bumpedAt: listings.bumpedAt,
+      publishedAt: listings.publishedAt,
       primaryImageKey: sql<string | null>`(
         SELECT storage_key FROM ${listingImages}
         WHERE listing_id = ${listings.id} ORDER BY position LIMIT 1
@@ -102,7 +99,7 @@ export default async function DealerPage({
     .where(
       and(eq(listings.dealerId, dealer.id), eq(listings.status, "active")),
     )
-    .orderBy(desc(listings.bumpedAt))
+    .orderBy(desc(listings.publishedAt))
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE);
 
