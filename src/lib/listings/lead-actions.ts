@@ -17,16 +17,15 @@ import { displayPkPhone } from "@/lib/format";
  * This is the moment the product created value, and therefore the most
  * important event in the system. It is:
  *   - the north-star metric (leads per listing, not pageviews),
- *   - the evidence that justifies a dealer subscription price,
- *   - the input to ranking,
- *   - the only honest basis for pricing a featured slot.
+ *   - the seller's clearest measure of buyer interest,
+ *   - an input to the basic seller and dealer dashboards.
  *
  * The number is deliberately NOT in the initial HTML. If it were, scrapers
  * would harvest every seller's number in one crawl and you would have no
  * lead data at all — which is precisely why the incumbent gates it too.
  */
 
-const ANON_COOKIE = "ab_anon";
+const ANON_COOKIE = "jw_anon";
 
 async function anonId(): Promise<string> {
   const jar = await cookies();
@@ -98,7 +97,7 @@ export async function revealPhoneAction(
 
 export async function logLeadAction(
   listingId: number,
-  type: "whatsapp_click" | "message_sent" | "finance_enquiry",
+  type: "whatsapp_click",
   source = "detail",
 ): Promise<void> {
   const user = await getCurrentUser();

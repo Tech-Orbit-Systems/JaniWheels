@@ -9,7 +9,7 @@ import { markSoldAction } from "@/lib/listings/sell-actions";
  * The temptation is to bury it — a live ad looks like inventory. But stale
  * "still available?" calls are the fastest way to make sellers stop posting,
  * and a sold listing is the single most valuable row you own: it is a real
- * transacted price, which is what `price_snapshots` is built from.
+ * final status accurate for buyers and the seller dashboard.
  */
 export function MarkSoldButton({ listingId }: { listingId: number }) {
   const [confirming, setConfirming] = useState(false);

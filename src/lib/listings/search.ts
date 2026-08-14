@@ -38,9 +38,7 @@ export interface SearchResultRow {
   fuel: string | null;
   transmission: string | null;
   engineCc: number | null;
-  isFeatured: boolean;
-  inspectionScore: number | null;
-  bumpedAt: Date | null;
+  publishedAt: Date | null;
   primaryImageKey: string | null;
 }
 
@@ -131,17 +129,8 @@ function buildWhere(state: FacetState): SQL[] {
   return clauses;
 }
 
-/**
- * Featured listings always sort first, then the chosen ordering.
- *
- * Note it sorts on `bumpedAt`, not `createdAt`. "Bump to top" is a paid
- * product; if the default sort ignored it, the thing sellers are paying for
- * would not visibly happen.
- */
 function buildOrderBy(sort: SortKey) {
-  const featuredFirst = sql`(${listings.featuredUntil} IS NOT NULL AND ${listings.featuredUntil} > NOW()) DESC`;
-
-  const secondary = (() => {
+  const primary = (() => {
     switch (sort) {
       case "price_asc":
         return asc(listings.pricePkr);
@@ -155,11 +144,11 @@ function buildOrderBy(sort: SortKey) {
         return asc(listings.mileageKm);
       case "recent":
       default:
-        return desc(sql`COALESCE(${listings.bumpedAt}, ${listings.publishedAt})`);
+        return desc(listings.publishedAt);
     }
   })();
 
-  return [featuredFirst, secondary, desc(listings.id)];
+  return [primary, desc(listings.id)];
 }
 
 export async function searchListings(
@@ -204,9 +193,7 @@ export async function searchListings(
       fuel: sql<string | null>`${listings.fuel}::text`,
       transmission: sql<string | null>`${listings.transmission}::text`,
       engineCc: listings.engineCc,
-      isFeatured: sql<boolean>`(${listings.featuredUntil} IS NOT NULL AND ${listings.featuredUntil} > NOW())`,
-      inspectionScore: listings.inspectionScore,
-      bumpedAt: listings.bumpedAt,
+      publishedAt: listings.publishedAt,
       primaryImageKey: sql<string | null>`${primaryImage.storageKey}`,
     })
     .from(listings)

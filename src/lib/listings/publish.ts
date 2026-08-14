@@ -130,7 +130,6 @@ export async function publishCarListing(
         status: opts.autoApprove ? "active" : "pending_review",
         photoCount: input.imageKeys.length,
         publishedAt: opts.autoApprove ? now : null,
-        bumpedAt: opts.autoApprove ? now : null,
         expiresAt,
       })
       .returning({ id: listings.id });
@@ -146,9 +145,7 @@ export async function publishCarListing(
       auctionGrade: input.auctionGrade ?? null,
     });
 
-    // Guarded: Drizzle throws on `.values([])`, and bulk-imported listings
-    // legitimately start with no photos (they are attached afterwards from
-    // the dealer console).
+    // Guarded because Drizzle throws on `.values([])`.
     if (input.imageKeys.length) {
       await tx.insert(listingImages).values(
         input.imageKeys.map((key, i) => ({

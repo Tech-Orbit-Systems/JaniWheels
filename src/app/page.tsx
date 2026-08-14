@@ -55,8 +55,8 @@ export default async function HomePage() {
           Buy and sell used cars in Pakistan
         </h1>
         <p className="mt-2 max-w-2xl text-slate-600">
-          Every listing shows how its price compares to the market, so you know
-          whether you are looking at a deal before you pick up the phone.
+          Discover classified listings from private sellers and verified
+          dealers, then contact the seller directly.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3">

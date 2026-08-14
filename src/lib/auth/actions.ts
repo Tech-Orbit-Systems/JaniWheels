@@ -2,99 +2,186 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { eq, or } from "drizzle-orm";
 import { z } from "zod";
+import { db } from "@/db";
+import { users } from "@/db/schema/users";
 import { normalizePkPhone } from "@/lib/format";
-import { requestOtp, verifyOtp } from "./otp";
+import { hashPassword, verifyPassword } from "./password";
 import { createSession, destroySession } from "./session";
 
-/**
- * Auth server actions.
- *
- * Both actions return a serializable state object rather than throwing, so
- * the form can render errors inline via useActionState without a client-side
- * fetch layer.
- */
+export type AuthMode = "sign_in" | "register";
 
 export interface AuthState {
-  step: "phone" | "code";
-  phone?: string;
+  mode: AuthMode;
   error?: string;
-  devCode?: string;
-  /** Where to send the user after a successful login. */
+  fieldErrors?: Record<string, string>;
   next?: string;
 }
 
-const phoneSchema = z.string().min(10).max(20);
-const codeSchema = z.string().regex(/^\d{6}$/, "Enter the 6-digit code.");
+const passwordSchema = z
+  .string()
+  .min(10, "Use at least 10 characters.")
+  .max(128, "Password is too long.");
 
-async function clientIp(): Promise<string | undefined> {
+const signInSchema = z.object({
+  phone: z.string().min(10, "Enter your mobile number.").max(20),
+  password: z.string().min(1, "Enter your password.").max(128),
+});
+
+const registerSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name.").max(100),
+  email: z.string().trim().email("Enter a valid email address.").max(254),
+  phone: z.string().min(10, "Enter your mobile number.").max(20),
+  password: passwordSchema,
+});
+
+const dummyHash = hashPassword("not-a-real-account-password");
+
+async function requestMeta() {
   const h = await headers();
-  return (
-    h.get("cf-connecting-ip") ??
-    h.get("x-real-ip") ??
-    h.get("x-forwarded-for")?.split(",")[0].trim() ??
-    undefined
-  );
+  return {
+    userAgent: h.get("user-agent") ?? undefined,
+    ip:
+      h.get("cf-connecting-ip") ??
+      h.get("x-real-ip") ??
+      h.get("x-forwarded-for")?.split(",")[0].trim() ??
+      undefined,
+  };
 }
 
-export async function requestCodeAction(
-  _prev: AuthState,
+function safeNext(value: FormDataEntryValue | null): string {
+  const next = typeof value === "string" ? value : "/";
+  return next.startsWith("/") && !next.startsWith("//") ? next : "/";
+}
+
+function issues(error: z.ZodError): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const issue of error.issues) {
+    result[String(issue.path[0] ?? "form")] ??= issue.message;
+  }
+  return result;
+}
+
+export async function authenticateAction(
+  _previous: AuthState,
   formData: FormData,
 ): Promise<AuthState> {
-  const next = (formData.get("next") as string) || "/";
-  const raw = phoneSchema.safeParse(formData.get("phone"));
+  const mode: AuthMode =
+    formData.get("mode") === "register" ? "register" : "sign_in";
+  const next = safeNext(formData.get("next"));
 
-  if (!raw.success) {
-    return { step: "phone", error: "Enter your mobile number.", next };
+  if (mode === "register") {
+    const parsed = registerSchema.safeParse({
+      name: formData.get("name"),
+      email: formData.get("email"),
+      phone: formData.get("phone"),
+      password: formData.get("password"),
+    });
+    if (!parsed.success) {
+      return {
+        mode,
+        next,
+        error: "Please fix the highlighted fields.",
+        fieldErrors: issues(parsed.error),
+      };
+    }
+
+    const phone = normalizePkPhone(parsed.data.phone);
+    if (!phone) {
+      return {
+        mode,
+        next,
+        error: "Please fix the highlighted fields.",
+        fieldErrors: { phone: "Enter a valid Pakistani mobile number." },
+      };
+    }
+
+    const email = parsed.data.email.toLowerCase();
+    const [existing] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(or(eq(users.phone, phone), eq(users.email, email)))
+      .limit(1);
+    if (existing) {
+      return {
+        mode,
+        next,
+        error: "An account already exists with this mobile number or email.",
+      };
+    }
+
+    try {
+      const [created] = await db
+        .insert(users)
+        .values({
+          name: parsed.data.name,
+          email,
+          phone,
+          passwordHash: await hashPassword(parsed.data.password),
+          lastSeenAt: new Date(),
+        })
+        .returning({ id: users.id });
+
+      await createSession(created.id, await requestMeta());
+    } catch (error) {
+      const code =
+        typeof error === "object" && error && "code" in error
+          ? String(error.code)
+          : "";
+      if (code === "23505") {
+        return {
+          mode,
+          next,
+          error: "An account already exists with this mobile number or email.",
+        };
+      }
+      throw error;
+    }
+
+    redirect(next);
   }
 
-  const phone = normalizePkPhone(raw.data);
-  if (!phone) {
+  const parsed = signInSchema.safeParse({
+    phone: formData.get("phone"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) {
     return {
-      step: "phone",
-      error: "That doesn't look like a Pakistani mobile number.",
+      mode,
       next,
+      error: "Please fix the highlighted fields.",
+      fieldErrors: issues(parsed.error),
     };
   }
 
-  const result = await requestOtp(phone, await clientIp());
-  if (!result.ok) {
-    return { step: "phone", error: result.error, next };
+  const phone = normalizePkPhone(parsed.data.phone);
+  const [account] = phone
+    ? await db
+        .select({
+          id: users.id,
+          passwordHash: users.passwordHash,
+          isBanned: users.isBanned,
+        })
+        .from(users)
+        .where(eq(users.phone, phone))
+        .limit(1)
+    : [];
+
+  const valid = await verifyPassword(
+    parsed.data.password,
+    account?.passwordHash ?? (await dummyHash),
+  );
+  if (!account || !valid || account.isBanned) {
+    return { mode, next, error: "Incorrect mobile number or password." };
   }
 
-  return { step: "code", phone, devCode: result.devCode, next };
-}
-
-export async function verifyCodeAction(
-  prev: AuthState,
-  formData: FormData,
-): Promise<AuthState> {
-  const phone = (formData.get("phone") as string) ?? prev.phone;
-  const next = (formData.get("next") as string) || prev.next || "/";
-
-  if (!phone) {
-    return { step: "phone", error: "Start again — we lost your number.", next };
-  }
-
-  const code = codeSchema.safeParse(formData.get("code"));
-  if (!code.success) {
-    return { step: "code", phone, error: code.error.issues[0].message, next };
-  }
-
-  const result = await verifyOtp(phone, code.data);
-  if (!result.ok) {
-    return { step: "code", phone, error: result.error, next };
-  }
-
-  const h = await headers();
-  await createSession(result.userId, {
-    userAgent: h.get("user-agent") ?? undefined,
-    ip: await clientIp(),
-  });
-
-  // Only ever redirect to a same-site path. Taking `next` straight from the
-  // form would be an open redirect — a phishing primitive, and a cheap one.
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  await db
+    .update(users)
+    .set({ lastSeenAt: new Date() })
+    .where(eq(users.id, account.id));
+  await createSession(account.id, await requestMeta());
+  redirect(next);
 }
 
 export async function logoutAction(): Promise<void> {

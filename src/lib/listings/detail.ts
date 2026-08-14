@@ -49,8 +49,6 @@ export const getListingDetail = cache(
         fuel: sql<string | null>`${listings.fuel}::text`,
         bodyType: sql<string | null>`${listings.bodyType}::text`,
         assembly: sql<string | null>`${listings.assembly}::text`,
-        inspectionScore: listings.inspectionScore,
-        isCertified: listings.isCertified,
         viewCount: listings.viewCount,
         publishedAt: listings.publishedAt,
         updatedAt: listings.updatedAt,

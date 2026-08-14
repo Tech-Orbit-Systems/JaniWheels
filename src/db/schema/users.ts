@@ -14,11 +14,8 @@ import { sellerTypeEnum } from "./enums";
 import { cities } from "./geo";
 
 /**
- * Identity is the phone number, not the email address.
- *
- * In this market email-first signup is a conversion cliff, and the phone
- * number is simultaneously the login credential AND the thing buyers are
- * paying attention to. Email is optional and used only for receipts.
+ * Accounts use a mobile number and password. SMS OTP is intentionally not
+ * part of V1; phone verification is handled through the manual trust flow.
  */
 
 export const users = pgTable(
@@ -27,6 +24,7 @@ export const users = pgTable(
     id: serial("id").primaryKey(),
     /** E.164, always stored normalized: +923001234567 */
     phone: text("phone").notNull(),
+    passwordHash: text("password_hash"),
     phoneVerifiedAt: timestamp("phone_verified_at", { withTimezone: true }),
     name: text("name"),
     email: text("email"),
@@ -48,14 +46,14 @@ export const users = pgTable(
   },
   (t) => [
     uniqueIndex("users_phone_uq").on(t.phone),
+    uniqueIndex("users_email_uq").on(t.email),
     index("users_type_idx").on(t.type),
   ],
 );
 
 /**
- * Dealers are where recurring revenue lives. An individual sells one car
- * every four years; a dealer lists thirty at a time and will pay monthly
- * for placement and a bulk upload tool.
+ * Dealer profiles and storefronts are included in V1. Billing, paid
+ * placement, subscriptions and automatic inventory imports are not.
  */
 export const dealers = pgTable(
   "dealers",
@@ -86,31 +84,6 @@ export const dealers = pgTable(
     uniqueIndex("dealers_slug_uq").on(t.slug),
     uniqueIndex("dealers_user_uq").on(t.userId),
     index("dealers_city_idx").on(t.cityId),
-  ],
-);
-
-/**
- * OTP codes are stored hashed. A plaintext OTP table is a credential
- * database, and it will eventually leak.
- */
-export const otpCodes = pgTable(
-  "otp_codes",
-  {
-    id: serial("id").primaryKey(),
-    phone: text("phone").notNull(),
-    codeHash: text("code_hash").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    attempts: smallint("attempts").notNull().default(0),
-    consumedAt: timestamp("consumed_at", { withTimezone: true }),
-    /** Rate limiting: how many codes this phone requested in the window. */
-    requestIp: text("request_ip"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (t) => [
-    index("otp_phone_idx").on(t.phone),
-    index("otp_expires_idx").on(t.expiresAt),
   ],
 );
 

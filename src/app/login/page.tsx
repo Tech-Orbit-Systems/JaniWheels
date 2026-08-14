@@ -11,22 +11,27 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; mode?: string }>;
 }) {
   const user = await getCurrentUser();
-  const { next } = await searchParams;
+  const { next, mode: rawMode } = await searchParams;
   const target = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const mode = rawMode === "register" ? "register" : "sign_in";
 
   if (user) redirect(target);
 
   return (
     <main className="mx-auto w-full max-w-md px-4 py-12">
       <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <h1 className="text-xl font-semibold text-slate-900">Sign in</h1>
+        <h1 className="text-xl font-semibold text-slate-900">
+          {mode === "register" ? "Create your account" : "Sign in"}
+        </h1>
         <p className="mb-6 mt-1 text-sm text-slate-500">
-          Your mobile number is your account.
+          {mode === "register"
+            ? "Post and manage your classified ads."
+            : "Use your mobile number and password."}
         </p>
-        <LoginForm next={target} />
+        <LoginForm next={target} mode={mode} />
       </div>
     </main>
   );

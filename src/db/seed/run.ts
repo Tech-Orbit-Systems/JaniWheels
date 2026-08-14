@@ -18,8 +18,6 @@ import {
   variants,
   partCategories,
   features,
-  adPackages,
-  dealerPlans,
 } from "../schema";
 import { PROVINCES, CITIES, AREAS } from "./geo";
 import {
@@ -31,7 +29,6 @@ import {
   type MakeSeed,
   type PartCategorySeed,
 } from "./vehicles";
-import { AD_PACKAGES, DEALER_PLANS } from "./commerce";
 import slugify from "slugify";
 
 function log(step: string, n: number) {
@@ -257,17 +254,6 @@ async function seedFeatures() {
   log("features", values.length);
 }
 
-async function seedCommerce() {
-  await db
-    .insert(adPackages)
-    .values(AD_PACKAGES.map((p) => ({ ...p, vertical: p.vertical ?? null })))
-    .onConflictDoNothing();
-  log("ad packages", AD_PACKAGES.length);
-
-  await db.insert(dealerPlans).values(DEALER_PLANS).onConflictDoNothing();
-  log("dealer plans", DEALER_PLANS.length);
-}
-
 async function main() {
   console.log("Seeding JaniWheels\n" + "=".repeat(40));
 
@@ -281,9 +267,6 @@ async function main() {
   await seedMakes(BIKE_MAKES, "bike");
   await seedPartCategories();
   await seedFeatures();
-
-  console.log("\nCommerce");
-  await seedCommerce();
 
   console.log("\nDone.\n");
   process.exit(0);

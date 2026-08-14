@@ -3,8 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { listings } from "@/db/schema/listings";
-import { otpCodes, sessions } from "@/db/schema/users";
-import { rebuildPriceSnapshots } from "@/lib/analytics/price-rollup";
+import { sessions } from "@/db/schema/users";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,12 +12,11 @@ export const dynamic = "force-dynamic";
  * Scheduled jobs, triggered by an external scheduler (cron, Vercel Cron,
  * GitHub Actions) hitting this endpoint with the shared secret.
  *
- *   curl -H "Authorization: Bearer $CRON_SECRET" https://site/api/cron/price-snapshots
+ *   curl -H "Authorization: Bearer $CRON_SECRET" https://site/api/cron/expire-listings
  *
  * Authenticated by a constant-time secret compare rather than left open —
- * `expire-listings` is destructive and `price-snapshots` is expensive, so an
- * unauthenticated endpoint is both a denial-of-service lever and a way to
- * quietly unpublish the whole catalogue.
+ * `expire-listings` is destructive, so an unauthenticated endpoint would be
+ * a way to quietly unpublish the whole catalogue.
  */
 
 function authorized(request: Request): boolean {
@@ -34,11 +32,8 @@ function authorized(request: Request): boolean {
 }
 
 const JOBS = {
-  /** Rebuild the percentile tables behind the price-vs-market badge. */
-  "price-snapshots": async () => rebuildPriceSnapshots(),
-
   /**
-   * Expire listings past their paid window. Without this the site slowly
+   * Expire listings past their publication window. Without this the site slowly
    * fills with cars that sold months ago, which is the fastest way to lose
    * buyer trust — and every stale listing is also an indexed page that
    * disappoints whoever clicks it.
@@ -54,19 +49,14 @@ const JOBS = {
     return { expired: expired.length };
   },
 
-  /** Housekeeping: consumed/expired OTPs and dead sessions. */
+  /** Housekeeping for expired sessions. */
   "purge-expired": async () => {
-    const otps = await db
-      .delete(otpCodes)
-      .where(sql`${otpCodes.expiresAt} < NOW() - INTERVAL '1 day'`)
-      .returning({ id: otpCodes.id });
-
     const dead = await db
       .delete(sessions)
       .where(sql`${sessions.expiresAt} < NOW()`)
       .returning({ id: sessions.id });
 
-    return { otpCodes: otps.length, sessions: dead.length };
+    return { sessions: dead.length };
   },
 } as const;
 

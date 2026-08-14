@@ -3,14 +3,14 @@ import {
   serial,
   bigserial,
   integer,
-  smallint,
   text,
   boolean,
   timestamp,
   jsonb,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { inspectionStatusEnum, reportReasonEnum } from "./enums";
+import { reportReasonEnum } from "./enums";
 import { listings } from "./listings";
 import { users } from "./users";
 import { cities } from "./geo";
@@ -22,8 +22,9 @@ import { cities } from "./geo";
  * trust. Everything here exists to answer one buyer question: "is this
  * seller lying to me?"
  *
- * Note that `inspections` is the schema for a LOGISTICS business — field
- * inspectors, scheduling, travel. The software is the easy tenth of it.
+ * V1 captures inspection requests for manual follow-up. Inspector assignment,
+ * workforce scheduling, scoring, reports and payments are intentionally out
+ * of scope.
  */
 
 export const inspections = pgTable(
@@ -36,26 +37,14 @@ export const inspections = pgTable(
       .notNull()
       .references(() => users.id),
 
-    /** basic | standard | premium | pdi */
-    packageSlug: text("package_slug").notNull(),
-    pricePkr: integer("price_pkr").notNull(),
-
     cityId: integer("city_id")
       .notNull()
       .references(() => cities.id),
     address: text("address"),
     contactPhone: text("contact_phone").notNull(),
 
-    status: inspectionStatusEnum("status").notNull().default("requested"),
-    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
-    completedAt: timestamp("completed_at", { withTimezone: true }),
-    inspectorId: integer("inspector_id").references(() => users.id),
-
-    /** 0-100. Denormalized onto listings.inspectionScore when completed. */
-    overallScore: smallint("overall_score"),
-    /** Per-section scores: { engine: 92, suspension: 78, exterior: 85, ... } */
-    sectionScores: jsonb("section_scores"),
-    reportPdfKey: text("report_pdf_key"),
+    /** requested | contacted | cancelled */
+    status: text("status").notNull().default("requested"),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -63,7 +52,7 @@ export const inspections = pgTable(
   },
   (t) => [
     index("inspections_listing_idx").on(t.listingId),
-    index("inspections_status_idx").on(t.status, t.scheduledAt),
+    index("inspections_status_idx").on(t.status, t.createdAt),
     index("inspections_city_idx").on(t.cityId),
   ],
 );
@@ -95,6 +84,14 @@ export const listingReports = pgTable(
   (t) => [
     index("listing_reports_listing_idx").on(t.listingId),
     index("listing_reports_status_idx").on(t.status, t.createdAt),
+    uniqueIndex("listing_reports_user_uq").on(
+      t.listingId,
+      t.reporterUserId,
+    ),
+    uniqueIndex("listing_reports_anon_uq").on(
+      t.listingId,
+      t.reporterAnonId,
+    ),
   ],
 );
 

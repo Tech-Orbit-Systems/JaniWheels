@@ -19,7 +19,7 @@ import { sessions, users } from "@/db/schema/users";
  * force. Work factors exist to slow down guessing low-entropy human secrets.
  */
 
-const COOKIE_NAME = "ab_session";
+const COOKIE_NAME = "jw_session";
 const SESSION_DAYS = 60;
 
 function hashToken(token: string): string {

@@ -3,7 +3,6 @@ import {
   serial,
   bigserial,
   integer,
-  smallint,
   text,
   timestamp,
   jsonb,
@@ -13,17 +12,14 @@ import {
 import { verticalEnum, leadTypeEnum } from "./enums";
 import { listings } from "./listings";
 import { users } from "./users";
-import { cities } from "./geo";
-import { makes, models, variants } from "./taxonomy";
 
 /**
  * LEAD EVENTS — log these from the first day the site is live.
  *
  * A phone reveal is the moment your product created value. It is:
  *   - the north-star metric (leads per listing, not pageviews),
- *   - the evidence you show a dealer to justify a subscription price,
- *   - the input to ranking (listings that convert should surface higher),
- *   - the only honest way to price a "featured" slot.
+ *   - the clearest measure of buyer interest for seller dashboards,
+ *   - a useful operational signal for moderation and support.
  *
  * Sites that add this table in year two spend year two guessing.
  */
@@ -38,7 +34,7 @@ export const leadEvents = pgTable(
     userId: integer("user_id").references(() => users.id),
     anonId: text("anon_id"),
     type: leadTypeEnum("type").notNull(),
-    /** search | detail | similar | dealer_page | featured_carousel */
+    /** search | detail | similar | dealer_page */
     source: text("source"),
     referrer: text("referrer"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -49,49 +45,6 @@ export const leadEvents = pgTable(
     index("lead_events_listing_idx").on(t.listingId, t.createdAt),
     index("lead_events_created_idx").on(t.createdAt),
     index("lead_events_type_idx").on(t.type, t.createdAt),
-  ],
-);
-
-/**
- * Rolled up nightly from sold + active listings.
- *
- * This powers the single biggest gap in the incumbent's product: a
- * price-vs-market badge on every listing page. You already own the data the
- * moment you have volume; the only reason not to ship it is not having
- * somewhere to put it.
- */
-export const priceSnapshots = pgTable(
-  "price_snapshots",
-  {
-    id: serial("id").primaryKey(),
-    vertical: verticalEnum("vertical").notNull(),
-    makeId: integer("make_id").references(() => makes.id),
-    modelId: integer("model_id").references(() => models.id),
-    variantId: integer("variant_id").references(() => variants.id),
-    year: smallint("year"),
-    /** NULL = national figure. */
-    cityId: integer("city_id").references(() => cities.id),
-
-    p25Pkr: integer("p25_pkr").notNull(),
-    p50Pkr: integer("p50_pkr").notNull(),
-    p75Pkr: integer("p75_pkr").notNull(),
-    sampleSize: integer("sample_size").notNull(),
-    /** Median days between publish and sold, for "sells in ~N days". */
-    medianDaysToSell: smallint("median_days_to_sell"),
-
-    computedAt: timestamp("computed_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (t) => [
-    uniqueIndex("price_snapshots_key_uq").on(
-      t.variantId,
-      t.year,
-      t.cityId,
-      t.computedAt,
-    ),
-    index("price_snapshots_lookup_idx").on(t.variantId, t.year, t.cityId),
-    index("price_snapshots_model_idx").on(t.modelId, t.year),
   ],
 );
 

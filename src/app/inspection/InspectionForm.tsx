@@ -6,13 +6,6 @@ import {
   type InspectionState,
 } from "@/lib/trust/actions";
 
-const PACKAGES = [
-  { slug: "basic", label: "Basic — up to 1000cc" },
-  { slug: "standard", label: "Standard — 1001 to 2000cc" },
-  { slug: "premium", label: "Premium — SUV / 4x4 / German" },
-  { slug: "pdi", label: "Pre-delivery inspection (new car)" },
-];
-
 export function InspectionForm({
   cities,
   listingId,
@@ -48,16 +41,6 @@ export function InspectionForm({
           {state.error}
         </p>
       )}
-
-      <Field label="Package" error={err("packageSlug")}>
-        <select name="packageSlug" required className={input} defaultValue="standard">
-          {PACKAGES.map((p) => (
-            <option key={p.slug} value={p.slug}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </Field>
 
       <Field label="City" error={err("cityId")}>
         <select name="cityId" required className={input} defaultValue="">
@@ -100,7 +83,8 @@ export function InspectionForm({
         {pending ? "Booking…" : "Request inspection"}
       </button>
       <p className="text-xs text-slate-500">
-        No payment now — you pay the inspector after the report.
+        Our team will contact you to confirm the available service and next
+        steps. No payment is collected through the website.
       </p>
     </form>
   );

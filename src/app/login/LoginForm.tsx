@@ -1,81 +1,64 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import {
-  requestCodeAction,
-  verifyCodeAction,
+  authenticateAction,
+  type AuthMode,
   type AuthState,
 } from "@/lib/auth/actions";
 
-/**
- * Two-step phone login.
- *
- * Deliberately not an email/password form. In this market email-first signup
- * is a conversion cliff, and the phone number is the thing buyers will
- * actually call — verifying it at signup is what makes a listing usable.
- */
-export function LoginForm({ next }: { next: string }) {
+export function LoginForm({
+  next,
+  mode,
+}: {
+  next: string;
+  mode: AuthMode;
+}) {
   const [state, action, pending] = useActionState<AuthState, FormData>(
-    async (prev, formData) =>
-      prev.step === "code" && formData.get("code")
-        ? verifyCodeAction(prev, formData)
-        : requestCodeAction(prev, formData),
-    { step: "phone", next },
+    authenticateAction,
+    { mode, next },
   );
+  const registering = mode === "register";
 
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="next" value={next} />
+      <input type="hidden" name="mode" value={mode} />
 
-      {state.step === "phone" ? (
-        <div>
-          <label
-            htmlFor="phone"
-            className="block text-sm font-medium text-slate-700"
-          >
-            Mobile number
-          </label>
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            inputMode="numeric"
-            autoComplete="tel"
-            autoFocus
-            placeholder="0300 1234567"
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2.5 text-base"
-          />
-          <p className="mt-1.5 text-xs text-slate-500">
-            We&apos;ll text you a 6-digit code.
-          </p>
-        </div>
-      ) : (
-        <div>
-          <input type="hidden" name="phone" value={state.phone} />
-          <label
-            htmlFor="code"
-            className="block text-sm font-medium text-slate-700"
-          >
-            Enter the code sent to {state.phone}
-          </label>
-          <input
-            id="code"
-            name="code"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            autoFocus
-            placeholder="123456"
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2.5 text-center text-2xl tracking-[0.4em]"
-          />
-          {state.devCode && (
-            <p className="mt-2 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
-              Dev mode — your code is <strong>{state.devCode}</strong>
-            </p>
-          )}
-        </div>
+      {registering && (
+        <Field
+          id="name"
+          label="Full name"
+          type="text"
+          autoComplete="name"
+          error={state.fieldErrors?.name}
+        />
       )}
+      {registering && (
+        <Field
+          id="email"
+          label="Email address"
+          type="email"
+          autoComplete="email"
+          error={state.fieldErrors?.email}
+        />
+      )}
+      <Field
+        id="phone"
+        label="Mobile number"
+        type="tel"
+        autoComplete="tel"
+        placeholder="0300 1234567"
+        error={state.fieldErrors?.phone}
+      />
+      <Field
+        id="password"
+        label="Password"
+        type="password"
+        autoComplete={registering ? "new-password" : "current-password"}
+        error={state.fieldErrors?.password}
+      />
 
       {state.error && (
         <p role="alert" className="text-sm text-red-600">
@@ -90,10 +73,47 @@ export function LoginForm({ next }: { next: string }) {
       >
         {pending
           ? "Please wait…"
-          : state.step === "phone"
-            ? "Send code"
-            : "Verify and continue"}
+          : registering
+            ? "Create account"
+            : "Sign in"}
       </button>
+
+      <p className="text-center text-sm text-slate-600">
+        {registering ? "Already have an account?" : "New to JaniWheels?"}{" "}
+        <Link
+          href={`/login?mode=${registering ? "sign_in" : "register"}&next=${encodeURIComponent(next)}`}
+          className="font-medium text-blue-700 hover:underline"
+        >
+          {registering ? "Sign in" : "Create an account"}
+        </Link>
+      </p>
     </form>
+  );
+}
+
+function Field({
+  id,
+  label,
+  error,
+  ...input
+}: {
+  id: string;
+  label: string;
+  error?: string;
+} & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+        {label}
+      </label>
+      <input
+        id={id}
+        name={id}
+        required
+        {...input}
+        className="mt-1 w-full rounded border border-slate-300 px-3 py-2.5 text-base"
+      />
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
   );
 }

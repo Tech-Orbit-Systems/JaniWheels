@@ -69,17 +69,7 @@ const config: NextConfig = {
               "connect-src 'self' https://www.google-analytics.com",
               "frame-ancestors 'self'",
               "base-uri 'self'",
-              // Payment checkout posts a signed form to the gateway's hosted
-              // page. With a bare `form-action 'self'` the browser silently
-              // blocks that submit and checkout dies with no server-side
-              // error to find.
-              [
-                "form-action 'self'",
-                "https://payments.jazzcash.com.pk",
-                "https://sandbox.jazzcash.com.pk",
-                "https://easypay.easypaisa.com.pk",
-                "https://easypaystg.easypaisa.com.pk",
-              ].join(" "),
+              "form-action 'self'",
             ].join("; "),
           },
         ],

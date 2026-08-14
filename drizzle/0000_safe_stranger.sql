@@ -1,10 +1,8 @@
 CREATE TYPE "public"."assembly" AS ENUM('local', 'imported');--> statement-breakpoint
 CREATE TYPE "public"."body_type" AS ENUM('hatchback', 'sedan', 'suv', 'crossover', 'van', 'pickup', 'mini_van', 'wagon', 'coupe', 'convertible', 'truck', 'mpv', 'micro_van', 'high_roof');--> statement-breakpoint
 CREATE TYPE "public"."fuel" AS ENUM('petrol', 'diesel', 'hybrid', 'electric', 'cng', 'lpg');--> statement-breakpoint
-CREATE TYPE "public"."inspection_status" AS ENUM('requested', 'scheduled', 'in_progress', 'completed', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."lead_type" AS ENUM('phone_reveal', 'whatsapp_click', 'message_sent', 'dealer_profile_click', 'finance_enquiry', 'inspection_enquiry');--> statement-breakpoint
+CREATE TYPE "public"."lead_type" AS ENUM('phone_reveal', 'whatsapp_click', 'dealer_profile_click', 'inspection_enquiry');--> statement-breakpoint
 CREATE TYPE "public"."listing_status" AS ENUM('draft', 'pending_review', 'active', 'sold', 'expired', 'rejected', 'removed');--> statement-breakpoint
-CREATE TYPE "public"."order_status" AS ENUM('pending', 'paid', 'failed', 'refunded', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."part_condition" AS ENUM('new', 'used', 'refurbished');--> statement-breakpoint
 CREATE TYPE "public"."report_reason" AS ENUM('sold', 'fraud', 'wrong_price', 'wrong_category', 'duplicate', 'offensive', 'spam', 'other');--> statement-breakpoint
 CREATE TYPE "public"."seller_type" AS ENUM('individual', 'dealer');--> statement-breakpoint
@@ -117,17 +115,6 @@ CREATE TABLE "dealers" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "otp_codes" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"phone" text NOT NULL,
-	"code_hash" text NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"attempts" smallint DEFAULT 0 NOT NULL,
-	"consumed_at" timestamp with time zone,
-	"request_ip" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "sessions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
@@ -140,6 +127,7 @@ CREATE TABLE "sessions" (
 CREATE TABLE "users" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"phone" text NOT NULL,
+	"password_hash" text,
 	"phone_verified_at" timestamp with time zone,
 	"name" text,
 	"email" text,
@@ -147,6 +135,7 @@ CREATE TABLE "users" (
 	"type" "seller_type" DEFAULT 'individual' NOT NULL,
 	"trust_score" smallint DEFAULT 50 NOT NULL,
 	"is_banned" boolean DEFAULT false NOT NULL,
+	"is_admin" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"last_seen_at" timestamp with time zone
 );
@@ -210,10 +199,6 @@ CREATE TABLE "listings" (
 	"body_type" "body_type",
 	"engine_cc" integer,
 	"assembly" "assembly",
-	"featured_until" timestamp with time zone,
-	"bumped_at" timestamp with time zone,
-	"inspection_score" smallint,
-	"is_certified" boolean DEFAULT false NOT NULL,
 	"view_count" integer DEFAULT 0 NOT NULL,
 	"lead_count" integer DEFAULT 0 NOT NULL,
 	"photo_count" smallint DEFAULT 0 NOT NULL,
@@ -254,22 +239,6 @@ CREATE TABLE "listing_views_daily" (
 	"unique_views" integer DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "price_snapshots" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"vertical" "vertical" NOT NULL,
-	"make_id" integer,
-	"model_id" integer,
-	"variant_id" integer,
-	"year" smallint,
-	"city_id" integer,
-	"p25_pkr" integer NOT NULL,
-	"p50_pkr" integer NOT NULL,
-	"p75_pkr" integer NOT NULL,
-	"sample_size" integer NOT NULL,
-	"median_days_to_sell" smallint,
-	"computed_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "saved_listings" (
 	"user_id" integer NOT NULL,
 	"listing_id" integer NOT NULL,
@@ -287,78 +256,14 @@ CREATE TABLE "saved_searches" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "ad_packages" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"slug" text NOT NULL,
-	"name" text NOT NULL,
-	"vertical" "vertical",
-	"price_pkr" integer NOT NULL,
-	"duration_days" smallint DEFAULT 30 NOT NULL,
-	"featured_days" smallint DEFAULT 0 NOT NULL,
-	"bump_count" smallint DEFAULT 0 NOT NULL,
-	"photo_limit" smallint DEFAULT 10 NOT NULL,
-	"homepage_slot" boolean DEFAULT false NOT NULL,
-	"sort_order" smallint DEFAULT 0 NOT NULL,
-	"is_active" boolean DEFAULT true NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "dealer_plans" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"slug" text NOT NULL,
-	"name" text NOT NULL,
-	"monthly_price_pkr" integer NOT NULL,
-	"listing_quota" integer NOT NULL,
-	"featured_quota" smallint DEFAULT 0 NOT NULL,
-	"bulk_upload" boolean DEFAULT false NOT NULL,
-	"branded_storefront" boolean DEFAULT false NOT NULL,
-	"lead_analytics" boolean DEFAULT false NOT NULL,
-	"priority_support" boolean DEFAULT false NOT NULL,
-	"is_active" boolean DEFAULT true NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "dealer_subscriptions" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"dealer_id" integer NOT NULL,
-	"plan_id" integer NOT NULL,
-	"starts_at" timestamp with time zone NOT NULL,
-	"ends_at" timestamp with time zone NOT NULL,
-	"auto_renew" boolean DEFAULT false NOT NULL,
-	"cancelled_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "orders" (
-	"id" bigserial PRIMARY KEY NOT NULL,
-	"reference" text NOT NULL,
-	"user_id" integer NOT NULL,
-	"listing_id" integer,
-	"ad_package_id" integer,
-	"dealer_plan_id" integer,
-	"amount_pkr" integer NOT NULL,
-	"status" "order_status" DEFAULT 'pending' NOT NULL,
-	"gateway" text,
-	"gateway_ref" text,
-	"gateway_payload" jsonb,
-	"paid_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "inspections" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"listing_id" integer,
 	"requested_by_user_id" integer NOT NULL,
-	"package_slug" text NOT NULL,
-	"price_pkr" integer NOT NULL,
 	"city_id" integer NOT NULL,
 	"address" text,
 	"contact_phone" text NOT NULL,
-	"status" "inspection_status" DEFAULT 'requested' NOT NULL,
-	"scheduled_at" timestamp with time zone,
-	"completed_at" timestamp with time zone,
-	"inspector_id" integer,
-	"overall_score" smallint,
-	"section_scores" jsonb,
-	"report_pdf_key" text,
+	"status" text DEFAULT 'requested' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -417,23 +322,12 @@ ALTER TABLE "part_details" ADD CONSTRAINT "part_details_compatible_model_id_mode
 ALTER TABLE "lead_events" ADD CONSTRAINT "lead_events_listing_id_listings_id_fk" FOREIGN KEY ("listing_id") REFERENCES "public"."listings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lead_events" ADD CONSTRAINT "lead_events_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "listing_views_daily" ADD CONSTRAINT "listing_views_daily_listing_id_listings_id_fk" FOREIGN KEY ("listing_id") REFERENCES "public"."listings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "price_snapshots" ADD CONSTRAINT "price_snapshots_make_id_makes_id_fk" FOREIGN KEY ("make_id") REFERENCES "public"."makes"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "price_snapshots" ADD CONSTRAINT "price_snapshots_model_id_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "price_snapshots" ADD CONSTRAINT "price_snapshots_variant_id_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."variants"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "price_snapshots" ADD CONSTRAINT "price_snapshots_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "public"."cities"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "saved_listings" ADD CONSTRAINT "saved_listings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "saved_listings" ADD CONSTRAINT "saved_listings_listing_id_listings_id_fk" FOREIGN KEY ("listing_id") REFERENCES "public"."listings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "saved_searches" ADD CONSTRAINT "saved_searches_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "dealer_subscriptions" ADD CONSTRAINT "dealer_subscriptions_dealer_id_dealers_id_fk" FOREIGN KEY ("dealer_id") REFERENCES "public"."dealers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "dealer_subscriptions" ADD CONSTRAINT "dealer_subscriptions_plan_id_dealer_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "public"."dealer_plans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "orders" ADD CONSTRAINT "orders_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "orders" ADD CONSTRAINT "orders_listing_id_listings_id_fk" FOREIGN KEY ("listing_id") REFERENCES "public"."listings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "orders" ADD CONSTRAINT "orders_ad_package_id_ad_packages_id_fk" FOREIGN KEY ("ad_package_id") REFERENCES "public"."ad_packages"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "orders" ADD CONSTRAINT "orders_dealer_plan_id_dealer_plans_id_fk" FOREIGN KEY ("dealer_plan_id") REFERENCES "public"."dealer_plans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inspections" ADD CONSTRAINT "inspections_listing_id_listings_id_fk" FOREIGN KEY ("listing_id") REFERENCES "public"."listings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inspections" ADD CONSTRAINT "inspections_requested_by_user_id_users_id_fk" FOREIGN KEY ("requested_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inspections" ADD CONSTRAINT "inspections_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "public"."cities"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "inspections" ADD CONSTRAINT "inspections_inspector_id_users_id_fk" FOREIGN KEY ("inspector_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "listing_reports" ADD CONSTRAINT "listing_reports_listing_id_listings_id_fk" FOREIGN KEY ("listing_id") REFERENCES "public"."listings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "listing_reports" ADD CONSTRAINT "listing_reports_reporter_user_id_users_id_fk" FOREIGN KEY ("reporter_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "listing_reports" ADD CONSTRAINT "listing_reports_resolved_by_user_id_users_id_fk" FOREIGN KEY ("resolved_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -463,18 +357,16 @@ CREATE INDEX "variants_generation_idx" ON "variants" USING btree ("generation_id
 CREATE UNIQUE INDEX "dealers_slug_uq" ON "dealers" USING btree ("slug");--> statement-breakpoint
 CREATE UNIQUE INDEX "dealers_user_uq" ON "dealers" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "dealers_city_idx" ON "dealers" USING btree ("city_id");--> statement-breakpoint
-CREATE INDEX "otp_phone_idx" ON "otp_codes" USING btree ("phone");--> statement-breakpoint
-CREATE INDEX "otp_expires_idx" ON "otp_codes" USING btree ("expires_at");--> statement-breakpoint
 CREATE INDEX "sessions_user_idx" ON "sessions" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "users_phone_uq" ON "users" USING btree ("phone");--> statement-breakpoint
+CREATE UNIQUE INDEX "users_email_uq" ON "users" USING btree ("email");--> statement-breakpoint
 CREATE INDEX "users_type_idx" ON "users" USING btree ("type");--> statement-breakpoint
 CREATE INDEX "listing_features_feature_idx" ON "listing_features" USING btree ("feature_id");--> statement-breakpoint
 CREATE INDEX "listing_images_listing_idx" ON "listing_images" USING btree ("listing_id","position");--> statement-breakpoint
-CREATE INDEX "listings_search_idx" ON "listings" USING btree ("vertical","status","make_id","model_id","bumped_at");--> statement-breakpoint
-CREATE INDEX "listings_city_idx" ON "listings" USING btree ("vertical","status","city_id","bumped_at");--> statement-breakpoint
+CREATE INDEX "listings_search_idx" ON "listings" USING btree ("vertical","status","make_id","model_id","published_at");--> statement-breakpoint
+CREATE INDEX "listings_city_idx" ON "listings" USING btree ("vertical","status","city_id","published_at");--> statement-breakpoint
 CREATE INDEX "listings_price_idx" ON "listings" USING btree ("vertical","status","price_pkr");--> statement-breakpoint
 CREATE INDEX "listings_year_idx" ON "listings" USING btree ("vertical","status","year");--> statement-breakpoint
-CREATE INDEX "listings_featured_idx" ON "listings" USING btree ("featured_until");--> statement-breakpoint
 CREATE INDEX "listings_seller_idx" ON "listings" USING btree ("seller_id");--> statement-breakpoint
 CREATE INDEX "listings_dealer_idx" ON "listings" USING btree ("dealer_id");--> statement-breakpoint
 CREATE INDEX "listings_expiry_idx" ON "listings" USING btree ("status","expires_at");--> statement-breakpoint
@@ -485,23 +377,15 @@ CREATE INDEX "lead_events_listing_idx" ON "lead_events" USING btree ("listing_id
 CREATE INDEX "lead_events_created_idx" ON "lead_events" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "lead_events_type_idx" ON "lead_events" USING btree ("type","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "listing_views_daily_uq" ON "listing_views_daily" USING btree ("listing_id","day");--> statement-breakpoint
-CREATE UNIQUE INDEX "price_snapshots_key_uq" ON "price_snapshots" USING btree ("variant_id","year","city_id","computed_at");--> statement-breakpoint
-CREATE INDEX "price_snapshots_lookup_idx" ON "price_snapshots" USING btree ("variant_id","year","city_id");--> statement-breakpoint
-CREATE INDEX "price_snapshots_model_idx" ON "price_snapshots" USING btree ("model_id","year");--> statement-breakpoint
 CREATE UNIQUE INDEX "saved_listings_uq" ON "saved_listings" USING btree ("user_id","listing_id");--> statement-breakpoint
 CREATE INDEX "saved_listings_user_idx" ON "saved_listings" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "saved_searches_user_idx" ON "saved_searches" USING btree ("user_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "ad_packages_slug_uq" ON "ad_packages" USING btree ("slug");--> statement-breakpoint
-CREATE UNIQUE INDEX "dealer_plans_slug_uq" ON "dealer_plans" USING btree ("slug");--> statement-breakpoint
-CREATE INDEX "dealer_subs_dealer_idx" ON "dealer_subscriptions" USING btree ("dealer_id");--> statement-breakpoint
-CREATE INDEX "dealer_subs_active_idx" ON "dealer_subscriptions" USING btree ("ends_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "orders_reference_uq" ON "orders" USING btree ("reference");--> statement-breakpoint
-CREATE INDEX "orders_user_idx" ON "orders" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "orders_status_idx" ON "orders" USING btree ("status","created_at");--> statement-breakpoint
 CREATE INDEX "inspections_listing_idx" ON "inspections" USING btree ("listing_id");--> statement-breakpoint
-CREATE INDEX "inspections_status_idx" ON "inspections" USING btree ("status","scheduled_at");--> statement-breakpoint
+CREATE INDEX "inspections_status_idx" ON "inspections" USING btree ("status","created_at");--> statement-breakpoint
 CREATE INDEX "inspections_city_idx" ON "inspections" USING btree ("city_id");--> statement-breakpoint
 CREATE INDEX "listing_reports_listing_idx" ON "listing_reports" USING btree ("listing_id");--> statement-breakpoint
 CREATE INDEX "listing_reports_status_idx" ON "listing_reports" USING btree ("status","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "listing_reports_user_uq" ON "listing_reports" USING btree ("listing_id","reporter_user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "listing_reports_anon_uq" ON "listing_reports" USING btree ("listing_id","reporter_anon_id");--> statement-breakpoint
 CREATE INDEX "moderation_log_listing_idx" ON "moderation_log" USING btree ("listing_id");--> statement-breakpoint
 CREATE INDEX "moderation_log_created_idx" ON "moderation_log" USING btree ("created_at");

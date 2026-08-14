@@ -85,15 +85,7 @@ export const listings = pgTable(
     engineCc: integer("engine_cc"),
     assembly: assemblyEnum("assembly"),
 
-    // ---- ranking / monetization -----------------------------------------
-    /** Paid promotion window. NULL = organic. */
-    featuredUntil: timestamp("featured_until", { withTimezone: true }),
-    /** "Bump up" resets this; search sorts on it, not on createdAt. */
-    bumpedAt: timestamp("bumped_at", { withTimezone: true }),
-    /** Denormalized inspection score 0-100, NULL if never inspected. */
-    inspectionScore: smallint("inspection_score"),
-    isCertified: boolean("is_certified").notNull().default(false),
-
+    // ---- trust signals --------------------------------------------------
     // ---- counters (updated async, never in the request path) ------------
     viewCount: integer("view_count").notNull().default(0),
     leadCount: integer("lead_count").notNull().default(0),
@@ -113,7 +105,7 @@ export const listings = pgTable(
     /**
      * The workhorse index. Nearly every search is
      *   WHERE vertical=? AND status='active' AND make_id=? [AND model_id=?]
-     *   ORDER BY featured DESC, bumped_at DESC
+     *   ORDER BY published_at DESC
      * so the leading columns match that shape.
      */
     index("listings_search_idx").on(
@@ -121,16 +113,15 @@ export const listings = pgTable(
       t.status,
       t.makeId,
       t.modelId,
-      t.bumpedAt,
+      t.publishedAt,
     ),
-    index("listings_city_idx").on(t.vertical, t.status, t.cityId, t.bumpedAt),
+    index("listings_city_idx").on(t.vertical, t.status, t.cityId, t.publishedAt),
     index("listings_price_idx").on(t.vertical, t.status, t.pricePkr),
     index("listings_year_idx").on(t.vertical, t.status, t.year),
-    index("listings_featured_idx").on(t.featuredUntil),
     index("listings_seller_idx").on(t.sellerId),
     index("listings_dealer_idx").on(t.dealerId),
     index("listings_expiry_idx").on(t.status, t.expiresAt),
-    /** Price-snapshot rollups group by exactly this tuple. */
+    /** Vehicle comparison and similar-listing queries use this tuple. */
     index("listings_pricing_idx").on(t.variantId, t.year, t.cityId),
   ],
 );
