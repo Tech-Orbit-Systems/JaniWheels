@@ -52,7 +52,20 @@ export function ListingCard({
         </div>
 
         <div className="p-3">
-          <h2 className="line-clamp-1 text-sm font-medium text-slate-900 group-hover:text-blue-700">
+          <div className="mb-2 flex min-h-5 flex-wrap items-center gap-1.5">
+            {row.sellerType && (
+              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-600">
+                {row.sellerType === "dealer" ? "Dealer" : "Private seller"}
+              </span>
+            )}
+            {row.dealerVerifiedAt && (
+              <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                Verified Dealer
+              </span>
+            )}
+          </div>
+
+          <h2 className="line-clamp-1 text-sm font-medium text-slate-900 group-hover:text-[#a97700]">
             {row.title}
           </h2>
 

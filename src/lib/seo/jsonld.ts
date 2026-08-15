@@ -134,7 +134,7 @@ export function organizationJsonLd() {
     "@type": "Organization",
     name: SITE_NAME,
     url: SITE_URL,
-    logo: abs("/logo.png"),
+    logo: abs("/janiwheels-logo.png"),
   };
 }
 

@@ -33,9 +33,26 @@ html {
 }
 
 body {
-  background: #f8fafc;
+  background: #ffffff;
   color: #0f172a;
   font-family: var(--font-sans);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+::selection {
+  background: #f7b500;
+  color: #151515;
 }
 
 /* Tap targets. Anything interactive clears 44px on touch, no exceptions —
