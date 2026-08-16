@@ -18,6 +18,7 @@ const actionLinks = [
 const socialLinks = [
   ["Facebook", "JaniWheels", "https://www.facebook.com/JaniWheels/"],
   ["Instagram", "@janiwheels2", "https://www.instagram.com/janiwheels2/"],
+  ["TikTok", "JaniWheels", "https://vt.tiktok.com/ZSVYkMxT2/"],
 ] as const;
 
 export function SiteFooter({ siteName }: { siteName: string }) {
@@ -78,6 +79,14 @@ function SocialIcon({ platform }: { platform: string }) {
         <rect x="3" y="3" width="18" height="18" rx="5" />
         <circle cx="12" cy="12" r="4" />
         <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+
+  if (platform === "TikTok") {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+        <path d="M15.4 3c.4 2.2 1.7 3.6 3.6 3.8v3.1a8.2 8.2 0 0 1-3.5-1v6.2a6 6 0 1 1-5.2-5.9v3.2a2.9 2.9 0 1 0 2 2.7V3h3.1Z" />
       </svg>
     );
   }
