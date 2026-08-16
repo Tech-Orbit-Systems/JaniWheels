@@ -52,7 +52,31 @@ const bodyTypes = [
   ["pickup", "Pickup"],
   ["van", "Van"],
   ["coupe", "Coupe"],
+  ["wagon", "Wagon"],
 ] as const;
+
+const yearOptions = Array.from(
+  { length: new Date().getFullYear() + 2 - 1950 },
+  (_, index) => String(new Date().getFullYear() + 1 - index),
+).map((year) => [year, year]);
+
+const priceValues: Record<Vertical, number[]> = {
+  car: [
+    100_000, 250_000, 500_000, 750_000, 1_000_000, 1_500_000, 2_000_000,
+    2_500_000, 3_000_000, 4_000_000, 5_000_000, 7_500_000, 10_000_000,
+    15_000_000, 20_000_000, 30_000_000, 50_000_000, 75_000_000,
+    100_000_000,
+  ],
+  bike: [
+    10_000, 25_000, 50_000, 75_000, 100_000, 150_000, 200_000, 300_000,
+    500_000, 750_000, 1_000_000, 1_500_000, 2_000_000, 3_000_000,
+    5_000_000,
+  ],
+  part: [
+    500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 75_000, 100_000,
+    250_000, 500_000, 750_000, 1_000_000,
+  ],
+};
 
 export function HomeSearch({
   makes,
@@ -74,6 +98,7 @@ export function HomeSearch({
   const [maxPrice, setMaxPrice] = useState("");
   const [minYear, setMinYear] = useState("");
   const [maxYear, setMaxYear] = useState("");
+  const [priceError, setPriceError] = useState("");
 
   const availableMakes = useMemo(
     () => makes.filter((make) => make.vertical === vertical),
@@ -94,8 +119,11 @@ export function HomeSearch({
     setMakeId("");
     setModelSlug("");
     setCategorySlug("");
+    setMinPrice("");
+    setMaxPrice("");
     setMinYear("");
     setMaxYear("");
+    setPriceError("");
   }
 
   function clearFilters() {
@@ -107,10 +135,17 @@ export function HomeSearch({
     setMaxPrice("");
     setMinYear("");
     setMaxYear("");
+    setPriceError("");
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (minPrice && maxPrice && Number(minPrice) > Number(maxPrice)) {
+      setPriceError("Minimum price cannot be greater than maximum price.");
+      return;
+    }
+    setPriceError("");
 
     const segments: string[] = [];
     if (vertical === "part") {
@@ -232,12 +267,12 @@ export function HomeSearch({
           </div>
 
           <div className="mt-4 hidden items-end gap-3 border-t border-zinc-100 pt-4 md:grid md:grid-cols-[1fr_1fr_1fr_1fr_auto]">
-            <NumberField label="Minimum price" value={minPrice} onChange={setMinPrice} prefix="PKR" />
-            <NumberField label="Maximum price" value={maxPrice} onChange={setMaxPrice} prefix="PKR" />
+            <PriceSelectField label="Minimum price" value={minPrice} onChange={(value) => { setMinPrice(value); setPriceError(""); }} values={priceValues[vertical]} />
+            <PriceSelectField label="Maximum price" value={maxPrice} onChange={(value) => { setMaxPrice(value); setPriceError(""); }} values={priceValues[vertical]} />
             {vertical !== "part" && (
               <>
-                <NumberField label="Year from" value={minYear} onChange={setMinYear} min="1950" max="2027" />
-                <NumberField label="Year to" value={maxYear} onChange={setMaxYear} min="1950" max="2027" />
+                <SelectField label="Year from" value={minYear} onChange={setMinYear} options={yearOptions} placeholder="Any year" />
+                <SelectField label="Year to" value={maxYear} onChange={setMaxYear} options={yearOptions} placeholder="Any year" />
               </>
             )}
             {vertical === "part" && <div className="md:col-span-2" />}
@@ -258,12 +293,12 @@ export function HomeSearch({
               <ChevronDown size={17} className="transition group-open:rotate-180" aria-hidden />
             </summary>
             <div className="grid gap-3 pb-2 pt-3 sm:grid-cols-2">
-              <NumberField label="Minimum price" value={minPrice} onChange={setMinPrice} prefix="PKR" />
-              <NumberField label="Maximum price" value={maxPrice} onChange={setMaxPrice} prefix="PKR" />
+              <PriceSelectField label="Minimum price" value={minPrice} onChange={(value) => { setMinPrice(value); setPriceError(""); }} values={priceValues[vertical]} />
+              <PriceSelectField label="Maximum price" value={maxPrice} onChange={(value) => { setMaxPrice(value); setPriceError(""); }} values={priceValues[vertical]} />
               {vertical !== "part" && (
                 <>
-                  <NumberField label="Year from" value={minYear} onChange={setMinYear} min="1950" max="2027" />
-                  <NumberField label="Year to" value={maxYear} onChange={setMaxYear} min="1950" max="2027" />
+                  <SelectField label="Year from" value={minYear} onChange={setMinYear} options={yearOptions} placeholder="Any year" />
+                  <SelectField label="Year to" value={maxYear} onChange={setMaxYear} options={yearOptions} placeholder="Any year" />
                 </>
               )}
               <button
@@ -276,17 +311,23 @@ export function HomeSearch({
             </div>
           </details>
 
+          {priceError && (
+            <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+              {priceError}
+            </p>
+          )}
+
           {vertical === "car" && (
             <div className="mt-4 border-t border-zinc-100 pt-4">
               <p className="mb-3 text-sm font-bold text-zinc-900">Browse by body type</p>
-              <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+              <div className="no-scrollbar grid auto-cols-[minmax(118px,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 md:grid-flow-row md:grid-cols-4 md:overflow-visible lg:grid-cols-8">
                 {bodyTypes.map(([slug, label]) => (
                   <a
                     key={slug}
                     href={`/used-cars/bt_${slug}`}
-                    className="group flex min-w-[108px] flex-col items-center rounded-xl border border-zinc-200 px-3 py-2.5 text-xs font-bold text-zinc-600 transition hover:border-[#e0a500] hover:bg-[#fff9e8] hover:text-zinc-950"
+                    className="group flex min-w-[118px] flex-col items-center rounded-xl border border-zinc-200 bg-gradient-to-b from-zinc-50 to-white px-3 py-2.5 text-xs font-bold text-zinc-600 transition hover:border-[#e0a500] hover:bg-[#fff9e8] hover:text-zinc-950 md:min-w-0"
                   >
-                    <BodyTypeIcon type={slug} />
+                    <BodyTypeImage type={slug} />
                     {label}
                   </a>
                 ))}
@@ -338,75 +379,66 @@ function SelectField({
   );
 }
 
-function NumberField({
+function PriceSelectField({
   label,
   value,
   onChange,
-  prefix,
-  min,
-  max,
+  values,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  prefix?: string;
-  min?: string;
-  max?: string;
+  values: number[];
 }) {
   return (
-    <label className="block">
+    <label className="relative block">
       <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-zinc-500">
         {label}
       </span>
-      <div className="relative">
-        {prefix && (
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-xs font-bold text-zinc-400">
-            {prefix}
-          </span>
-        )}
-        <input
-          type="number"
-          inputMode="numeric"
-          min={min ?? "0"}
-          max={max}
-          step={prefix ? "10000" : "1"}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={`h-11 w-full rounded-lg border border-zinc-300 bg-white pr-3 text-sm text-zinc-900 outline-none transition focus:border-[#d99f00] focus:ring-2 focus:ring-[#f7b500]/20 ${prefix ? "pl-12" : "pl-3"}`}
-        />
-      </div>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full appearance-none rounded-lg border border-zinc-300 bg-white px-3 pr-9 text-sm font-medium text-zinc-900 outline-none transition focus:border-[#d99f00] focus:ring-2 focus:ring-[#f7b500]/20"
+      >
+        <option value="">Any price</option>
+        {values.map((price) => (
+          <option key={price} value={price}>
+            PKR {new Intl.NumberFormat("en-PK").format(price)}
+          </option>
+        ))}
+      </select>
+      <ChevronDown size={16} aria-hidden className="pointer-events-none absolute bottom-3.5 right-3 text-zinc-400" />
     </label>
   );
 }
 
-function BodyTypeIcon({ type }: { type: string }) {
-  const roof =
-    type === "pickup"
-      ? "M16 28h20l9-10h22l8 10h21"
-      : type === "van"
-        ? "M15 28h9l7-14h45l13 14h9"
-        : type === "suv" || type === "crossover"
-          ? "M14 28h16l11-13h30l15 13h14"
-          : type === "coupe"
-            ? "M15 28h18l13-12h21l17 12h15"
-            : type === "hatchback"
-              ? "M16 28h17l8-12h26l13 12h18"
-              : "M14 28h18l12-12h30l13 12h13";
+function BodyTypeImage({ type }: { type: string }) {
+  const silhouettes: Record<string, string> = {
+    hatchback: "M9 30 18 23 34 20 43 11 68 11 82 22 99 27 104 33 9 33Z",
+    sedan: "M8 30 19 24 34 22 46 12 73 12 86 22 101 27 105 33 8 33Z",
+    suv: "M8 30 16 22 32 20 42 10 75 10 88 21 101 26 105 33 8 33Z",
+    crossover: "M8 30 17 23 33 20 44 11 72 11 86 21 101 27 105 33 8 33Z",
+    pickup: "M8 30 18 23 37 21 46 13 68 13 77 22 101 23 105 33 8 33Z",
+    van: "M8 30 15 17 25 12 78 12 94 24 103 28 105 33 8 33Z",
+    coupe: "M8 30 19 25 38 22 50 13 70 13 84 23 101 27 105 33 8 33Z",
+    wagon: "M8 30 18 23 33 21 43 12 79 12 91 23 102 27 105 33 8 33Z",
+  };
 
   return (
     <svg
       viewBox="0 0 112 44"
-      className="mb-1 h-9 w-24 text-zinc-500 transition group-hover:text-[#b98500]"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
+      className="mb-1 h-10 w-24"
       aria-hidden
     >
-      <path d={roof} strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12 29c0-3 2-5 5-5h3m78 0h2c3 0 5 2 5 5v3H8v-1c0-1 2-2 4-2Z" />
-      <circle cx="27" cy="33" r="6" fill="white" />
-      <circle cx="88" cy="33" r="6" fill="white" />
-      <path d="M37 33h45" />
+      <ellipse cx="56" cy="38" rx="47" ry="2.5" fill="#d4d4d8" opacity=".55" />
+      <path d={silhouettes[type] ?? silhouettes.sedan} fill="#e4e4e7" stroke="#52525b" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M36 21 46 13h23l11 9Z" fill="#a1a1aa" stroke="#71717a" strokeWidth="1.2" />
+      <path d="M56 13v9" stroke="#f7b500" strokeWidth="1.5" />
+      <path d="M13 29h88" stroke="#f7b500" strokeWidth="2" />
+      <circle cx="28" cy="33" r="6" fill="#27272a" stroke="#18181b" />
+      <circle cx="28" cy="33" r="2.5" fill="#d4d4d8" />
+      <circle cx="87" cy="33" r="6" fill="#27272a" stroke="#18181b" />
+      <circle cx="87" cy="33" r="2.5" fill="#d4d4d8" />
     </svg>
   );
 }
