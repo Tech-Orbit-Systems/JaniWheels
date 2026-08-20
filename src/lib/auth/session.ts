@@ -31,6 +31,7 @@ export interface SessionUser {
   phone: string;
   name: string | null;
   type: "individual" | "dealer";
+  isAdmin: boolean;
 }
 
 export async function createSession(
@@ -73,6 +74,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
       phone: users.phone,
       name: users.name,
       type: users.type,
+      isAdmin: users.isAdmin,
       isBanned: users.isBanned,
     })
     .from(sessions)
@@ -87,7 +89,13 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
 
   if (!row || row.isBanned) return null;
 
-  return { id: row.id, phone: row.phone, name: row.name, type: row.type };
+  return {
+    id: row.id,
+    phone: row.phone,
+    name: row.name,
+    type: row.type,
+    isAdmin: row.isAdmin,
+  };
 });
 
 export async function requireUser(): Promise<SessionUser> {

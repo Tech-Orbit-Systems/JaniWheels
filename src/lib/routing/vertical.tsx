@@ -14,6 +14,8 @@ import { dbResolver } from "@/lib/seo/resolver";
 import { abs, breadcrumbJsonLd, facetPageTitle, vehicleJsonLd } from "@/lib/seo/jsonld";
 import { buildListingPath, parseListingSlug } from "@/lib/listings/slug";
 import { getListingDetail, incrementViewCount } from "@/lib/listings/detail";
+import { getCurrentUser } from "@/lib/auth/session";
+import { canViewListingDetail } from "@/lib/listings/visibility";
 import { BrowseView } from "@/components/BrowseView";
 import { ListingDetail } from "@/components/ListingDetail";
 import { Breadcrumbs, type Crumb } from "@/components/Breadcrumbs";
@@ -110,6 +112,11 @@ export async function verticalMetadata(
     const listing = await getListingDetail(resolved.id, vertical);
     if (!listing) return { title: "Not found" };
 
+    const viewer = listing.status === "active" ? null : await getCurrentUser();
+    if (!canViewListingDetail(listing.status, listing.sellerId, viewer)) {
+      return { title: "Not found" };
+    }
+
     const url = buildListingPath(vertical, listing.slug, listing.id);
     const isLive = listing.status === "active";
 
@@ -169,6 +176,11 @@ export async function VerticalPage({
 
   const listing = await getListingDetail(resolved.id, vertical);
   if (!listing) notFound();
+
+  const viewer = listing.status === "active" ? null : await getCurrentUser();
+  if (!canViewListingDetail(listing.status, listing.sellerId, viewer)) {
+    notFound();
+  }
 
   // The id identifies the row, so the slug is free to drift — a seller edits
   // the title, or the slug format improves. Redirect rather than serve the

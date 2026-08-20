@@ -11,6 +11,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "check:seo": "node --import tsx scripts/check-seo.ts",
+    "check:visibility": "node --import tsx scripts/check-listing-visibility.ts",
     "sweep": "cross-env NODE_OPTIONS=--conditions=react-server node --import tsx scripts/sweep.ts",
     "check": "npm run typecheck && npm run check:seo",
     "db:generate": "drizzle-kit generate",
