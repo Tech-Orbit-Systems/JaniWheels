@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { listings, listingImages } from "@/db/schema/listings";
 import { makes, models } from "@/db/schema/taxonomy";
 import { cities } from "@/db/schema/geo";
+import { dealers, users } from "@/db/schema/users";
 import type { FacetState } from "@/lib/seo/facets";
 
 /**
@@ -40,6 +41,9 @@ export interface SearchResultRow {
   engineCc: number | null;
   publishedAt: Date | null;
   primaryImageKey: string | null;
+  sellerType?: string | null;
+  dealerName?: string | null;
+  dealerVerifiedAt?: Date | null;
 }
 
 export interface SearchResult {
@@ -195,9 +199,14 @@ export async function searchListings(
       engineCc: listings.engineCc,
       publishedAt: listings.publishedAt,
       primaryImageKey: sql<string | null>`${primaryImage.storageKey}`,
+      sellerType: sql<string>`${users.type}::text`,
+      dealerName: dealers.businessName,
+      dealerVerifiedAt: dealers.verifiedAt,
     })
     .from(listings)
     .innerJoin(cities, eq(listings.cityId, cities.id))
+    .innerJoin(users, eq(listings.sellerId, users.id))
+    .leftJoin(dealers, eq(listings.dealerId, dealers.id))
     .leftJoin(makes, eq(listings.makeId, makes.id))
     .leftJoin(models, eq(listings.modelId, models.id))
     .leftJoin(primaryImage, eq(primaryImage.listingId, listings.id))

@@ -24,7 +24,7 @@ export async function AccountMenu() {
     return (
       <Link
         href="/login"
-        className="text-sm font-medium text-slate-700 hover:text-slate-900"
+        className="text-sm font-medium text-zinc-200 hover:text-white"
       >
         Sign in
       </Link>
@@ -41,13 +41,13 @@ export async function AccountMenu() {
     <div className="group relative">
       <button
         type="button"
-        className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+        className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-zinc-200 hover:bg-white/10 hover:text-white"
       >
         <span className="hidden sm:inline">
           {user.name ?? displayPkPhone(user.phone)}
         </span>
         <span className="sm:hidden">Account</span>
-        <span aria-hidden className="text-xs text-slate-400">
+        <span aria-hidden className="text-xs text-zinc-400">
           ▾
         </span>
       </button>
