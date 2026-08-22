@@ -88,9 +88,11 @@ export async function createCarListingAction(
 
   const result = await publishCarListing(user.id, parsed.data, {
     dealerId: dealer?.id,
-    // Dealers with a verified account skip the moderation queue; everyone
-    // else is reviewed. Fraud arrives with traction, not after it.
-    autoApprove: Boolean(dealer?.verifiedAt),
+    publisher: dealer
+      ? dealer.verifiedAt
+        ? "verified_dealer"
+        : "unverified_dealer"
+      : "individual",
   });
 
   revalidatePath("/used-cars");

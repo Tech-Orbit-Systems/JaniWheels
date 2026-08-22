@@ -65,8 +65,8 @@ export default async function DealerDashboard() {
       {!dealer.verifiedAt && (
         <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           Your dealership profile has been submitted for manual verification.
-          New ads will enter the normal moderation queue until verification is
-          complete.
+          Your valid ads publish immediately; verification controls the dealer
+          badge, while reports and moderation keep the marketplace safe.
         </p>
       )}
 

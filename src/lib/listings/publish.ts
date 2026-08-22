@@ -10,6 +10,10 @@ import {
 import { models, variants, makes } from "@/db/schema/taxonomy";
 import { cities } from "@/db/schema/geo";
 import { buildListingSlug } from "./slug";
+import {
+  initialPublicationState,
+  type ListingPublisher,
+} from "./publication-policy";
 import { sanitizeDescription, type CarListingInput } from "./validation";
 
 /**
@@ -38,7 +42,7 @@ export interface PublishResult {
 export async function publishCarListing(
   sellerId: number,
   input: CarListingInput,
-  opts: { dealerId?: number; autoApprove?: boolean } = {},
+  opts: { dealerId?: number; publisher?: ListingPublisher } = {},
 ): Promise<PublishResult> {
   // ---- resolve the taxonomy row that everything else is derived from -----
   const [variant] = await db
@@ -94,6 +98,10 @@ export async function publishCarListing(
 
   const now = new Date();
   const expiresAt = new Date(now.getTime() + LISTING_TTL_DAYS * 86_400_000);
+  const publication = initialPublicationState(
+    opts.publisher ?? "individual",
+    now,
+  );
 
   /**
    * All of this is one transaction. A listing that exists without its images,
@@ -127,9 +135,9 @@ export async function publishCarListing(
         engineCc: variant.engineCc,
         assembly: input.assembly,
 
-        status: opts.autoApprove ? "active" : "pending_review",
+        status: publication.status,
         photoCount: input.imageKeys.length,
-        publishedAt: opts.autoApprove ? now : null,
+        publishedAt: publication.publishedAt,
         expiresAt,
       })
       .returning({ id: listings.id });
