@@ -12,6 +12,10 @@ import { listings } from "@/db/schema/listings";
 import { users } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { normalizePkPhone } from "@/lib/format";
+import {
+  rejectionDecision,
+  shouldBanAfterFinalRemoval,
+} from "./moderation-policy";
 
 /**
  * Trust actions: reporting bad listings, booking an inspection, and the
@@ -44,9 +48,6 @@ export interface ReportState {
   ok?: boolean;
   error?: string;
 }
-
-/** Auto-remove threshold. Deliberately high — see the comment below. */
-const AUTO_HIDE_REPORTS = 5;
 
 export async function reportListingAction(
   _prev: ReportState,
@@ -96,45 +97,45 @@ export async function reportListingAction(
     return { ok: true }; // idempotent; don't reveal that they already reported
   }
 
-  await db.insert(listingReports).values({
-    listingId: parsed.data.listingId,
-    reporterUserId: user?.id ?? null,
-    reporterAnonId: anonId,
-    reason: parsed.data.reason,
-    comment: parsed.data.comment ?? null,
-  }).onConflictDoNothing();
+  await db.transaction(async (tx) => {
+    const [report] = await tx.insert(listingReports).values({
+      listingId: parsed.data.listingId,
+      reporterUserId: user?.id ?? null,
+      reporterAnonId: anonId,
+      reason: parsed.data.reason,
+      comment: parsed.data.comment ?? null,
+    }).onConflictDoNothing().returning({ id: listingReports.id });
 
-  /**
-   * "Sold" is a helpful signal, not an accusation — treat one report as
-   * enough to flag it for review, but never auto-remove on report count
-   * alone at a low threshold. Auto-hiding on two reports hands anyone a
-   * button to delete a competitor's inventory.
-   */
-  const [{ count }] = await db
-    .select({ count: sql<number>`COUNT(*)::int` })
-    .from(listingReports)
-    .where(
-      and(
-        eq(listingReports.listingId, parsed.data.listingId),
-        eq(listingReports.status, "open"),
-      ),
-    );
+    if (!report) return;
 
-  if (count >= AUTO_HIDE_REPORTS) {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(listings)
-        .set({ status: "pending_review", updatedAt: new Date() })
-        .where(eq(listings.id, parsed.data.listingId));
+    // A report is a safety hold, not a removal: immediately hide only a
+    // currently public ad and let an administrator decide the outcome.
+    const [hidden] = await tx
+      .update(listings)
+      .set({ status: "pending_review", updatedAt: new Date() })
+      .where(
+        and(
+          eq(listings.id, parsed.data.listingId),
+          eq(listings.status, "active"),
+        ),
+      )
+      .returning({ sellerId: listings.sellerId });
 
+    if (hidden) {
       await tx.insert(moderationLog).values({
         listingId: parsed.data.listingId,
-        action: "remove",
-        reason: `Auto-hidden after ${count} reports`,
+        userId: hidden.sellerId,
+        action: "queue",
+        reason: "Automatically queued for review after a report.",
         isAutomated: true,
       });
-    });
-  }
+    }
+  });
+
+  revalidatePath("/admin/moderation");
+  revalidatePath("/used-cars");
+  revalidatePath("/used-bikes");
+  revalidatePath("/auto-parts");
 
   return { ok: true };
 }
@@ -230,47 +231,65 @@ async function requireAdmin() {
 
 export async function moderateAction(
   listingId: number,
-  action: "approve" | "remove",
+  action: "approve" | "reject",
   reason?: string,
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; message: string }> {
   const admin = await requireAdmin();
+  const cleanReason = reason?.trim();
+  if (action === "reject" && (!cleanReason || cleanReason.length < 3)) {
+    return { ok: false, message: "Enter a rejection reason of at least 3 characters." };
+  }
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(listings)
-      .set({
-        status: action === "approve" ? "active" : "removed",
-        publishedAt: action === "approve" ? new Date() : undefined,
-        updatedAt: new Date(),
-      })
-      .where(eq(listings.id, listingId));
+  const outcome = await db.transaction(async (tx) => {
+    const [listing] = await tx
+      .select({ sellerId: listings.sellerId, status: listings.status })
+      .from(listings)
+      .where(eq(listings.id, listingId))
+      .limit(1);
+    if (!listing) return { ok: false, message: "Listing not found." };
+    if (listing.status === "removed") {
+      return { ok: false, message: "This listing has already been permanently removed." };
+    }
 
-    await tx
-      .update(listingReports)
-      .set({
-        status: action === "approve" ? "dismissed" : "actioned",
-        resolvedByUserId: admin.id,
-        resolvedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(listingReports.listingId, listingId),
-          eq(listingReports.status, "open"),
-        ),
-      );
+    if (action === "approve") {
+      await tx.update(listings).set({ status: "active", publishedAt: new Date(), updatedAt: new Date() }).where(eq(listings.id, listingId));
+      await tx.update(listingReports).set({ status: "dismissed", resolvedByUserId: admin.id, resolvedAt: new Date() }).where(and(eq(listingReports.listingId, listingId), eq(listingReports.status, "open")));
+      await tx.insert(moderationLog).values({ listingId, userId: listing.sellerId, moderatorId: admin.id, action: "approve", isAutomated: false });
+      return { ok: true, message: "Approved — the ad is public again." };
+    }
 
-    // Append-only. When a dealer calls to argue their listing was wrongly
-    // pulled, you need the record.
+    const [{ count: priorRejections }] = await tx
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(moderationLog)
+      .where(and(eq(moderationLog.listingId, listingId), eq(moderationLog.action, "reject")));
+    const decision = rejectionDecision(priorRejections);
+    await tx.update(listings).set({ status: decision.isFinal ? "removed" : "rejected", updatedAt: new Date() }).where(eq(listings.id, listingId));
+    await tx.update(listingReports).set({ status: "actioned", resolvedByUserId: admin.id, resolvedAt: new Date() }).where(and(eq(listingReports.listingId, listingId), eq(listingReports.status, "open")));
     await tx.insert(moderationLog).values({
-      listingId,
-      moderatorId: admin.id,
-      action,
-      reason: reason ?? null,
-      isAutomated: false,
+      listingId, userId: listing.sellerId, moderatorId: admin.id, action: "reject", reason: cleanReason,
+      isAutomated: false, metadata: { rejectionNumber: decision.rejectionNumber, final: decision.isFinal },
     });
+    if (!decision.isFinal) {
+      return { ok: true, message: `Rejected (${decision.rejectionNumber}/3). The owner can correct and resubmit it.` };
+    }
+
+    await tx.insert(moderationLog).values({ listingId, userId: listing.sellerId, moderatorId: admin.id, action: "remove", reason: "Permanently removed after the third rejection.", isAutomated: false });
+    const [{ count: finalRemovals }] = await tx
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(moderationLog)
+      .where(and(eq(moderationLog.userId, listing.sellerId), eq(moderationLog.action, "remove")));
+    if (shouldBanAfterFinalRemoval(finalRemovals)) {
+      await tx.update(users).set({ isBanned: true }).where(eq(users.id, listing.sellerId));
+      await tx.insert(moderationLog).values({ userId: listing.sellerId, moderatorId: admin.id, action: "ban", reason: "Automatically banned after more than 7 listings reached final removal.", isAutomated: true });
+      return { ok: true, message: "Removed permanently. The seller was banned after 8 final removals." };
+    }
+    return { ok: true, message: "Removed permanently after the third rejection." };
   });
 
   revalidatePath("/admin/moderation");
   revalidatePath("/used-cars");
-  return { ok: true };
+  revalidatePath("/used-bikes");
+  revalidatePath("/auto-parts");
+  revalidatePath("/dashboard");
+  return outcome;
 }
