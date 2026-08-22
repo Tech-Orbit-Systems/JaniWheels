@@ -10,6 +10,8 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { buildListingPath } from "@/lib/listings/slug";
 import { formatPkr, relativeTime } from "@/lib/format";
 import { MarkSoldButton } from "./MarkSoldButton";
+import { ResubmitButton } from "./ResubmitButton";
+import { moderationLog } from "@/db/schema/trust";
 
 export const metadata: Metadata = {
   title: "My ads",
@@ -22,6 +24,7 @@ const STATUS_STYLE: Record<string, string> = {
   sold: "bg-slate-200 text-slate-700",
   expired: "bg-slate-100 text-slate-500",
   rejected: "bg-red-100 text-red-800",
+  removed: "bg-red-200 text-red-900",
 };
 
 export default async function DashboardPage() {
@@ -44,6 +47,11 @@ export default async function DashboardPage() {
       primaryImageKey: sql<string | null>`(
         SELECT storage_key FROM ${listingImages}
         WHERE listing_id = ${listings.id} ORDER BY position LIMIT 1
+      )`,
+      latestRejectionReason: sql<string | null>`(
+        SELECT reason FROM ${moderationLog}
+        WHERE listing_id = ${listings.id} AND action = 'reject'
+        ORDER BY created_at DESC LIMIT 1
       )`,
     })
     .from(listings)
@@ -129,7 +137,23 @@ export default async function DashboardPage() {
                   </span>
                   <span className="text-slate-500">{r.viewCount} views</span>
                   {r.status === "active" && <MarkSoldButton listingId={r.id} />}
+                  {r.status === "pending_review" && (
+                    <span className="text-amber-800">Under admin review — hidden from buyers</span>
+                  )}
                 </div>
+                {r.status === "rejected" && (
+                  <div className="mt-3 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-900">
+                    <p className="font-medium">Admin requested changes</p>
+                    <p className="mt-0.5">{r.latestRejectionReason ?? "Please review and correct this ad before resubmitting."}</p>
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      <Link href={`/dashboard/listings/${r.id}/edit`} className="font-medium text-blue-700 hover:underline">Fix details and resubmit</Link>
+                      <ResubmitButton listingId={r.id} />
+                    </div>
+                  </div>
+                )}
+                {r.status === "removed" && (
+                  <p className="mt-2 text-xs text-red-800">Permanently removed after the third rejection. Post a new ad instead.</p>
+                )}
               </div>
             </li>
           ))}

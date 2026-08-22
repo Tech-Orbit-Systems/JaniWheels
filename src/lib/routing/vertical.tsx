@@ -177,7 +177,7 @@ export async function VerticalPage({
   const listing = await getListingDetail(resolved.id, vertical);
   if (!listing) notFound();
 
-  const viewer = listing.status === "active" ? null : await getCurrentUser();
+  const viewer = await getCurrentUser();
   if (!canViewListingDetail(listing.status, listing.sellerId, viewer)) {
     notFound();
   }
@@ -297,7 +297,7 @@ export async function VerticalPage({
         </p>
       )}
 
-      <ListingDetail listing={listing} />
+      <ListingDetail listing={listing} isAdmin={viewer?.isAdmin === true} />
     </main>
   );
 }

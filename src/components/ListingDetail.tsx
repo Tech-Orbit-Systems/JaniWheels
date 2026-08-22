@@ -13,6 +13,7 @@ import type { ListingDetailRow } from "@/lib/listings/detail";
 import { getSimilarListings } from "@/lib/listings/detail";
 import { PhoneReveal } from "./PhoneReveal";
 import { ReportListing } from "./ReportListing";
+import { ModerationActions } from "@/app/admin/moderation/ModerationActions";
 
 function imageUrl(key: string, width: number): string {
   const provider = process.env.NEXT_PUBLIC_IMAGE_PROVIDER ?? "local";
@@ -29,7 +30,13 @@ function titleCase(s: string): string {
     .join(" ");
 }
 
-export async function ListingDetail({ listing }: { listing: ListingDetailRow }) {
+export async function ListingDetail({
+  listing,
+  isAdmin = false,
+}: {
+  listing: ListingDetailRow;
+  isAdmin?: boolean;
+}) {
   const similar = await getSimilarListings({
       id: listing.id,
       vertical: listing.vertical,
@@ -264,6 +271,15 @@ export async function ListingDetail({ listing }: { listing: ListingDetailRow }) 
           <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
             Ad ref #{listing.id} · updated {relativeTime(listing.updatedAt)}
           </p>
+
+          {isAdmin && (
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Admin moderation
+              </p>
+              <ModerationActions listingId={listing.id} />
+            </div>
+          )}
 
           <ReportListing listingId={listing.id} />
         </div>
