@@ -19,14 +19,16 @@ const choices = [
   {
     title: "Sell a Bike",
     description: "Post your motorcycle or scooter for interested buyers.",
+    href: "/sell/bike",
     icon: Bike,
-    available: false,
+    available: true,
   },
   {
     title: "Sell an Auto Part",
     description: "List a spare part or automotive accessory for sale.",
+    href: "/sell/part",
     icon: PackageSearch,
-    available: false,
+    available: true,
   },
 ] as const;
 

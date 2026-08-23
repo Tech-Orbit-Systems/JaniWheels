@@ -445,7 +445,7 @@ export const BIKE_MAKES: MakeSeed[] = [
       { slug: "cb-150f", name: "CB 150F", popularity: 82, variants: [
         { slug: "150", name: "CB 150F", engineCc: 150, transmission: "manual", fuel: "petrol" },
       ]},
-      { slug: "cb-125f", name: "CB 125F", popularity: 80 },
+      { slug: "cb-125f", name: "CB 125F", popularity: 80, variants: [{ slug: "standard", name: "CB 125F Standard", engineCc: 125, transmission: "manual", fuel: "petrol" }] },
     ],
   },
   {
@@ -457,9 +457,9 @@ export const BIKE_MAKES: MakeSeed[] = [
       { slug: "ybr-125", name: "YBR 125", popularity: 90, variants: [
         { slug: "standard", name: "YBR 125", engineCc: 125, transmission: "manual", fuel: "petrol" },
       ]},
-      { slug: "ybr-125g", name: "YBR 125G", popularity: 84 },
-      { slug: "yb-125z", name: "YB 125Z", popularity: 78 },
-      { slug: "ybr-125z-dx", name: "YBR 125Z DX", popularity: 70 },
+      { slug: "ybr-125g", name: "YBR 125G", popularity: 84, variants: [{ slug: "standard", name: "YBR 125G", engineCc: 125, transmission: "manual", fuel: "petrol" }] },
+      { slug: "yb-125z", name: "YB 125Z", popularity: 78, variants: [{ slug: "standard", name: "YB 125Z", engineCc: 125, transmission: "manual", fuel: "petrol" }] },
+      { slug: "ybr-125z-dx", name: "YBR 125Z DX", popularity: 70, variants: [{ slug: "standard", name: "YBR 125Z DX", engineCc: 125, transmission: "manual", fuel: "petrol" }] },
     ],
   },
   {
@@ -468,10 +468,10 @@ export const BIKE_MAKES: MakeSeed[] = [
     countryOfOrigin: "japanese",
     popularity: 82,
     models: [
-      { slug: "gs-150", name: "GS 150", popularity: 84 },
-      { slug: "gd-110s", name: "GD 110S", popularity: 80 },
-      { slug: "gr-150", name: "GR 150", popularity: 66 },
-      { slug: "gsx-125", name: "GSX 125", popularity: 58 },
+      { slug: "gs-150", name: "GS 150", popularity: 84, variants: [{ slug: "standard", name: "GS 150", engineCc: 150, transmission: "manual", fuel: "petrol" }] },
+      { slug: "gd-110s", name: "GD 110S", popularity: 80, variants: [{ slug: "standard", name: "GD 110S", engineCc: 110, transmission: "manual", fuel: "petrol" }] },
+      { slug: "gr-150", name: "GR 150", popularity: 66, variants: [{ slug: "standard", name: "GR 150", engineCc: 150, transmission: "manual", fuel: "petrol" }] },
+      { slug: "gsx-125", name: "GSX 125", popularity: 58, variants: [{ slug: "standard", name: "GSX 125", engineCc: 125, transmission: "manual", fuel: "petrol" }] },
     ],
   },
   {
@@ -480,9 +480,9 @@ export const BIKE_MAKES: MakeSeed[] = [
     countryOfOrigin: "chinese",
     popularity: 74,
     models: [
-      { slug: "us-70", name: "US 70", popularity: 78 },
-      { slug: "us-125", name: "US 125", popularity: 70 },
-      { slug: "us-150", name: "US 150", popularity: 56 },
+      { slug: "us-70", name: "US 70", popularity: 78, variants: [{ slug: "standard", name: "US 70 Standard", engineCc: 70, transmission: "manual", fuel: "petrol" }] },
+      { slug: "us-125", name: "US 125", popularity: 70, variants: [{ slug: "standard", name: "US 125 Standard", engineCc: 125, transmission: "manual", fuel: "petrol" }] },
+      { slug: "us-150", name: "US 150", popularity: 56, variants: [{ slug: "standard", name: "US 150 Standard", engineCc: 150, transmission: "manual", fuel: "petrol" }] },
     ],
   },
   {
@@ -491,8 +491,8 @@ export const BIKE_MAKES: MakeSeed[] = [
     countryOfOrigin: "chinese",
     popularity: 66,
     models: [
-      { slug: "rp-70", name: "RP 70", popularity: 68 },
-      { slug: "rp-110", name: "RP 110", popularity: 58 },
+      { slug: "rp-70", name: "RP 70", popularity: 68, variants: [{ slug: "standard", name: "RP 70 Standard", engineCc: 70, transmission: "manual", fuel: "petrol" }] },
+      { slug: "rp-110", name: "RP 110", popularity: 58, variants: [{ slug: "standard", name: "RP 110 Standard", engineCc: 110, transmission: "manual", fuel: "petrol" }] },
     ],
   },
   {
@@ -501,8 +501,8 @@ export const BIKE_MAKES: MakeSeed[] = [
     countryOfOrigin: "chinese",
     popularity: 60,
     models: [
-      { slug: "infinity-150", name: "Infinity 150", popularity: 64 },
-      { slug: "sr-70", name: "SR 70", popularity: 54 },
+      { slug: "infinity-150", name: "Infinity 150", popularity: 64, variants: [{ slug: "standard", name: "Infinity 150", engineCc: 150, transmission: "manual", fuel: "petrol" }] },
+      { slug: "sr-70", name: "SR 70", popularity: 54, variants: [{ slug: "standard", name: "SR 70 Standard", engineCc: 70, transmission: "manual", fuel: "petrol" }] },
     ],
   },
   {
@@ -511,8 +511,8 @@ export const BIKE_MAKES: MakeSeed[] = [
     countryOfOrigin: "chinese",
     popularity: 56,
     models: [
-      { slug: "sp-70", name: "SP 70", popularity: 58 },
-      { slug: "sp-125", name: "SP 125", popularity: 48 },
+      { slug: "sp-70", name: "SP 70", popularity: 58, variants: [{ slug: "standard", name: "SP 70 Standard", engineCc: 70, transmission: "manual", fuel: "petrol" }] },
+      { slug: "sp-125", name: "SP 125", popularity: 48, variants: [{ slug: "standard", name: "SP 125 Standard", engineCc: 125, transmission: "manual", fuel: "petrol" }] },
     ],
   },
   {
@@ -521,9 +521,37 @@ export const BIKE_MAKES: MakeSeed[] = [
     countryOfOrigin: "chinese",
     popularity: 52,
     models: [
-      { slug: "ud-70", name: "UD 70", popularity: 54 },
-      { slug: "ud-100", name: "UD 100", popularity: 44 },
+      { slug: "ud-70", name: "UD 70", popularity: 54, variants: [{ slug: "standard", name: "UD 70 Standard", engineCc: 70, transmission: "manual", fuel: "petrol" }] },
+      { slug: "ud-100", name: "UD 100", popularity: 44, variants: [{ slug: "standard", name: "UD 100 Standard", engineCc: 100, transmission: "manual", fuel: "petrol" }] },
     ],
+  },
+  {
+    slug: "evee", name: "EVEE", countryOfOrigin: "pakistani", popularity: 86,
+    models: ["S1 Air", "S1", "S1 3W", "GEN-Z", "GEN-Z Pro", "SQUBE", "LX", "Mito+", "Flipper"].map((name, index) => ({
+      slug: name.toLowerCase().replaceAll("+", "-plus").replaceAll(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), name, popularity: 90 - index,
+      variants: [{ slug: "electric", name: `${name} Electric`, transmission: "automatic", fuel: "electric" }],
+    })),
+  },
+  {
+    slug: "yadea", name: "Yadea", countryOfOrigin: "chinese", popularity: 84,
+    models: ["GT30", "EPOC-H", "G5", "M3", "M3H", "Ruibin", "Ruibin S", "T5", "T5L", "Velax", "Keeness"].map((name, index) => ({
+      slug: name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), name, popularity: 88 - index,
+      variants: [{ slug: "electric", name: `${name} Electric`, transmission: "automatic", fuel: "electric" }],
+    })),
+  },
+  {
+    slug: "metro-ev", name: "Metro EV", countryOfOrigin: "pakistani", popularity: 82,
+    models: ["Metrix", "Dabang", "M6 Empower", "T9 Sport", "Thrill Pro", "E8S Mountain Climber", "E8S Pro", "A7", "Miku Super", "Wonder Bike", "Super Bike", "X8 Foldable"].map((name, index) => ({
+      slug: name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), name, popularity: 86 - index,
+      variants: [{ slug: "electric", name: `${name} Electric`, transmission: "automatic", fuel: "electric" }],
+    })),
+  },
+  {
+    slug: "ezbike", name: "ezBike", countryOfOrigin: "pakistani", popularity: 74,
+    models: ["Volt", "Spark", "Electron"].map((name, index) => ({
+      slug: name.toLowerCase(), name, popularity: 80 - index,
+      variants: [{ slug: "electric", name: `${name} Electric`, transmission: "automatic", fuel: "electric" }],
+    })),
   },
 ];
 
@@ -550,6 +578,14 @@ export const PART_CATEGORIES: PartCategorySeed[] = [
       { slug: "lights", name: "Lights", popularity: 80 },
       { slug: "mirrors", name: "Mirrors", popularity: 60 },
       { slug: "bumpers", name: "Bumpers", popularity: 65 },
+      { slug: "bonnets", name: "Bonnets & Hoods", popularity: 62 },
+      { slug: "doors", name: "Doors & Panels", popularity: 62 },
+      { slug: "fenders", name: "Fenders", popularity: 58 },
+      { slug: "grilles", name: "Grilles", popularity: 58 },
+      { slug: "windshields", name: "Windshields & Glass", popularity: 72 },
+      { slug: "wipers", name: "Wipers & Washers", popularity: 70 },
+      { slug: "spoilers", name: "Spoilers", popularity: 48 },
+      { slug: "number-plate-accessories", name: "Number Plate Accessories", popularity: 42 },
     ],
   },
   {
@@ -561,6 +597,12 @@ export const PART_CATEGORIES: PartCategorySeed[] = [
       { slug: "floor-mats", name: "Floor Mats", popularity: 78 },
       { slug: "steering-wheels", name: "Steering Wheels", popularity: 55 },
       { slug: "dash-cams", name: "Dash Cams", popularity: 72 },
+      { slug: "dashboard-parts", name: "Dashboard Parts", popularity: 58 },
+      { slug: "door-trims", name: "Door Trims & Handles", popularity: 52 },
+      { slug: "gear-knobs", name: "Gear Knobs & Boots", popularity: 48 },
+      { slug: "interior-mirrors", name: "Interior Mirrors", popularity: 48 },
+      { slug: "armrests-consoles", name: "Armrests & Consoles", popularity: 46 },
+      { slug: "sunshades", name: "Sunshades & Curtains", popularity: 54 },
     ],
   },
   {
@@ -572,6 +614,11 @@ export const PART_CATEGORIES: PartCategorySeed[] = [
       { slug: "speakers", name: "Speakers", popularity: 74 },
       { slug: "amplifiers", name: "Amplifiers", popularity: 58 },
       { slug: "reverse-cameras", name: "Reverse Cameras", popularity: 76 },
+      { slug: "head-units", name: "Head Units & Stereos", popularity: 80 },
+      { slug: "subwoofers", name: "Subwoofers", popularity: 62 },
+      { slug: "car-antennas", name: "Antennas", popularity: 38 },
+      { slug: "parking-sensors", name: "Parking Sensors", popularity: 68 },
+      { slug: "trackers-security", name: "Trackers & Security Systems", popularity: 70 },
     ],
   },
   {
@@ -583,6 +630,15 @@ export const PART_CATEGORIES: PartCategorySeed[] = [
       { slug: "spark-plugs", name: "Spark Plugs", popularity: 76 },
       { slug: "belts", name: "Belts", popularity: 62 },
       { slug: "engine-oil", name: "Engine Oil", popularity: 88 },
+      { slug: "complete-engines", name: "Complete Engines", popularity: 76 },
+      { slug: "engine-blocks-heads", name: "Engine Blocks & Cylinder Heads", popularity: 66 },
+      { slug: "pistons-rings", name: "Pistons & Rings", popularity: 60 },
+      { slug: "gaskets-seals", name: "Gaskets & Seals", popularity: 74 },
+      { slug: "timing-components", name: "Timing Belts, Chains & Tensioners", popularity: 72 },
+      { slug: "turbo-supercharger", name: "Turbochargers & Superchargers", popularity: 54 },
+      { slug: "mounts", name: "Engine Mounts", popularity: 64 },
+      { slug: "air-intake", name: "Air Intake Parts", popularity: 58 },
+      { slug: "exhaust", name: "Exhaust Parts", popularity: 62 },
     ],
   },
   {
@@ -593,6 +649,12 @@ export const PART_CATEGORIES: PartCategorySeed[] = [
       { slug: "batteries", name: "Batteries", popularity: 92 },
       { slug: "alternators", name: "Alternators", popularity: 54 },
       { slug: "wiring", name: "Wiring", popularity: 44 },
+      { slug: "starter-motors", name: "Starter Motors", popularity: 62 },
+      { slug: "ecus", name: "ECUs & Control Modules", popularity: 54 },
+      { slug: "sensors", name: "Sensors", popularity: 68 },
+      { slug: "fuses-relays", name: "Fuses & Relays", popularity: 62 },
+      { slug: "horns", name: "Horns", popularity: 56 },
+      { slug: "ignition-coils", name: "Ignition Coils", popularity: 66 },
     ],
   },
   {
@@ -603,6 +665,13 @@ export const PART_CATEGORIES: PartCategorySeed[] = [
       { slug: "shock-absorbers", name: "Shock Absorbers", popularity: 70 },
       { slug: "brake-pads", name: "Brake Pads", popularity: 80 },
       { slug: "suspension-kits", name: "Suspension Kits", popularity: 50 },
+      { slug: "brake-discs-drums", name: "Brake Discs & Drums", popularity: 76 },
+      { slug: "brake-calipers", name: "Brake Calipers", popularity: 62 },
+      { slug: "master-cylinders", name: "Master Cylinders", popularity: 58 },
+      { slug: "control-arms", name: "Control Arms", popularity: 64 },
+      { slug: "ball-joints", name: "Ball Joints & Tie Rod Ends", popularity: 66 },
+      { slug: "wheel-bearings", name: "Wheel Bearings & Hubs", popularity: 64 },
+      { slug: "steering-racks", name: "Steering Racks & Pumps", popularity: 58 },
     ],
   },
   {
@@ -614,6 +683,13 @@ export const PART_CATEGORIES: PartCategorySeed[] = [
       { slug: "bike-brakes", name: "Brakes & Suspension", popularity: 68 },
       { slug: "bike-electrical", name: "Electrical & Lighting", popularity: 64 },
       { slug: "bike-accessories", name: "Body & Accessories", popularity: 70 },
+      { slug: "bike-tyres-wheels", name: "Tyres, Tubes & Wheels", popularity: 72 },
+      { slug: "bike-chains-sprockets", name: "Chains & Sprockets", popularity: 70 },
+      { slug: "bike-exhaust", name: "Exhausts", popularity: 54 },
+      { slug: "bike-helmets-gear", name: "Helmets & Riding Gear", popularity: 74 },
+      { slug: "ebike-batteries", name: "E-Bike Batteries", popularity: 76 },
+      { slug: "ebike-motors", name: "E-Bike Motors & Controllers", popularity: 72 },
+      { slug: "ebike-chargers", name: "E-Bike Chargers", popularity: 70 },
     ],
   },
   {
@@ -625,6 +701,69 @@ export const PART_CATEGORIES: PartCategorySeed[] = [
       { slug: "diagnostics", name: "Diagnostic Tools", popularity: 58 },
       { slug: "workshop-equipment", name: "Workshop Equipment", popularity: 56 },
       { slug: "car-care", name: "Car Care", popularity: 66 },
+      { slug: "jacks-lifting", name: "Jacks & Lifting Equipment", popularity: 60 },
+      { slug: "air-compressors", name: "Air Compressors", popularity: 56 },
+      { slug: "battery-chargers", name: "Battery Chargers & Jump Starters", popularity: 62 },
+    ],
+  },
+  {
+    slug: "transmission-drivetrain", name: "Transmission & Drivetrain", popularity: 80,
+    children: [
+      { slug: "complete-transmissions", name: "Complete Transmissions", popularity: 76 },
+      { slug: "clutch-kits", name: "Clutch Kits & Plates", popularity: 78 },
+      { slug: "gearbox-parts", name: "Gearbox Parts", popularity: 66 },
+      { slug: "cv-joints-axles", name: "CV Joints & Axles", popularity: 70 },
+      { slug: "differentials", name: "Differentials", popularity: 54 },
+      { slug: "driveshafts", name: "Drive Shafts", popularity: 58 },
+      { slug: "transmission-oil", name: "Transmission & Gear Oil", popularity: 68 },
+    ],
+  },
+  {
+    slug: "cooling-heating-ac", name: "Cooling, Heating & AC", popularity: 78,
+    children: [
+      { slug: "radiators", name: "Radiators", popularity: 80 },
+      { slug: "water-pumps", name: "Water Pumps", popularity: 70 },
+      { slug: "cooling-fans", name: "Cooling Fans", popularity: 72 },
+      { slug: "thermostats", name: "Thermostats", popularity: 60 },
+      { slug: "ac-compressors", name: "AC Compressors", popularity: 78 },
+      { slug: "condensers-evaporators", name: "Condensers & Evaporators", popularity: 66 },
+      { slug: "heaters-blowers", name: "Heaters & Blower Motors", popularity: 58 },
+      { slug: "coolants", name: "Coolants", popularity: 70 },
+    ],
+  },
+  {
+    slug: "fuel-system", name: "Fuel System", popularity: 76,
+    children: [
+      { slug: "fuel-pumps", name: "Fuel Pumps", popularity: 76 },
+      { slug: "fuel-injectors", name: "Fuel Injectors", popularity: 74 },
+      { slug: "carburetors", name: "Carburetors", popularity: 60 },
+      { slug: "fuel-filters", name: "Fuel Filters", popularity: 72 },
+      { slug: "fuel-tanks", name: "Fuel Tanks", popularity: 54 },
+      { slug: "cng-lpg-parts", name: "CNG & LPG Parts", popularity: 56 },
+    ],
+  },
+  {
+    slug: "tyres-wheels", name: "Tyres & Wheels", popularity: 92,
+    children: [
+      { slug: "car-tyres", name: "Car Tyres", popularity: 96 },
+      { slug: "alloy-wheels", name: "Alloy Wheels", popularity: 94 },
+      { slug: "steel-rims", name: "Steel Rims", popularity: 72 },
+      { slug: "wheel-covers", name: "Wheel Covers", popularity: 66 },
+      { slug: "wheel-nuts-spacers", name: "Wheel Nuts, Spacers & Adapters", popularity: 54 },
+      { slug: "puncture-repair", name: "Puncture Repair & Inflators", popularity: 58 },
+    ],
+  },
+  {
+    slug: "ev-hybrid-parts", name: "EV & Hybrid Parts", popularity: 74,
+    children: [
+      { slug: "traction-batteries", name: "Traction Batteries", popularity: 80 },
+      { slug: "battery-modules", name: "Battery Modules & Cells", popularity: 76 },
+      { slug: "inverters-converters", name: "Inverters & DC Converters", popularity: 70 },
+      { slug: "electric-motors", name: "Electric Drive Motors", popularity: 70 },
+      { slug: "onboard-chargers", name: "On-board Chargers", popularity: 64 },
+      { slug: "charging-cables", name: "Charging Cables & Connectors", popularity: 72 },
+      { slug: "bms", name: "Battery Management Systems", popularity: 62 },
+      { slug: "hybrid-components", name: "Hybrid System Components", popularity: 68 },
     ],
   },
 ];
@@ -677,4 +816,16 @@ export const BIKE_FEATURES: FeatureSeed[] = [
   { slug: "disc-brake", name: "Disc Brake", groupName: "safety" },
   { slug: "alloy-rims", name: "Alloy Rims", groupName: "exterior" },
   { slug: "digital-meter", name: "Digital Meter", groupName: "interior" },
+  { slug: "abs", name: "ABS", groupName: "safety" },
+  { slug: "combined-braking", name: "Combined Braking System", groupName: "safety" },
+  { slug: "traction-control", name: "Traction Control", groupName: "safety" },
+  { slug: "tubeless-tyres", name: "Tubeless Tyres", groupName: "safety" },
+  { slug: "led-headlight", name: "LED Headlight", groupName: "exterior" },
+  { slug: "storage-space", name: "Under-seat Storage", groupName: "comfort" },
+  { slug: "reverse-gear", name: "Reverse Gear", groupName: "electric" },
+  { slug: "riding-modes", name: "Multiple Riding Modes", groupName: "electric" },
+  { slug: "regenerative-braking", name: "Regenerative Braking", groupName: "electric" },
+  { slug: "keyless-start", name: "Keyless Start", groupName: "electric" },
+  { slug: "mobile-app", name: "Mobile App Connectivity", groupName: "electric" },
+  { slug: "usb-charging", name: "USB Charging Port", groupName: "comfort" },
 ];

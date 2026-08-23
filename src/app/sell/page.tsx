@@ -43,7 +43,7 @@ export default async function SellPage() {
       <h1 className="text-2xl font-semibold text-slate-900">Sell your car</h1>
       <div className="mb-6 mt-1 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
         <p>Free to post. Takes about three minutes.</p>
-        <Link href="/sell/part" className="font-medium text-blue-700 hover:underline">Selling Auto Parts?</Link>
+        <Link href="/post-ad" className="font-medium text-blue-700 hover:underline">Choose another ad type</Link>
       </div>
 
       <SellForm makes={makeRows} cities={cityRows} features={featureRows} />

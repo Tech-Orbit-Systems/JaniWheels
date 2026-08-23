@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { makes, partCategories } from "@/db/schema/taxonomy";
 import { cities } from "@/db/schema/geo";
@@ -15,8 +15,9 @@ export default async function SellPartPage() {
   if (!user) redirect("/login?next=/sell/part");
   const [categories, makesRows, cityRows] = await Promise.all([
     db.select({ id: partCategories.id, name: partCategories.name, parentId: partCategories.parentId }).from(partCategories).orderBy(asc(partCategories.parentId), desc(partCategories.popularity), asc(partCategories.name)),
-    db.select({ id: makes.id, name: makes.name }).from(makes).where(and(eq(makes.vertical, "car"), eq(makes.isActive, true))).orderBy(desc(makes.popularity), asc(makes.name)),
+    db.select({ id: makes.id, name: makes.name, vertical: makes.vertical }).from(makes).where(and(inArray(makes.vertical, ["car", "bike"]), eq(makes.isActive, true))).orderBy(desc(makes.popularity), asc(makes.name)),
     db.select({ id: cities.id, name: cities.name }).from(cities).orderBy(desc(cities.popularity), asc(cities.name)),
   ]);
-  return <main className="mx-auto w-full max-w-3xl px-4 py-8"><div className="mb-6 flex flex-wrap items-end justify-between gap-2"><div><h1 className="text-2xl font-semibold text-slate-900">Sell Auto Parts</h1><p className="mt-1 text-sm text-slate-500">Add clear fitment details so the right buyer can find your part.</p></div><Link href="/sell" className="text-sm font-medium text-blue-700 hover:underline">Selling a car instead?</Link></div><PartSellForm categories={categories} makes={makesRows} cities={cityRows} /></main>;
+  const compatibleMakes = makesRows.map((make) => ({ id: make.id, name: `${make.name} (${make.vertical === "bike" ? "Bike" : "Car"})` }));
+  return <main className="bg-gradient-to-b from-amber-50 to-white pb-16"><div className="mx-auto w-full max-w-4xl px-4 py-9 sm:py-12"><div className="mb-8 flex flex-wrap items-end justify-between gap-4"><div className="max-w-2xl"><p className="text-xs font-extrabold uppercase tracking-[0.2em] text-[#8a6500]">Parts & accessories marketplace</p><h1 className="mt-2 text-3xl font-black tracking-tight text-zinc-950 sm:text-4xl">Sell an Auto Part</h1><p className="mt-3 leading-7 text-zinc-600">Select the exact category, compatibility and part identifiers so buyers can find the right fit.</p></div><Link href="/post-ad" className="text-sm font-bold text-[#8a6500] hover:underline">Choose another ad type</Link></div><PartSellForm categories={categories} makes={compatibleMakes} cities={cityRows} /></div></main>;
 }

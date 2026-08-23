@@ -8,8 +8,8 @@ import { db } from "@/db";
 import { carDetails, listings } from "@/db/schema/listings";
 import { dealers } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
-import { carListingSchema, partListingSchema, sanitizeDescription } from "./validation";
-import { publishCarListing, publishPartListing } from "./publish";
+import { bikeListingSchema, carListingSchema, partListingSchema, sanitizeDescription } from "./validation";
+import { publishBikeListing, publishCarListing, publishPartListing } from "./publish";
 import { buildListingPath } from "./slug";
 
 export interface SellState {
@@ -115,8 +115,15 @@ export async function createPartListingAction(
     condition: formData.get("condition"),
     brand: (formData.get("brand") as string) || "",
     partNumber: (formData.get("partNumber") as string) || undefined,
+    oemNumber: (formData.get("oemNumber") as string) || undefined,
+    partOrigin: formData.get("partOrigin"),
+    priceUnit: formData.get("priceUnit"),
     compatibleMakeId: num(formData.get("compatibleMakeId")),
     compatibleModelId: num(formData.get("compatibleModelId")),
+    compatibleYearFrom: num(formData.get("compatibleYearFrom")),
+    compatibleYearTo: num(formData.get("compatibleYearTo")),
+    position: formData.get("position") || undefined,
+    deliveryOption: formData.get("deliveryOption"),
     warrantyMonths: num(formData.get("warrantyMonths")),
     stockQty: num(formData.get("stockQty")),
     cityId: num(formData.get("cityId")),
@@ -150,6 +157,77 @@ export async function createPartListingAction(
   });
   revalidatePath("/auto-parts");
   redirect(`${buildListingPath("part", result.slug, result.listingId)}?posted=1${result.strippedContact ? "&stripped=1" : ""}`);
+}
+
+export async function createBikeListingAction(
+  _prev: SellState,
+  formData: FormData,
+): Promise<SellState> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?next=/sell/bike");
+
+  const bikeType = String(formData.get("bikeType") ?? "motorcycle");
+  const isElectric = bikeType.startsWith("electric-");
+  const parsed = bikeListingSchema.safeParse({
+    variantId: num(formData.get("variantId")),
+    bikeType,
+    condition: formData.get("condition"),
+    isElectric,
+    cityId: num(formData.get("cityId")),
+    areaId: num(formData.get("areaId")),
+    registeredCityId: num(formData.get("registeredCityId")),
+    isUnregistered: formData.get("isUnregistered") === "on",
+    year: num(formData.get("year")),
+    mileageKm: num(formData.get("mileageKm")),
+    pricePkr: num(formData.get("pricePkr")),
+    assembly: formData.get("assembly") ?? "local",
+    color: (formData.get("color") as string) || undefined,
+    hasDocuments: formData.get("hasDocuments") === "on",
+    ignitionType: formData.get("ignitionType") || undefined,
+    engineType: formData.get("engineType") || undefined,
+    numberOfGears: num(formData.get("numberOfGears")),
+    motorPowerWatts: num(formData.get("motorPowerWatts")),
+    batteryType: formData.get("batteryType") || undefined,
+    batteryVoltage: num(formData.get("batteryVoltage")),
+    batteryCapacityAh: num(formData.get("batteryCapacityAh")),
+    claimedRangeKm: num(formData.get("claimedRangeKm")),
+    topSpeedKph: num(formData.get("topSpeedKph")),
+    chargingTimeMinutes: num(formData.get("chargingTimeMinutes")),
+    batteryHealthPercent: num(formData.get("batteryHealthPercent")),
+    batteryRemovable: formData.get("batteryRemovable") === "on",
+    chargerIncluded: formData.get("chargerIncluded") === "on",
+    batteryWarrantyMonths: num(formData.get("batteryWarrantyMonths")),
+    isNegotiable: formData.get("isNegotiable") === "on",
+    description: (formData.get("description") as string) || undefined,
+    featureIds: formData.getAll("featureIds").map(Number).filter(Number.isFinite),
+    imageKeys: formData.getAll("imageKeys").map(String).filter(Boolean),
+  });
+
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const key = String(issue.path[0] ?? "form");
+      fieldErrors[key] ??= issue.message;
+    }
+    return { error: "Please fix the highlighted fields.", fieldErrors };
+  }
+
+  const [dealer] = await db.select({ id: dealers.id, verifiedAt: dealers.verifiedAt })
+    .from(dealers).where(eq(dealers.userId, user.id)).limit(1);
+  if (!dealer) {
+    const [{ active }] = await db.select({ active: sql<number>`COUNT(*)::int` }).from(listings)
+      .where(sql`${listings.sellerId} = ${user.id} AND ${listings.status} IN ('active','pending_review')`);
+    if (active >= FREE_ACTIVE_LIMIT) {
+      return { error: `You already have ${FREE_ACTIVE_LIMIT} live ads. Mark one as sold, or upgrade to a dealer account.` };
+    }
+  }
+
+  const result = await publishBikeListing(user.id, parsed.data, {
+    dealerId: dealer?.id,
+    publisher: dealer ? (dealer.verifiedAt ? "verified_dealer" : "unverified_dealer") : "individual",
+  });
+  revalidatePath("/used-bikes");
+  redirect(`${buildListingPath("bike", result.slug, result.listingId)}?posted=1${result.strippedContact ? "&stripped=1" : ""}`);
 }
 
 export async function markSoldAction(listingId: number): Promise<void> {

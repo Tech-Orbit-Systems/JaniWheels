@@ -56,12 +56,18 @@ export async function ListingDetail({
           ["Condition", listing.partCondition ? titleCase(listing.partCondition) : "—"],
           ["Brand", listing.partBrand ?? "—"],
           ["Part Number", listing.partNumber ?? "—"],
+          ["OEM Number", listing.partOemNumber ?? "—"],
+          ["Origin", listing.partOrigin ? titleCase(listing.partOrigin) : "—"],
           [
             "Fits",
             [listing.compatibleMakeName, listing.compatibleModelName]
               .filter(Boolean)
               .join(" ") || "Universal / not specified",
           ],
+          ["Compatible Years", listing.partCompatibleYearFrom || listing.partCompatibleYearTo ? `${listing.partCompatibleYearFrom ?? "Any"}–${listing.partCompatibleYearTo ?? "Current"}` : "Any / not specified"],
+          ["Position", listing.partPosition ? titleCase(listing.partPosition) : "Not applicable"],
+          ["Price Unit", titleCase(listing.partPriceUnit ?? "piece")],
+          ["Handover", listing.partDeliveryOption ? titleCase(listing.partDeliveryOption) : "Pickup"],
           [
             "Warranty",
             listing.partWarrantyMonths
@@ -72,11 +78,27 @@ export async function ListingDetail({
         ]
       : listing.vertical === "bike"
         ? [
+            ["Bike Type", listing.bikeType ? titleCase(listing.bikeType) : "—"],
+            ["Condition", listing.bikeCondition ? titleCase(listing.bikeCondition) : "—"],
             ["Model Year", listing.year ? String(listing.year) : "—"],
             ["Mileage", formatMileage(listing.mileageKm)],
-            ["Engine", formatEngine(listing.engineCc)],
+            [listing.fuel === "electric" ? "Motor" : "Engine", listing.fuel === "electric" ? (listing.bikeMotorPowerWatts ? `${listing.bikeMotorPowerWatts.toLocaleString()} W` : "—") : formatEngine(listing.engineCc)],
+            ...(listing.fuel === "electric" ? [
+              ["Battery", [listing.bikeBatteryVoltage ? `${listing.bikeBatteryVoltage}V` : null, listing.bikeBatteryCapacityAh ? `${listing.bikeBatteryCapacityAh}Ah` : null, listing.bikeBatteryType ? titleCase(listing.bikeBatteryType) : null].filter(Boolean).join(" · ") || "—"],
+              ["Range / Charge", listing.bikeClaimedRangeKm ? `${listing.bikeClaimedRangeKm} km` : "—"],
+              ["Top Speed", listing.bikeTopSpeedKph ? `${listing.bikeTopSpeedKph} km/h` : "—"],
+              ["Charge Time", listing.bikeChargingTimeMinutes ? `${Math.floor(listing.bikeChargingTimeMinutes / 60)}h ${listing.bikeChargingTimeMinutes % 60}m` : "—"],
+              ["Battery Health", listing.bikeBatteryHealthPercent ? `${listing.bikeBatteryHealthPercent}%` : "—"],
+              ["Battery Removable", listing.bikeBatteryRemovable ? "Yes" : "No"],
+              ["Charger Included", listing.bikeChargerIncluded ? "Yes" : "No"],
+            ] as [string, string][] : [
+              ["Ignition", listing.bikeIgnitionType ? titleCase(listing.bikeIgnitionType) : "—"],
+              ["Engine Cycle", listing.bikeEngineType ? titleCase(listing.bikeEngineType) : "—"],
+              ["Gears", listing.bikeNumberOfGears ? String(listing.bikeNumberOfGears) : "—"],
+            ] as [string, string][]),
             ["Colour", listing.color ?? "—"],
             ["Registered In", registered],
+            ["Documents", listing.bikeHasDocuments ? "Available" : "Not available"],
           ]
         : [
             ["Model Year", listing.year ? String(listing.year) : "—"],
@@ -312,8 +334,8 @@ export async function ListingDetail({
           <p className="mb-1.5 font-semibold text-slate-800">Staying safe</p>
           <ul className="list-inside list-disc space-y-1">
             <li>Meet in a public place, in daylight</li>
-            <li>Never pay before you have seen the car</li>
-            <li>Verify the registration book against the chassis number</li>
+            <li>Never pay before you have inspected the {listing.vertical === "part" ? "part" : "vehicle"}</li>
+            <li>{listing.vertical === "part" ? "Verify the part number and fitment before paying" : "Verify the registration book against the chassis number"}</li>
             <li>An unusually low price is usually a scam</li>
           </ul>
         </div>

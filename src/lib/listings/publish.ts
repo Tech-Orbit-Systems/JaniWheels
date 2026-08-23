@@ -4,6 +4,7 @@ import { db } from "@/db";
 import {
   listings,
   carDetails,
+  bikeDetails,
   partDetails,
   listingImages,
   listingFeatures,
@@ -17,6 +18,7 @@ import {
 } from "./publication-policy";
 import {
   sanitizeDescription,
+  type BikeListingInput,
   type CarListingInput,
   type PartListingInput,
 } from "./validation";
@@ -42,6 +44,119 @@ export interface PublishResult {
   listingId: number;
   slug: string;
   strippedContact: boolean;
+}
+
+export async function publishBikeListing(
+  sellerId: number,
+  input: BikeListingInput,
+  opts: { dealerId?: number; publisher?: ListingPublisher } = {},
+): Promise<PublishResult> {
+  const [variant] = await db
+    .select({
+      variantId: variants.id,
+      variantName: variants.name,
+      engineCc: variants.engineCc,
+      transmission: variants.transmission,
+      fuel: variants.fuel,
+      modelId: models.id,
+      modelName: models.name,
+      makeId: makes.id,
+      makeName: makes.name,
+      vertical: makes.vertical,
+    })
+    .from(variants)
+    .innerJoin(models, eq(variants.modelId, models.id))
+    .innerJoin(makes, eq(models.makeId, makes.id))
+    .where(eq(variants.id, input.variantId))
+    .limit(1);
+
+  if (!variant || variant.vertical !== "bike") throw new Error("Choose a valid bike variant.");
+  if ((variant.fuel === "electric") !== input.isElectric) {
+    throw new Error("The selected variant does not match the bike power source.");
+  }
+
+  const [city] = await db.select({ id: cities.id, name: cities.name })
+    .from(cities).where(eq(cities.id, input.cityId)).limit(1);
+  if (!city) throw new Error(`Unknown city ${input.cityId}`);
+
+  const { text: description, strippedContact } = sanitizeDescription(input.description ?? "");
+  const title = [variant.makeName, variant.modelName, variant.variantName, input.year]
+    .filter(Boolean).join(" ");
+  const slug = buildListingSlug({
+    makeName: variant.makeName,
+    modelName: variant.modelName,
+    variantName: variant.variantName,
+    year: input.year,
+    cityName: city.name,
+  });
+  const now = new Date();
+  const publication = initialPublicationState(opts.publisher ?? "individual", now);
+  const expiresAt = new Date(now.getTime() + LISTING_TTL_DAYS * 86_400_000);
+
+  return db.transaction(async (tx) => {
+    const [row] = await tx.insert(listings).values({
+      vertical: "bike",
+      sellerId,
+      dealerId: opts.dealerId ?? null,
+      slug,
+      title,
+      description: description || null,
+      pricePkr: input.pricePkr,
+      isNegotiable: input.isNegotiable,
+      cityId: input.cityId,
+      areaId: input.areaId ?? null,
+      makeId: variant.makeId,
+      modelId: variant.modelId,
+      variantId: variant.variantId,
+      year: input.year,
+      mileageKm: input.mileageKm,
+      transmission: variant.transmission,
+      fuel: variant.fuel,
+      engineCc: variant.engineCc,
+      assembly: input.assembly,
+      status: publication.status,
+      photoCount: input.imageKeys.length,
+      publishedAt: publication.publishedAt,
+      expiresAt,
+    }).returning({ id: listings.id });
+
+    await tx.insert(bikeDetails).values({
+      listingId: row.id,
+      registeredCityId: input.registeredCityId ?? null,
+      isUnregistered: input.isUnregistered,
+      color: input.color ?? null,
+      hasDocuments: input.hasDocuments,
+      bikeType: input.bikeType,
+      condition: input.condition,
+      ignitionType: input.isElectric ? null : (input.ignitionType ?? null),
+      engineType: input.isElectric ? null : (input.engineType ?? null),
+      numberOfGears: input.isElectric ? null : (input.numberOfGears ?? null),
+      motorPowerWatts: input.isElectric ? (input.motorPowerWatts ?? null) : null,
+      batteryType: input.isElectric ? (input.batteryType ?? null) : null,
+      batteryVoltage: input.isElectric ? (input.batteryVoltage ?? null) : null,
+      batteryCapacityAh: input.isElectric ? (input.batteryCapacityAh ?? null) : null,
+      claimedRangeKm: input.isElectric ? (input.claimedRangeKm ?? null) : null,
+      topSpeedKph: input.isElectric ? (input.topSpeedKph ?? null) : null,
+      chargingTimeMinutes: input.isElectric ? (input.chargingTimeMinutes ?? null) : null,
+      batteryHealthPercent: input.isElectric ? (input.batteryHealthPercent ?? null) : null,
+      batteryRemovable: input.isElectric ? (input.batteryRemovable ?? false) : null,
+      chargerIncluded: input.isElectric ? (input.chargerIncluded ?? false) : null,
+      batteryWarrantyMonths: input.isElectric ? (input.batteryWarrantyMonths ?? null) : null,
+    });
+
+    await tx.insert(listingImages).values(input.imageKeys.map((key, i) => ({
+      listingId: row.id,
+      storageKey: key,
+      position: i,
+    })));
+    if (input.featureIds.length) {
+      await tx.insert(listingFeatures).values(input.featureIds.map((featureId) => ({
+        listingId: row.id,
+        featureId,
+      })));
+    }
+    return { listingId: row.id, slug, strippedContact };
+  });
 }
 
 export async function publishCarListing(
@@ -195,6 +310,9 @@ export async function publishPartListing(
     .where(eq(partCategories.id, input.categoryId))
     .limit(1);
   if (!category) throw new Error("Choose a valid part category.");
+  const [childCategory] = await db.select({ id: partCategories.id })
+    .from(partCategories).where(eq(partCategories.parentId, category.id)).limit(1);
+  if (childCategory) throw new Error("Choose a more specific part category.");
 
   const [city] = await db
     .select({ id: cities.id, name: cities.name })
@@ -248,8 +366,15 @@ export async function publishPartListing(
       condition: input.condition,
       brand: input.brand,
       partNumber: input.partNumber ?? null,
+      oemNumber: input.oemNumber ?? null,
+      partOrigin: input.partOrigin,
+      priceUnit: input.priceUnit,
       compatibleMakeId: input.compatibleMakeId ?? null,
       compatibleModelId: input.compatibleModelId ?? null,
+      compatibleYearFrom: input.compatibleYearFrom ?? null,
+      compatibleYearTo: input.compatibleYearTo ?? null,
+      position: input.position ?? null,
+      deliveryOption: input.deliveryOption,
       warrantyMonths: input.warrantyMonths ?? null,
       stockQty: input.stockQty,
     });

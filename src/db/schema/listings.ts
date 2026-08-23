@@ -150,6 +150,24 @@ export const bikeDetails = pgTable("bike_details", {
   isUnregistered: boolean("is_unregistered").notNull().default(false),
   color: text("color"),
   hasDocuments: boolean("has_documents").notNull().default(true),
+  /** Motorcycle, scooter, trail, electric scooter, e-bike, etc. */
+  bikeType: text("bike_type").notNull().default("motorcycle"),
+  condition: text("condition").notNull().default("used"),
+  ignitionType: text("ignition_type"),
+  engineType: text("engine_type"),
+  numberOfGears: smallint("number_of_gears"),
+  /** Electric-only specifications. Null for combustion motorcycles. */
+  motorPowerWatts: integer("motor_power_watts"),
+  batteryType: text("battery_type"),
+  batteryVoltage: smallint("battery_voltage"),
+  batteryCapacityAh: integer("battery_capacity_ah"),
+  claimedRangeKm: integer("claimed_range_km"),
+  topSpeedKph: integer("top_speed_kph"),
+  chargingTimeMinutes: integer("charging_time_minutes"),
+  batteryHealthPercent: smallint("battery_health_percent"),
+  batteryRemovable: boolean("battery_removable"),
+  chargerIncluded: boolean("charger_included"),
+  batteryWarrantyMonths: smallint("battery_warranty_months"),
 });
 
 export const partDetails = pgTable(
@@ -164,11 +182,18 @@ export const partDetails = pgTable(
     condition: partConditionEnum("condition").notNull(),
     brand: text("brand"),
     partNumber: text("part_number"),
+    oemNumber: text("oem_number"),
+    partOrigin: text("part_origin"),
+    priceUnit: text("price_unit").notNull().default("piece"),
     /** Vehicle compatibility — nullable because many parts are universal. */
     compatibleMakeId: integer("compatible_make_id").references(() => makes.id),
     compatibleModelId: integer("compatible_model_id").references(
       () => models.id,
     ),
+    compatibleYearFrom: smallint("compatible_year_from"),
+    compatibleYearTo: smallint("compatible_year_to"),
+    position: text("position"),
+    deliveryOption: text("delivery_option").notNull().default("pickup"),
     warrantyMonths: smallint("warranty_months"),
     stockQty: integer("stock_qty").notNull().default(1),
   },
