@@ -8,6 +8,7 @@ import {
   partDetails,
   listingImages,
   listingFeatures,
+  listingCustomFeatures,
 } from "@/db/schema/listings";
 import { models, variants, makes, partCategories } from "@/db/schema/taxonomy";
 import { cities } from "@/db/schema/geo";
@@ -51,7 +52,7 @@ export async function publishBikeListing(
   input: BikeListingInput,
   opts: { dealerId?: number; publisher?: ListingPublisher } = {},
 ): Promise<PublishResult> {
-  const [variant] = await db
+  const [variant] = input.variantId ? await db
     .select({
       variantId: variants.id,
       variantName: variants.name,
@@ -68,11 +69,14 @@ export async function publishBikeListing(
     .innerJoin(models, eq(variants.modelId, models.id))
     .innerJoin(makes, eq(models.makeId, makes.id))
     .where(eq(variants.id, input.variantId))
-    .limit(1);
+    .limit(1) : [];
 
-  if (!variant || variant.vertical !== "bike") throw new Error("Choose a valid bike variant.");
-  if ((variant.fuel === "electric") !== input.isElectric) {
+  if (variant && variant.vertical !== "bike") throw new Error("Choose a valid bike variant.");
+  if (variant && (variant.fuel === "electric") !== input.isElectric) {
     throw new Error("The selected variant does not match the bike power source.");
+  }
+  if (!variant && (!input.customMakeName || !input.customModelName)) {
+    throw new Error("Choose a listed bike or enter the missing make and model.");
   }
 
   const [city] = await db.select({ id: cities.id, name: cities.name })
@@ -80,14 +84,17 @@ export async function publishBikeListing(
   if (!city) throw new Error(`Unknown city ${input.cityId}`);
 
   const { text: description, strippedContact } = sanitizeDescription(input.description ?? "");
-  const title = [variant.makeName, variant.modelName, variant.variantName, input.year]
+  const makeName = variant?.makeName ?? input.customMakeName!;
+  const modelName = variant?.modelName ?? input.customModelName!;
+  const variantName = variant?.variantName ?? input.customVariantName;
+  const title = [makeName, modelName, variantName, input.year]
     .filter(Boolean).join(" ");
   const slug = buildListingSlug({
-    makeName: variant.makeName,
-    modelName: variant.modelName,
-    variantName: variant.variantName,
+    makeName,
+    modelName,
+    variantName,
     year: input.year,
-    cityName: city.name,
+    cityName: input.customCityName ?? city.name,
   });
   const now = new Date();
   const publication = initialPublicationState(opts.publisher ?? "individual", now);
@@ -105,14 +112,19 @@ export async function publishBikeListing(
       isNegotiable: input.isNegotiable,
       cityId: input.cityId,
       areaId: input.areaId ?? null,
-      makeId: variant.makeId,
-      modelId: variant.modelId,
-      variantId: variant.variantId,
+      customCityName: input.customCityName ?? null,
+      customAreaName: input.customAreaName ?? null,
+      makeId: variant?.makeId ?? null,
+      modelId: variant?.modelId ?? null,
+      variantId: variant?.variantId ?? null,
+      customMakeName: variant ? null : makeName,
+      customModelName: variant ? null : modelName,
+      customVariantName: variant ? null : (variantName ?? null),
       year: input.year,
       mileageKm: input.mileageKm,
-      transmission: variant.transmission,
-      fuel: variant.fuel,
-      engineCc: variant.engineCc,
+      transmission: variant?.transmission ?? (input.isElectric ? "automatic" : null),
+      fuel: variant?.fuel ?? (input.isElectric ? "electric" : "petrol"),
+      engineCc: variant?.engineCc ?? null,
       assembly: input.assembly,
       status: publication.status,
       photoCount: input.imageKeys.length,
@@ -155,6 +167,11 @@ export async function publishBikeListing(
         featureId,
       })));
     }
+    if (input.customFeatureNames.length) {
+      await tx.insert(listingCustomFeatures).values(
+        [...new Set(input.customFeatureNames.map((name) => name.trim()))].map((name) => ({ listingId: row.id, name })),
+      );
+    }
     return { listingId: row.id, slug, strippedContact };
   });
 }
@@ -165,7 +182,7 @@ export async function publishCarListing(
   opts: { dealerId?: number; publisher?: ListingPublisher } = {},
 ): Promise<PublishResult> {
   // ---- resolve the taxonomy row that everything else is derived from -----
-  const [variant] = await db
+  const [variant] = input.variantId ? await db
     .select({
       variantId: variants.id,
       variantName: variants.name,
@@ -183,9 +200,11 @@ export async function publishCarListing(
     .innerJoin(models, eq(variants.modelId, models.id))
     .innerJoin(makes, eq(models.makeId, makes.id))
     .where(eq(variants.id, input.variantId))
-    .limit(1);
+    .limit(1) : [];
 
-  if (!variant) throw new Error(`Unknown variant ${input.variantId}`);
+  if (!variant && (!input.customMakeName || !input.customModelName)) {
+    throw new Error("Choose a listed car or enter the missing make and model.");
+  }
 
   const [city] = await db
     .select({ id: cities.id, name: cities.name })
@@ -199,21 +218,24 @@ export async function publishCarListing(
     input.description ?? "",
   );
 
+  const makeName = variant?.makeName ?? input.customMakeName!;
+  const modelName = variant?.modelName ?? input.customModelName!;
+  const variantName = variant?.variantName ?? input.customVariantName;
   const title = [
-    variant.makeName,
-    variant.modelName,
-    variant.variantName,
+    makeName,
+    modelName,
+    variantName,
     input.year,
   ]
     .filter(Boolean)
     .join(" ");
 
   const slug = buildListingSlug({
-    makeName: variant.makeName,
-    modelName: variant.modelName,
-    variantName: variant.variantName,
+    makeName,
+    modelName,
+    variantName,
     year: input.year,
-    cityName: city.name,
+    cityName: input.customCityName ?? city.name,
   });
 
   const now = new Date();
@@ -242,17 +264,22 @@ export async function publishCarListing(
         isNegotiable: input.isNegotiable,
         cityId: input.cityId,
         areaId: input.areaId ?? null,
+        customCityName: input.customCityName ?? null,
+        customAreaName: input.customAreaName ?? null,
 
         // Denormalized from the variant — the single source of these values.
-        makeId: variant.makeId,
-        modelId: variant.modelId,
-        variantId: variant.variantId,
+        makeId: variant?.makeId ?? null,
+        modelId: variant?.modelId ?? null,
+        variantId: variant?.variantId ?? null,
+        customMakeName: variant ? null : makeName,
+        customModelName: variant ? null : modelName,
+        customVariantName: variant ? null : (variantName ?? null),
         year: input.year,
         mileageKm: input.mileageKm,
-        transmission: variant.transmission,
-        fuel: variant.fuel,
-        bodyType: variant.variantBodyType ?? variant.modelBodyType,
-        engineCc: variant.engineCc,
+        transmission: variant?.transmission ?? null,
+        fuel: variant?.fuel ?? null,
+        bodyType: variant?.variantBodyType ?? variant?.modelBodyType ?? null,
+        engineCc: variant?.engineCc ?? null,
         assembly: input.assembly,
 
         status: publication.status,
@@ -290,6 +317,11 @@ export async function publishCarListing(
           listingId: row.id,
           featureId,
         })),
+      );
+    }
+    if (input.customFeatureNames.length) {
+      await tx.insert(listingCustomFeatures).values(
+        [...new Set(input.customFeatureNames.map((name) => name.trim()))].map((name) => ({ listingId: row.id, name })),
       );
     }
 
@@ -331,12 +363,13 @@ export async function publishPartListing(
   }
 
   const { text: description, strippedContact } = sanitizeDescription(input.description ?? "");
-  const title = [input.brand, category.name, input.partNumber].filter(Boolean).join(" ");
+  const categoryName = input.customCategoryName ?? category.name;
+  const title = [input.brand, categoryName, input.partNumber].filter(Boolean).join(" ");
   const slug = buildListingSlug({
     makeName: input.brand,
-    modelName: category.name,
+    modelName: categoryName,
     variantName: input.partNumber,
-    cityName: city.name,
+    cityName: input.customCityName ?? city.name,
   });
   const now = new Date();
   const publication = initialPublicationState(opts.publisher ?? "individual", now);
@@ -354,6 +387,8 @@ export async function publishPartListing(
       isNegotiable: input.isNegotiable,
       cityId: input.cityId,
       areaId: input.areaId ?? null,
+      customCityName: input.customCityName ?? null,
+      customAreaName: input.customAreaName ?? null,
       status: publication.status,
       photoCount: input.imageKeys.length,
       publishedAt: publication.publishedAt,
@@ -365,12 +400,15 @@ export async function publishPartListing(
       categoryId: category.id,
       condition: input.condition,
       brand: input.brand,
+      customCategoryName: input.customCategoryName ?? null,
       partNumber: input.partNumber ?? null,
       oemNumber: input.oemNumber ?? null,
       partOrigin: input.partOrigin,
       priceUnit: input.priceUnit,
       compatibleMakeId: input.compatibleMakeId ?? null,
       compatibleModelId: input.compatibleModelId ?? null,
+      customCompatibleMakeName: input.customCompatibleMakeName ?? null,
+      customCompatibleModelName: input.customCompatibleModelName ?? null,
       compatibleYearFrom: input.compatibleYearFrom ?? null,
       compatibleYearTo: input.compatibleYearTo ?? null,
       position: input.position ?? null,

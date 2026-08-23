@@ -26,7 +26,8 @@ const YEARS = Array.from({ length: CURRENT_YEAR - 1969 }, (_, i) => CURRENT_YEAR
  * price, mileage and one photo.
  *
  * Make/model/variant cascade from the taxonomy API — a seller cannot type a
- * model name, which is what keeps facet pages and price analytics coherent.
+ * model name. Ad-local fallback labels cover rare vehicles without changing
+ * the curated taxonomy used by search facets and price analytics.
  */
 export function SellForm({
   makes,
@@ -117,7 +118,6 @@ export function SellForm({
             value={makeId}
             onChange={(e) => setMakeId(e.target.value)}
             className={selectClass}
-            required
           >
             <option value="">Select make</option>
             {makes.map((m) => (
@@ -132,7 +132,6 @@ export function SellForm({
             onChange={(e) => setModelId(e.target.value)}
             className={selectClass}
             disabled={!models.length}
-            required
           >
             <option value="">Select model</option>
             {models.map((m) => (
@@ -146,13 +145,23 @@ export function SellForm({
           hint="Exact variant — this is what powers the price comparison buyers see."
           error={err("variantId")}
         >
-          <select name="variantId" className={selectClass} disabled={!variants.length} required>
+          <select name="variantId" className={selectClass} disabled={!variants.length}>
             <option value="">Select variant</option>
             {variants.map((v) => (
               <option key={v.id} value={v.id}>{v.name}</option>
             ))}
           </select>
         </Field>
+
+        <details className="rounded-lg border border-dashed border-blue-300 bg-blue-50 p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-blue-800">Make, model or variant not listed?</summary>
+          <p className="mt-2 text-xs text-blue-700">Enter the missing details below. They are saved only on this ad and do not become marketplace filters.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <Field label="Make name" error={err("customMakeName")}><input name="customMakeName" maxLength={80} className={inputClass} placeholder="e.g. Geely" /></Field>
+            <Field label="Model name" error={err("customModelName")}><input name="customModelName" maxLength={80} className={inputClass} placeholder="e.g. CK" /></Field>
+            <Field label="Variant / trim"><input name="customVariantName" maxLength={80} className={inputClass} placeholder="Optional" /></Field>
+          </div>
+        </details>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Model year" error={err("year")}>
@@ -196,6 +205,12 @@ export function SellForm({
             </select>
           </Field>
         </div>
+        <Field label="City / town not listed" hint="Enter it for this ad, and select its nearest official city or district above for search.">
+          <input name="customCityName" maxLength={80} className={inputClass} placeholder="Town or municipality" />
+        </Field>
+        <Field label="Locality / area not listed" hint="Saved only on this ad. Select the nearest official city above.">
+          <input name="customAreaName" maxLength={80} className={inputClass} placeholder="Town, society, sector or village" />
+        </Field>
       </Section>
 
       <Section title="Condition & price">
@@ -263,6 +278,9 @@ export function SellForm({
             </div>
           </div>
         ))}
+        <Field label="Other features not listed" hint="Separate multiple features with commas. These stay on this ad and never become filters automatically.">
+          <textarea name="customFeatureNames" rows={2} maxLength={800} className={inputClass} placeholder="Example: cassette player, manual choke, solar ventilation fan" />
+        </Field>
       </Section>
 
       <Section

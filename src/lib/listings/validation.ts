@@ -11,12 +11,20 @@ import { z } from "zod";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
+const adLocalLabel = z.string().trim().min(2, "Enter at least 2 characters.").max(80).optional();
+const customFeatureNames = z.array(z.string().trim().min(2).max(80)).max(20).default([]);
+
 export const carListingSchema = z.object({
   variantId: z.number().int().positive({
     message: "Choose the exact variant — it's what powers price comparisons.",
-  }),
+  }).optional(),
+  customMakeName: adLocalLabel,
+  customModelName: adLocalLabel,
+  customVariantName: adLocalLabel,
   cityId: z.number().int().positive("Choose a city."),
   areaId: z.number().int().positive().optional(),
+  customCityName: adLocalLabel,
+  customAreaName: adLocalLabel,
 
   year: z
     .number()
@@ -56,18 +64,26 @@ export const carListingSchema = z.object({
     .optional(),
 
   featureIds: z.array(z.number().int().positive()).max(60).default([]),
+  customFeatureNames,
 
   imageKeys: z
     .array(z.string().min(1))
     .min(1, "Add at least one photo — listings without photos barely sell.")
     .max(30),
+}).superRefine((data, ctx) => {
+  if (!data.variantId && (!data.customMakeName || !data.customModelName)) {
+    ctx.addIssue({ code: "custom", path: ["variantId"], message: "Choose a listed variant or enter the missing make and model." });
+  }
 });
 
 export type CarListingInput = z.infer<typeof carListingSchema>;
 
 export const bikeListingSchema = z
   .object({
-    variantId: z.number().int().positive("Choose the exact bike variant."),
+    variantId: z.number().int().positive("Choose the exact bike variant.").optional(),
+    customMakeName: adLocalLabel,
+    customModelName: adLocalLabel,
+    customVariantName: adLocalLabel,
     bikeType: z.enum([
       "motorcycle",
       "sports",
@@ -83,6 +99,8 @@ export const bikeListingSchema = z
     isElectric: z.boolean(),
     cityId: z.number().int().positive("Choose a city."),
     areaId: z.number().int().positive().optional(),
+    customCityName: adLocalLabel,
+    customAreaName: adLocalLabel,
     registeredCityId: z.number().int().positive().optional(),
     isUnregistered: z.boolean().default(false),
     year: z.number().int().min(1970).max(CURRENT_YEAR + 1),
@@ -108,9 +126,13 @@ export const bikeListingSchema = z
     isNegotiable: z.boolean().default(false),
     description: z.string().trim().max(5000, "Description is too long.").optional(),
     featureIds: z.array(z.number().int().positive()).max(40).default([]),
+    customFeatureNames,
     imageKeys: z.array(z.string().min(1)).min(1, "Add at least one bike photo.").max(30),
   })
   .superRefine((data, ctx) => {
+    if (!data.variantId && (!data.customMakeName || !data.customModelName)) {
+      ctx.addIssue({ code: "custom", path: ["variantId"], message: "Choose a listed variant or enter the missing make and model." });
+    }
     const electricType = data.bikeType.startsWith("electric-");
     if (data.isElectric !== electricType) {
       ctx.addIssue({ code: "custom", path: ["bikeType"], message: "Bike type and power source do not match." });
@@ -145,6 +167,8 @@ export const partListingSchema = z.object({
   priceUnit: z.enum(["piece", "pair", "set", "kit", "litre"]),
   compatibleMakeId: z.number().int().positive().optional(),
   compatibleModelId: z.number().int().positive().optional(),
+  customCompatibleMakeName: adLocalLabel,
+  customCompatibleModelName: adLocalLabel,
   compatibleYearFrom: z.number().int().min(1970).max(CURRENT_YEAR + 1).optional(),
   compatibleYearTo: z.number().int().min(1970).max(CURRENT_YEAR + 1).optional(),
   position: z.enum(["front", "rear", "left", "right", "front-left", "front-right", "rear-left", "rear-right", "not-applicable"]).optional(),
@@ -153,6 +177,9 @@ export const partListingSchema = z.object({
   stockQty: z.number().int().min(1).max(10_000),
   cityId: z.number().int().positive("Choose a city."),
   areaId: z.number().int().positive().optional(),
+  customCityName: adLocalLabel,
+  customAreaName: adLocalLabel,
+  customCategoryName: adLocalLabel,
   pricePkr: z.number().int().min(500, "Price looks too low.").max(50_000_000),
   isNegotiable: z.boolean().default(false),
   description: z.string().trim().max(5000, "Description is too long.").optional(),
@@ -163,6 +190,9 @@ export const partListingSchema = z.object({
   }
   if (data.compatibleModelId && !data.compatibleMakeId) {
     ctx.addIssue({ code: "custom", path: ["compatibleModelId"], message: "Choose a make before selecting a model." });
+  }
+  if (data.customCompatibleModelName && !data.customCompatibleMakeName) {
+    ctx.addIssue({ code: "custom", path: ["customCompatibleModelName"], message: "Enter the compatible make as well." });
   }
 });
 

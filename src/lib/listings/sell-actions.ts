@@ -27,6 +27,16 @@ function num(v: FormDataEntryValue | null): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function optionalText(v: FormDataEntryValue | null): string | undefined {
+  const value = typeof v === "string" ? v.trim() : "";
+  return value || undefined;
+}
+
+function customFeatures(v: FormDataEntryValue | null): string[] {
+  if (typeof v !== "string") return [];
+  return v.split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+}
+
 export async function createCarListingAction(
   _prev: SellState,
   formData: FormData,
@@ -36,8 +46,13 @@ export async function createCarListingAction(
 
   const parsed = carListingSchema.safeParse({
     variantId: num(formData.get("variantId")),
+    customMakeName: optionalText(formData.get("customMakeName")),
+    customModelName: optionalText(formData.get("customModelName")),
+    customVariantName: optionalText(formData.get("customVariantName")),
     cityId: num(formData.get("cityId")),
     areaId: num(formData.get("areaId")),
+    customCityName: optionalText(formData.get("customCityName")),
+    customAreaName: optionalText(formData.get("customAreaName")),
     year: num(formData.get("year")),
     pricePkr: num(formData.get("pricePkr")),
     mileageKm: num(formData.get("mileageKm")),
@@ -53,6 +68,7 @@ export async function createCarListingAction(
       .getAll("featureIds")
       .map((v) => Number(v))
       .filter(Number.isFinite),
+    customFeatureNames: customFeatures(formData.get("customFeatureNames")),
     imageKeys: formData.getAll("imageKeys").map(String).filter(Boolean),
   });
 
@@ -120,6 +136,8 @@ export async function createPartListingAction(
     priceUnit: formData.get("priceUnit"),
     compatibleMakeId: num(formData.get("compatibleMakeId")),
     compatibleModelId: num(formData.get("compatibleModelId")),
+    customCompatibleMakeName: optionalText(formData.get("customCompatibleMakeName")),
+    customCompatibleModelName: optionalText(formData.get("customCompatibleModelName")),
     compatibleYearFrom: num(formData.get("compatibleYearFrom")),
     compatibleYearTo: num(formData.get("compatibleYearTo")),
     position: formData.get("position") || undefined,
@@ -128,6 +146,9 @@ export async function createPartListingAction(
     stockQty: num(formData.get("stockQty")),
     cityId: num(formData.get("cityId")),
     areaId: num(formData.get("areaId")),
+    customCityName: optionalText(formData.get("customCityName")),
+    customAreaName: optionalText(formData.get("customAreaName")),
+    customCategoryName: optionalText(formData.get("customCategoryName")),
     pricePkr: num(formData.get("pricePkr")),
     isNegotiable: formData.get("isNegotiable") === "on",
     description: (formData.get("description") as string) || undefined,
@@ -170,11 +191,16 @@ export async function createBikeListingAction(
   const isElectric = bikeType.startsWith("electric-");
   const parsed = bikeListingSchema.safeParse({
     variantId: num(formData.get("variantId")),
+    customMakeName: optionalText(formData.get("customMakeName")),
+    customModelName: optionalText(formData.get("customModelName")),
+    customVariantName: optionalText(formData.get("customVariantName")),
     bikeType,
     condition: formData.get("condition"),
     isElectric,
     cityId: num(formData.get("cityId")),
     areaId: num(formData.get("areaId")),
+    customCityName: optionalText(formData.get("customCityName")),
+    customAreaName: optionalText(formData.get("customAreaName")),
     registeredCityId: num(formData.get("registeredCityId")),
     isUnregistered: formData.get("isUnregistered") === "on",
     year: num(formData.get("year")),
@@ -200,6 +226,7 @@ export async function createBikeListingAction(
     isNegotiable: formData.get("isNegotiable") === "on",
     description: (formData.get("description") as string) || undefined,
     featureIds: formData.getAll("featureIds").map(Number).filter(Number.isFinite),
+    customFeatureNames: customFeatures(formData.get("customFeatureNames")),
     imageKeys: formData.getAll("imageKeys").map(String).filter(Boolean),
   });
 

@@ -1,4 +1,4 @@
-import { bikeListingSchema, partListingSchema } from "../src/lib/listings/validation";
+import { bikeListingSchema, carListingSchema, partListingSchema } from "../src/lib/listings/validation";
 
 const imageKeys = ["uploads/test.webp"];
 const validBike = {
@@ -19,6 +19,13 @@ const validPart = {
   priceUnit: "piece", stockQty: 1, deliveryOption: "pickup", cityId: 1,
   pricePkr: 5000, isNegotiable: false, imageKeys,
 };
+const validCustomCar = {
+  customMakeName: "Geely", customModelName: "CK", customVariantName: "1.3",
+  customAreaName: "Village 12", cityId: 1, year: 2008, mileageKm: 140000,
+  pricePkr: 900000, assembly: "imported", isUnregistered: false,
+  hasAuctionSheet: false, isNegotiable: true, featureIds: [],
+  customFeatureNames: ["Cassette changer"], imageKeys,
+};
 
 const checks = [
   ["petrol bike accepted", bikeListingSchema.safeParse(validBike).success],
@@ -27,6 +34,11 @@ const checks = [
   ["bike type must match power source", !bikeListingSchema.safeParse({ ...validBike, bikeType: "electric-scooter" }).success],
   ["auto part accepted", partListingSchema.safeParse(validPart).success],
   ["part fitment year range validated", !partListingSchema.safeParse({ ...validPart, compatibleYearFrom: 2024, compatibleYearTo: 2020 }).success],
+  ["ad-local car taxonomy accepted", carListingSchema.safeParse(validCustomCar).success],
+  ["ad-local car requires make and model", !carListingSchema.safeParse({ ...validCustomCar, customModelName: undefined }).success],
+  ["ad-local bike taxonomy accepted", bikeListingSchema.safeParse({ ...validBike, variantId: undefined, customMakeName: "Rare Bike", customModelName: "R1", customFeatureNames: ["Sidecar"] }).success],
+  ["ad-local part compatibility accepted", partListingSchema.safeParse({ ...validPart, customCategoryName: "Vacuum valve", customCompatibleMakeName: "Geely", customCompatibleModelName: "CK" }).success],
+  ["custom compatible model requires make", !partListingSchema.safeParse({ ...validPart, customCompatibleModelName: "CK" }).success],
 ] as const;
 
 let failed = 0;

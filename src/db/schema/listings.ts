@@ -70,6 +70,10 @@ export const listings = pgTable(
       .notNull()
       .references(() => cities.id),
     areaId: integer("area_id").references(() => areas.id),
+    /** Display-only city/town fallback; cityId remains the administrative facet. */
+    customCityName: text("custom_city_name"),
+    /** Seller-entered locality is display-only for this ad, never a geo facet. */
+    customAreaName: text("custom_area_name"),
 
     status: listingStatusEnum("status").notNull().default("draft"),
 
@@ -77,6 +81,10 @@ export const listings = pgTable(
     makeId: integer("make_id").references(() => makes.id),
     modelId: integer("model_id").references(() => models.id),
     variantId: integer("variant_id").references(() => variants.id),
+    /** Ad-local fallback labels. They never create or update taxonomy rows. */
+    customMakeName: text("custom_make_name"),
+    customModelName: text("custom_model_name"),
+    customVariantName: text("custom_variant_name"),
     year: smallint("year"),
     mileageKm: integer("mileage_km"),
     transmission: transmissionEnum("transmission"),
@@ -181,6 +189,8 @@ export const partDetails = pgTable(
       .references(() => partCategories.id),
     condition: partConditionEnum("condition").notNull(),
     brand: text("brand"),
+    /** Used only when the seller cannot find a suitable controlled leaf. */
+    customCategoryName: text("custom_category_name"),
     partNumber: text("part_number"),
     oemNumber: text("oem_number"),
     partOrigin: text("part_origin"),
@@ -190,6 +200,8 @@ export const partDetails = pgTable(
     compatibleModelId: integer("compatible_model_id").references(
       () => models.id,
     ),
+    customCompatibleMakeName: text("custom_compatible_make_name"),
+    customCompatibleModelName: text("custom_compatible_model_name"),
     compatibleYearFrom: smallint("compatible_year_from"),
     compatibleYearTo: smallint("compatible_year_to"),
     position: text("position"),
@@ -240,6 +252,19 @@ export const listingFeatures = pgTable(
   ],
 );
 
+/** Free-text features belong to one ad and never become trusted filter facets. */
+export const listingCustomFeatures = pgTable(
+  "listing_custom_features",
+  {
+    id: serial("id").primaryKey(),
+    listingId: integer("listing_id")
+      .notNull()
+      .references(() => listings.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+  },
+  (t) => [index("listing_custom_features_listing_idx").on(t.listingId)],
+);
+
 export const listingsRelations = relations(listings, ({ one, many }) => ({
   seller: one(users, { fields: [listings.sellerId], references: [users.id] }),
   dealer: one(dealers, {
@@ -267,6 +292,7 @@ export const listingsRelations = relations(listings, ({ one, many }) => ({
   }),
   images: many(listingImages),
   features: many(listingFeatures),
+  customFeatures: many(listingCustomFeatures),
 }));
 
 export const listingImagesRelations = relations(listingImages, ({ one }) => ({
@@ -286,6 +312,16 @@ export const listingFeaturesRelations = relations(
     feature: one(features, {
       fields: [listingFeatures.featureId],
       references: [features.id],
+    }),
+  }),
+);
+
+export const listingCustomFeaturesRelations = relations(
+  listingCustomFeatures,
+  ({ one }) => ({
+    listing: one(listings, {
+      fields: [listingCustomFeatures.listingId],
+      references: [listings.id],
     }),
   }),
 );

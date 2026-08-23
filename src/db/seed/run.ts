@@ -28,6 +28,7 @@ import {
   BIKE_FEATURES,
   type MakeSeed,
   type PartCategorySeed,
+  type VariantSeed,
 } from "./vehicles";
 import slugify from "slugify";
 
@@ -165,8 +166,6 @@ async function seedMakes(group: MakeSeed[], vertical: "car" | "bike") {
         .onConflictDoNothing();
       modelCount++;
 
-      if (!md.variants?.length) continue;
-
       const [modelRow] = await db
         .select({ id: models.id })
         .from(models)
@@ -175,10 +174,21 @@ async function seedMakes(group: MakeSeed[], vertical: "car" | "bike") {
 
       if (!modelRow) continue;
 
+      // A model must never lead to a dead variant dropdown. "Other / exact
+      // variant not listed" is still a curated record; the seller can add an
+      // ad-local trim label without creating taxonomy data.
+      const variantSeeds: VariantSeed[] = md.variants?.length
+        ? md.variants
+        : [{
+            slug: "other",
+            name: "Other / exact variant not listed",
+            bodyType: md.bodyType,
+          }];
+
       await db
         .insert(variants)
         .values(
-          md.variants.map((v) => ({
+          variantSeeds.map((v) => ({
             modelId: modelRow.id,
             slug: v.slug,
             name: v.name,
@@ -191,7 +201,7 @@ async function seedMakes(group: MakeSeed[], vertical: "car" | "bike") {
           })),
         )
         .onConflictDoNothing();
-      variantCount += md.variants.length;
+      variantCount += variantSeeds.length;
     }
   }
 

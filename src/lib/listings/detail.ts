@@ -8,6 +8,7 @@ import {
   partDetails,
   listingImages,
   listingFeatures,
+  listingCustomFeatures,
 } from "@/db/schema/listings";
 import {
   makes,
@@ -54,18 +55,18 @@ export const getListingDetail = cache(
         updatedAt: listings.updatedAt,
 
         makeId: makes.id,
-        makeName: makes.name,
+        makeName: sql<string | null>`COALESCE(${makes.name}, ${listings.customMakeName})`,
         makeSlug: makes.slug,
         modelId: models.id,
-        modelName: models.name,
+        modelName: sql<string | null>`COALESCE(${models.name}, ${listings.customModelName})`,
         modelSlug: models.slug,
         variantId: variants.id,
-        variantName: variants.name,
+        variantName: sql<string | null>`COALESCE(${variants.name}, ${listings.customVariantName})`,
 
         cityId: cities.id,
-        cityName: cities.name,
+        cityName: sql<string>`COALESCE(${listings.customCityName}, ${cities.name})`,
         citySlug: cities.slug,
-        areaName: areas.name,
+        areaName: sql<string | null>`COALESCE(${areas.name}, ${listings.customAreaName})`,
 
         // car / bike shared extras, coalesced across the two detail tables
         color: sql<string | null>`COALESCE(${carDetails.color}, ${bikeDetails.color})`,
@@ -107,10 +108,10 @@ export const getListingDetail = cache(
         partDeliveryOption: partDetails.deliveryOption,
         partWarrantyMonths: partDetails.warrantyMonths,
         partStockQty: partDetails.stockQty,
-        partCategoryName: partCategories.name,
+        partCategoryName: sql<string | null>`COALESCE(${partDetails.customCategoryName}, ${partCategories.name})`,
         partCategorySlug: partCategories.slug,
-        compatibleMakeName: sql<string | null>`part_make.name`,
-        compatibleModelName: sql<string | null>`part_model.name`,
+        compatibleMakeName: sql<string | null>`COALESCE(part_make.name, ${partDetails.customCompatibleMakeName})`,
+        compatibleModelName: sql<string | null>`COALESCE(part_model.name, ${partDetails.customCompatibleModelName})`,
 
         sellerId: users.id,
         sellerName: users.name,
@@ -143,7 +144,7 @@ export const getListingDetail = cache(
 
     if (!row) return null;
 
-    const [images, featureRows] = await Promise.all([
+    const [images, featureRows, customFeatureRows] = await Promise.all([
       db
         .select({ key: listingImages.storageKey, position: listingImages.position })
         .from(listingImages)
@@ -158,9 +159,20 @@ export const getListingDetail = cache(
         .from(listingFeatures)
         .innerJoin(features, eq(listingFeatures.featureId, features.id))
         .where(eq(listingFeatures.listingId, id)),
+      db
+        .select({ name: listingCustomFeatures.name })
+        .from(listingCustomFeatures)
+        .where(eq(listingCustomFeatures.listingId, id)),
     ]);
 
-    return { ...row, images, features: featureRows };
+    return {
+      ...row,
+      images,
+      features: [
+        ...featureRows,
+        ...customFeatureRows.map((feature) => ({ ...feature, slug: null, groupName: "other" })),
+      ],
+    };
   },
 );
 

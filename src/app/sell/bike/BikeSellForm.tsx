@@ -81,13 +81,22 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
 
       <FormSection icon={electric ? Zap : Bike} title={electric ? "Which electric bike?" : "Which bike?"}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Make" error={error("variantId")}><select value={makeId} onChange={(e) => setMakeId(e.target.value)} className={selectClass} required><option value="">Select make</option>{visibleMakes.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>
-          <Field label="Model"><select value={modelId} onChange={(e) => setModelId(e.target.value)} className={selectClass} disabled={!models.length} required><option value="">Select model</option>{models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>
-          <Field label="Variant" error={error("variantId")}><select name="variantId" className={selectClass} disabled={!variants.length} required><option value="">Select variant</option>{variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></Field>
+          <Field label="Make" error={error("variantId")}><select value={makeId} onChange={(e) => setMakeId(e.target.value)} className={selectClass}><option value="">Select make</option>{visibleMakes.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>
+          <Field label="Model"><select value={modelId} onChange={(e) => setModelId(e.target.value)} className={selectClass} disabled={!models.length}><option value="">Select model</option>{models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>
+          <Field label="Variant" error={error("variantId")}><select name="variantId" className={selectClass} disabled={!variants.length}><option value="">Select variant</option>{variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></Field>
           <Field label="Condition"><select name="condition" className={selectClass} defaultValue="used"><option value="used">Used</option><option value="new">New / unregistered stock</option></select></Field>
           <Field label="Model year" error={error("year")}><select name="year" className={selectClass} required><option value="">Select year</option>{YEARS.map((year) => <option key={year}>{year}</option>)}</select></Field>
           <Field label="Mileage (km)" error={error("mileageKm")}><input name="mileageKm" type="number" min={0} max={500000} inputMode="numeric" className={inputClass} required /></Field>
         </div>
+        <details className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50 p-4">
+          <summary className="cursor-pointer text-sm font-bold text-emerald-900">Bike or e-bike not listed?</summary>
+          <p className="mt-2 text-xs text-emerald-800">Enter it for this ad only. It will not create a global make, model or filter.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <Field label="Make name" error={error("customMakeName")}><input name="customMakeName" maxLength={80} className={inputClass} /></Field>
+            <Field label="Model name" error={error("customModelName")}><input name="customModelName" maxLength={80} className={inputClass} /></Field>
+            <Field label="Variant / trim"><input name="customVariantName" maxLength={80} className={inputClass} /></Field>
+          </div>
+        </details>
       </FormSection>
 
       {electric ? (
@@ -124,6 +133,8 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
           <Field label="Colour"><input name="color" maxLength={40} className={inputClass} /></Field>
           <Field label="Assembly"><select name="assembly" className={selectClass} defaultValue="local"><option value="local">Local</option><option value="imported">Imported</option></select></Field>
         </div>
+        <Field label="City / town not listed" hint="Enter it for this ad, and select its nearest official city or district above for search."><input name="customCityName" maxLength={80} className={inputClass} placeholder="Town or municipality" /></Field>
+        <Field label="Locality / area not listed" hint="Saved only on this ad. Select the nearest official city above."><input name="customAreaName" maxLength={80} className={inputClass} placeholder="Sector, society or village" /></Field>
         <div className="flex flex-wrap gap-5"><Check name="hasDocuments" label="Complete documents available" defaultChecked /><Check name="isUnregistered" label="Unregistered" /><Check name="isNegotiable" label="Price negotiable" /></div>
       </FormSection>
 
@@ -136,6 +147,7 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
 
       <FormSection icon={ShieldCheck} title="Features & condition notes">
         {Object.entries(groupedFeatures).map(([group, items]) => <div key={group}><h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-zinc-500">{group}</h3><div className="flex flex-wrap gap-3">{items.map((feature) => <Check key={feature.id} name="featureIds" value={String(feature.id)} label={feature.name} />)}</div></div>)}
+        <Field label="Other features not listed" hint="Comma-separated; saved only on this ad."><textarea name="customFeatureNames" rows={2} maxLength={800} className={inputClass} placeholder="Example: sidecar, carburetor heater, custom battery monitor" /></Field>
         <Field label="Description" hint="Mention maintenance, battery replacement, accident history, faults and modifications."><textarea name="description" rows={6} maxLength={5000} className={inputClass} /></Field>
       </FormSection>
 
