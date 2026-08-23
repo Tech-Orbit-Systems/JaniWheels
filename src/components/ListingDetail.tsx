@@ -57,6 +57,12 @@ export async function ListingDetail({
           ["Brand", listing.partBrand ?? "—"],
           ["Part Number", listing.partNumber ?? "—"],
           [
+            "Fits",
+            [listing.compatibleMakeName, listing.compatibleModelName]
+              .filter(Boolean)
+              .join(" ") || "Universal / not specified",
+          ],
+          [
             "Warranty",
             listing.partWarrantyMonths
               ? `${listing.partWarrantyMonths} months`

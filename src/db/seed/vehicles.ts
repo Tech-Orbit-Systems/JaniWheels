@@ -605,8 +605,28 @@ export const PART_CATEGORIES: PartCategorySeed[] = [
       { slug: "suspension-kits", name: "Suspension Kits", popularity: 50 },
     ],
   },
-  { slug: "bike-parts", name: "Bike Parts", popularity: 72 },
-  { slug: "tools-garage", name: "Tools & Garage", popularity: 60 },
+  {
+    slug: "bike-parts",
+    name: "Bike Parts",
+    popularity: 72,
+    children: [
+      { slug: "bike-engine", name: "Engine & Transmission", popularity: 72 },
+      { slug: "bike-brakes", name: "Brakes & Suspension", popularity: 68 },
+      { slug: "bike-electrical", name: "Electrical & Lighting", popularity: 64 },
+      { slug: "bike-accessories", name: "Body & Accessories", popularity: 70 },
+    ],
+  },
+  {
+    slug: "tools-garage",
+    name: "Tools & Garage",
+    popularity: 60,
+    children: [
+      { slug: "hand-tools", name: "Hand Tools", popularity: 62 },
+      { slug: "diagnostics", name: "Diagnostic Tools", popularity: 58 },
+      { slug: "workshop-equipment", name: "Workshop Equipment", popularity: 56 },
+      { slug: "car-care", name: "Car Care", popularity: 66 },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------

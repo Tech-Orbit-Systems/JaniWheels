@@ -6,6 +6,7 @@ import { makes, features } from "@/db/schema/taxonomy";
 import { cities } from "@/db/schema/geo";
 import { getCurrentUser } from "@/lib/auth/session";
 import { SellForm } from "./SellForm";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Sell your car",
@@ -40,9 +41,10 @@ export default async function SellPage() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8">
       <h1 className="text-2xl font-semibold text-slate-900">Sell your car</h1>
-      <p className="mb-6 mt-1 text-sm text-slate-500">
-        Free to post. Takes about three minutes.
-      </p>
+      <div className="mb-6 mt-1 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
+        <p>Free to post. Takes about three minutes.</p>
+        <Link href="/sell/part" className="font-medium text-blue-700 hover:underline">Selling Auto Parts?</Link>
+      </div>
 
       <SellForm makes={makeRows} cities={cityRows} features={featureRows} />
     </main>

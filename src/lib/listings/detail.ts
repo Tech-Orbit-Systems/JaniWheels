@@ -84,6 +84,8 @@ export const getListingDetail = cache(
         partStockQty: partDetails.stockQty,
         partCategoryName: partCategories.name,
         partCategorySlug: partCategories.slug,
+        compatibleMakeName: sql<string | null>`part_make.name`,
+        compatibleModelName: sql<string | null>`part_model.name`,
 
         sellerId: users.id,
         sellerName: users.name,
@@ -104,6 +106,8 @@ export const getListingDetail = cache(
       .leftJoin(bikeDetails, eq(bikeDetails.listingId, listings.id))
       .leftJoin(partDetails, eq(partDetails.listingId, listings.id))
       .leftJoin(partCategories, eq(partDetails.categoryId, partCategories.id))
+      .leftJoin(sql`${makes} AS part_make`, sql`part_make.id = ${partDetails.compatibleMakeId}`)
+      .leftJoin(sql`${models} AS part_model`, sql`part_model.id = ${partDetails.compatibleModelId}`)
       .leftJoin(dealers, eq(listings.dealerId, dealers.id))
       .leftJoin(
         sql`${cities} AS reg_city`,

@@ -8,8 +8,8 @@ import { db } from "@/db";
 import { carDetails, listings } from "@/db/schema/listings";
 import { dealers } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
-import { carListingSchema, sanitizeDescription } from "./validation";
-import { publishCarListing } from "./publish";
+import { carListingSchema, partListingSchema, sanitizeDescription } from "./validation";
+import { publishCarListing, publishPartListing } from "./publish";
 import { buildListingPath } from "./slug";
 
 export interface SellState {
@@ -102,6 +102,54 @@ export async function createCarListingAction(
       result.strippedContact ? "&stripped=1" : ""
     }`,
   );
+}
+
+export async function createPartListingAction(
+  _prev: SellState,
+  formData: FormData,
+): Promise<SellState> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?next=/sell/part");
+  const parsed = partListingSchema.safeParse({
+    categoryId: num(formData.get("categoryId")),
+    condition: formData.get("condition"),
+    brand: (formData.get("brand") as string) || "",
+    partNumber: (formData.get("partNumber") as string) || undefined,
+    compatibleMakeId: num(formData.get("compatibleMakeId")),
+    compatibleModelId: num(formData.get("compatibleModelId")),
+    warrantyMonths: num(formData.get("warrantyMonths")),
+    stockQty: num(formData.get("stockQty")),
+    cityId: num(formData.get("cityId")),
+    areaId: num(formData.get("areaId")),
+    pricePkr: num(formData.get("pricePkr")),
+    isNegotiable: formData.get("isNegotiable") === "on",
+    description: (formData.get("description") as string) || undefined,
+    imageKeys: formData.getAll("imageKeys").map(String).filter(Boolean),
+  });
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const key = String(issue.path[0] ?? "form");
+      fieldErrors[key] ??= issue.message;
+    }
+    return { error: "Please fix the highlighted fields.", fieldErrors };
+  }
+
+  const [dealer] = await db.select({ id: dealers.id, verifiedAt: dealers.verifiedAt })
+    .from(dealers).where(eq(dealers.userId, user.id)).limit(1);
+  if (!dealer) {
+    const [{ active }] = await db.select({ active: sql<number>`COUNT(*)::int` }).from(listings)
+      .where(sql`${listings.sellerId} = ${user.id} AND ${listings.status} IN ('active','pending_review')`);
+    if (active >= FREE_ACTIVE_LIMIT) {
+      return { error: `You already have ${FREE_ACTIVE_LIMIT} live ads. Mark one as sold, or upgrade to a dealer account.` };
+    }
+  }
+  const result = await publishPartListing(user.id, parsed.data, {
+    dealerId: dealer?.id,
+    publisher: dealer ? (dealer.verifiedAt ? "verified_dealer" : "unverified_dealer") : "individual",
+  });
+  revalidatePath("/auto-parts");
+  redirect(`${buildListingPath("part", result.slug, result.listingId)}?posted=1${result.strippedContact ? "&stripped=1" : ""}`);
 }
 
 export async function markSoldAction(listingId: number): Promise<void> {

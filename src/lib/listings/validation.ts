@@ -65,6 +65,29 @@ export const carListingSchema = z.object({
 
 export type CarListingInput = z.infer<typeof carListingSchema>;
 
+/** Validation for an Auto Parts advertisement. Categories and compatible
+ * vehicles are controlled records, so buyers can reliably filter later. */
+export const partListingSchema = z.object({
+  categoryId: z.number().int().positive("Choose the most specific part category."),
+  condition: z.enum(["new", "used", "refurbished"], {
+    message: "Choose the part condition.",
+  }),
+  brand: z.string().trim().min(2, "Enter the part brand.").max(80),
+  partNumber: z.string().trim().max(100).optional(),
+  compatibleMakeId: z.number().int().positive().optional(),
+  compatibleModelId: z.number().int().positive().optional(),
+  warrantyMonths: z.number().int().min(0).max(120).optional(),
+  stockQty: z.number().int().min(1).max(10_000),
+  cityId: z.number().int().positive("Choose a city."),
+  areaId: z.number().int().positive().optional(),
+  pricePkr: z.number().int().min(500, "Price looks too low.").max(50_000_000),
+  isNegotiable: z.boolean().default(false),
+  description: z.string().trim().max(5000, "Description is too long.").optional(),
+  imageKeys: z.array(z.string().min(1)).min(1, "Add at least one photo.").max(30),
+});
+
+export type PartListingInput = z.infer<typeof partListingSchema>;
+
 /**
  * Contact-detail scraping and off-platform redirection are the two things
  * that quietly kill a classifieds business: if sellers put their number in

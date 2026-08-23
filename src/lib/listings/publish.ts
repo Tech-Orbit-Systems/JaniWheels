@@ -1,20 +1,25 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   listings,
   carDetails,
+  partDetails,
   listingImages,
   listingFeatures,
 } from "@/db/schema/listings";
-import { models, variants, makes } from "@/db/schema/taxonomy";
+import { models, variants, makes, partCategories } from "@/db/schema/taxonomy";
 import { cities } from "@/db/schema/geo";
 import { buildListingSlug } from "./slug";
 import {
   initialPublicationState,
   type ListingPublisher,
 } from "./publication-policy";
-import { sanitizeDescription, type CarListingInput } from "./validation";
+import {
+  sanitizeDescription,
+  type CarListingInput,
+  type PartListingInput,
+} from "./validation";
 
 /**
  * THE PUBLISH PATH
@@ -173,6 +178,87 @@ export async function publishCarListing(
       );
     }
 
+    return { listingId: row.id, slug, strippedContact };
+  });
+}
+
+/** Publish a classified Auto Parts listing using the controlled category tree.
+ * Part compatibility is optional because many genuine parts are universal. */
+export async function publishPartListing(
+  sellerId: number,
+  input: PartListingInput,
+  opts: { dealerId?: number; publisher?: ListingPublisher } = {},
+): Promise<PublishResult> {
+  const [category] = await db
+    .select({ id: partCategories.id, name: partCategories.name })
+    .from(partCategories)
+    .where(eq(partCategories.id, input.categoryId))
+    .limit(1);
+  if (!category) throw new Error("Choose a valid part category.");
+
+  const [city] = await db
+    .select({ id: cities.id, name: cities.name })
+    .from(cities)
+    .where(eq(cities.id, input.cityId))
+    .limit(1);
+  if (!city) throw new Error(`Unknown city ${input.cityId}`);
+
+  if (input.compatibleModelId && input.compatibleMakeId) {
+    const [model] = await db
+      .select({ id: models.id })
+      .from(models)
+      .where(and(eq(models.id, input.compatibleModelId), eq(models.makeId, input.compatibleMakeId)))
+      .limit(1);
+    if (!model) throw new Error("The selected model does not belong to that make.");
+  }
+
+  const { text: description, strippedContact } = sanitizeDescription(input.description ?? "");
+  const title = [input.brand, category.name, input.partNumber].filter(Boolean).join(" ");
+  const slug = buildListingSlug({
+    makeName: input.brand,
+    modelName: category.name,
+    variantName: input.partNumber,
+    cityName: city.name,
+  });
+  const now = new Date();
+  const publication = initialPublicationState(opts.publisher ?? "individual", now);
+  const expiresAt = new Date(now.getTime() + LISTING_TTL_DAYS * 86_400_000);
+
+  return db.transaction(async (tx) => {
+    const [row] = await tx.insert(listings).values({
+      vertical: "part",
+      sellerId,
+      dealerId: opts.dealerId ?? null,
+      slug,
+      title,
+      description: description || null,
+      pricePkr: input.pricePkr,
+      isNegotiable: input.isNegotiable,
+      cityId: input.cityId,
+      areaId: input.areaId ?? null,
+      status: publication.status,
+      photoCount: input.imageKeys.length,
+      publishedAt: publication.publishedAt,
+      expiresAt,
+    }).returning({ id: listings.id });
+
+    await tx.insert(partDetails).values({
+      listingId: row.id,
+      categoryId: category.id,
+      condition: input.condition,
+      brand: input.brand,
+      partNumber: input.partNumber ?? null,
+      compatibleMakeId: input.compatibleMakeId ?? null,
+      compatibleModelId: input.compatibleModelId ?? null,
+      warrantyMonths: input.warrantyMonths ?? null,
+      stockQty: input.stockQty,
+    });
+
+    await tx.insert(listingImages).values(input.imageKeys.map((key, i) => ({
+      listingId: row.id,
+      storageKey: key,
+      position: i,
+    })));
     return { listingId: row.id, slug, strippedContact };
   });
 }
