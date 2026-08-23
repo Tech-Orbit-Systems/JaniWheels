@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cities } from "@/db/schema/geo";
 import { features, makes, models, variants } from "@/db/schema/taxonomy";
@@ -17,24 +17,28 @@ export default async function SellBikePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/sell/bike");
 
-  const [makeRows, cityRows, featureRows] = await Promise.all([
+  const [baseMakeRows, electricMakeRows, cityRows, featureRows] = await Promise.all([
     db.select({
       id: makes.id,
       name: makes.name,
-      isElectric: sql<boolean>`EXISTS (
-        SELECT 1 FROM ${models} m
-        JOIN ${variants} v ON v.model_id = m.id
-        WHERE m.make_id = ${makes.id} AND v.fuel = 'electric'
-      )`,
     }).from(makes)
       .where(and(eq(makes.vertical, "bike"), eq(makes.isActive, true)))
       .orderBy(desc(makes.popularity), asc(makes.name)),
+    db.selectDistinct({ makeId: models.makeId })
+      .from(models)
+      .innerJoin(variants, eq(variants.modelId, models.id))
+      .where(and(eq(models.vertical, "bike"), eq(variants.fuel, "electric"))),
     db.select({ id: cities.id, name: cities.name }).from(cities)
       .orderBy(desc(cities.popularity), asc(cities.name)),
     db.select({ id: features.id, name: features.name, groupName: features.groupName })
       .from(features).where(eq(features.vertical, "bike"))
       .orderBy(asc(features.groupName), asc(features.name)),
   ]);
+  const electricMakeIds = new Set(electricMakeRows.map((row) => row.makeId));
+  const makeRows = baseMakeRows.map((make) => ({
+    ...make,
+    isElectric: electricMakeIds.has(make.id),
+  }));
 
   return (
     <main className="bg-gradient-to-b from-[#f4fff9] to-white pb-16">
