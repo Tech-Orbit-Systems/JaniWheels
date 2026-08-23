@@ -30,6 +30,7 @@ const corolla = { id: 1, slug: "corolla", name: "Corolla", makeSlug: "toyota" };
 const toyota = { id: 2, slug: "toyota", name: "Toyota" };
 const lahore = { id: 3, slug: "lahore", name: "Lahore" };
 const punjab = { id: 4, slug: "punjab", name: "Punjab" };
+const brakePads = { id: 5, slug: "brake-pads", name: "Brake Pads" };
 
 // ---------------------------------------------------------------------------
 // URL construction
@@ -86,6 +87,18 @@ check(
   "multiple features sort deterministically",
   buildPath({ vertical: "car", model: corolla, feature: ["sunroof", "abs"] }),
   "/used-cars/toyota-corolla/ft_abs/ft_sunroof",
+);
+
+check(
+  "parts buyer filters stay in the query string",
+  buildPath({
+    vertical: "part",
+    category: brakePads,
+    keyword: "ceramic pads",
+    compatibleMakeId: 12,
+    sellerType: "dealer",
+  }),
+  "/auto-parts/brake-pads?q=ceramic+pads&cmk=12&seller=dealer",
 );
 
 // ---------------------------------------------------------------------------
@@ -212,6 +225,21 @@ check(
   {
     robots: "noindex,follow",
     canonical: "/used-cars/fu_hybrid",
+    sitemap: false,
+  },
+);
+
+check(
+  "buyer-entered parts search is noindex and canonicalizes to its category",
+  decision({
+    vertical: "part",
+    category: brakePads,
+    keyword: "04465-0D120",
+    compatibleMakeId: 12,
+  }),
+  {
+    robots: "noindex,follow",
+    canonical: "/auto-parts/brake-pads",
     sitemap: false,
   },
 );

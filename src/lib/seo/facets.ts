@@ -131,6 +131,18 @@ export interface FacetState {
   price?: RangeValue;
   mileage?: RangeValue;
   engine?: RangeValue;
+  /** Parts-only query filters. These are deliberately query parameters and
+   * never indexable facets, so arbitrary buyer searches cannot create an
+   * unbounded crawlable URL surface. */
+  keyword?: string;
+  areaId?: number;
+  compatibleMakeId?: number;
+  compatibleModelId?: number;
+  compatibleYear?: number;
+  brand?: string;
+  partOrigin?: string;
+  sellerType?: "individual" | "dealer";
+  inStock?: boolean;
   // Not facets, but part of URL identity:
   page?: number;
   sort?: string;
@@ -238,6 +250,17 @@ export function buildPath(state: FacetState): string {
   }
   if (state.sort && state.sort !== "recent") qs.set("sort", state.sort);
   if (state.page && state.page > 1) qs.set("page", String(state.page));
+  if (state.vertical === "part") {
+    if (state.keyword) qs.set("q", state.keyword);
+    if (state.areaId) qs.set("area", String(state.areaId));
+    if (state.compatibleMakeId) qs.set("cmk", String(state.compatibleMakeId));
+    if (state.compatibleModelId) qs.set("cmd", String(state.compatibleModelId));
+    if (state.compatibleYear) qs.set("cyr", String(state.compatibleYear));
+    if (state.brand) qs.set("brand", state.brand);
+    if (state.partOrigin) qs.set("por", state.partOrigin);
+    if (state.sellerType) qs.set("seller", state.sellerType);
+    if (state.inStock) qs.set("stock", "1");
+  }
 
   const query = qs.toString();
   return query ? `${path}?${query}` : path;

@@ -10,6 +10,8 @@ import { Pagination } from "./Pagination";
 import { SortSelect } from "./SortSelect";
 import { Breadcrumbs, type Crumb } from "./Breadcrumbs";
 import { RelatedLinks } from "./RelatedLinks";
+import { PartFilters } from "./PartFilters";
+import { getPartFilterOptions } from "@/lib/listings/part-filter-options";
 
 /**
  * The browse page, shared by all three verticals.
@@ -36,6 +38,7 @@ export async function BrowseView({
 
   const decision = decideIndexation(state);
   const results = await searchListings(state);
+  const partFilterOptions = state.vertical === "part" ? await getPartFilterOptions() : null;
   const heading = facetPageTitle(state);
   const base = buildPath({ vertical: state.vertical });
 
@@ -87,6 +90,8 @@ export async function BrowseView({
         </div>
         <SortSelect state={state} />
       </div>
+
+      {partFilterOptions && <PartFilters state={state} {...partFilterOptions} />}
 
       {process.env.NODE_ENV === "development" && (
         /* Dev-only view of the indexation decision. Getting this wrong is

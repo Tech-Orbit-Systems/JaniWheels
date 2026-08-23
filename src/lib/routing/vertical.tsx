@@ -60,6 +60,33 @@ function applySearchParams(state: FacetState, sp: SearchParams): FacetState {
   const page = Number(one(sp.page) ?? 1);
   if (Number.isSafeInteger(page) && page > 1) next.page = page;
 
+  if (state.vertical === "part") {
+    const boundedText = (key: string, max: number) => {
+      const value = one(sp[key])?.trim().replace(/\s+/g, " ");
+      return value && value.length <= max ? value : undefined;
+    };
+    const positiveInt = (key: string, min = 1, max = Number.MAX_SAFE_INTEGER) => {
+      const value = Number(one(sp[key]));
+      return Number.isSafeInteger(value) && value >= min && value <= max
+        ? value
+        : undefined;
+    };
+
+    next.keyword = boundedText("q", 80);
+    next.areaId = positiveInt("area");
+    next.compatibleMakeId = positiveInt("cmk");
+    next.compatibleModelId = positiveInt("cmd");
+    next.compatibleYear = positiveInt("cyr", 1970, new Date().getFullYear() + 1);
+    next.brand = boundedText("brand", 80);
+    const partOrigin = one(sp.por);
+    if (["genuine-oem", "aftermarket", "local", "imported-used", "not-sure"].includes(partOrigin ?? "")) {
+      next.partOrigin = partOrigin;
+    }
+    const seller = one(sp.seller);
+    if (seller === "individual" || seller === "dealer") next.sellerType = seller;
+    next.inStock = one(sp.stock) === "1";
+  }
+
   return next;
 }
 

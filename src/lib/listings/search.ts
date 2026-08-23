@@ -85,6 +85,67 @@ function buildWhere(state: FacetState): SQL[] {
     );
   }
 
+  if (state.vertical === "part") {
+    if (state.category) {
+      clauses.push(sql`EXISTS (
+        SELECT 1 FROM part_details pd
+        WHERE pd.listing_id = ${listings.id}
+          AND pd.category_id IN (
+            WITH RECURSIVE category_tree AS (
+              SELECT id FROM part_categories WHERE id = ${state.category.id}
+              UNION ALL
+              SELECT pc.id FROM part_categories pc
+              JOIN category_tree ct ON pc.parent_id = ct.id
+            ) SELECT id FROM category_tree
+          )
+      )`);
+    }
+    if (state.condition) {
+      clauses.push(sql`EXISTS (SELECT 1 FROM part_details pd WHERE pd.listing_id = ${listings.id} AND pd.condition::text = ${state.condition})`);
+    }
+    if (state.keyword) {
+      const term = `%${state.keyword}%`;
+      clauses.push(sql`(
+        ${listings.title} ILIKE ${term}
+        OR COALESCE(${listings.description}, '') ILIKE ${term}
+        OR EXISTS (
+          SELECT 1 FROM part_details pd
+          WHERE pd.listing_id = ${listings.id}
+            AND (COALESCE(pd.brand, '') ILIKE ${term}
+              OR COALESCE(pd.part_number, '') ILIKE ${term}
+              OR COALESCE(pd.oem_number, '') ILIKE ${term}
+              OR COALESCE(pd.custom_category_name, '') ILIKE ${term})
+        )
+      )`);
+    }
+    if (state.areaId) clauses.push(eq(listings.areaId, state.areaId));
+    if (state.compatibleMakeId) {
+      clauses.push(sql`EXISTS (SELECT 1 FROM part_details pd WHERE pd.listing_id = ${listings.id} AND pd.compatible_make_id = ${state.compatibleMakeId})`);
+    }
+    if (state.compatibleModelId) {
+      clauses.push(sql`EXISTS (SELECT 1 FROM part_details pd WHERE pd.listing_id = ${listings.id} AND pd.compatible_model_id = ${state.compatibleModelId})`);
+    }
+    if (state.compatibleYear) {
+      clauses.push(sql`EXISTS (
+        SELECT 1 FROM part_details pd WHERE pd.listing_id = ${listings.id}
+          AND (pd.compatible_year_from IS NULL OR pd.compatible_year_from <= ${state.compatibleYear})
+          AND (pd.compatible_year_to IS NULL OR pd.compatible_year_to >= ${state.compatibleYear})
+      )`);
+    }
+    if (state.brand) {
+      clauses.push(sql`EXISTS (SELECT 1 FROM part_details pd WHERE pd.listing_id = ${listings.id} AND LOWER(pd.brand) = LOWER(${state.brand}))`);
+    }
+    if (state.partOrigin) {
+      clauses.push(sql`EXISTS (SELECT 1 FROM part_details pd WHERE pd.listing_id = ${listings.id} AND pd.part_origin = ${state.partOrigin})`);
+    }
+    if (state.sellerType) {
+      clauses.push(sql`${listings.sellerId} IN (SELECT id FROM users WHERE type::text = ${state.sellerType})`);
+    }
+    if (state.inStock) {
+      clauses.push(sql`EXISTS (SELECT 1 FROM part_details pd WHERE pd.listing_id = ${listings.id} AND pd.stock_qty > 0)`);
+    }
+  }
+
   if (state.feature?.length) {
     /**
      * Every requested feature must be present, not any of them — a filter

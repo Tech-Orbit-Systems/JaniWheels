@@ -130,6 +130,19 @@ function nearestIndexableAncestor(state: FacetState): FacetState {
   for (const key of ["year", "price", "mileage", "engine"] as const) {
     delete working[key];
   }
+  for (const key of [
+    "keyword",
+    "areaId",
+    "compatibleMakeId",
+    "compatibleModelId",
+    "compatibleYear",
+    "brand",
+    "partOrigin",
+    "sellerType",
+    "inStock",
+  ] as const) {
+    delete working[key];
+  }
 
   const active = activeFacetKeys(working);
   if (isWhitelisted(working.vertical, active)) return working;
@@ -171,6 +184,20 @@ export function decideIndexation(state: FacetState): IndexationDecision {
   const hasRange = keys.some((k) => FACETS[k].kind === "range");
   const isSorted = Boolean(state.sort && state.sort !== "recent");
   const isPaged = Boolean(state.page && state.page > 1);
+  const hasPartsQueryFilter = state.vertical === "part" && Boolean(
+    state.keyword || state.areaId || state.compatibleMakeId ||
+    state.compatibleModelId || state.compatibleYear || state.brand ||
+    state.partOrigin || state.sellerType || state.inStock,
+  );
+
+  if (hasPartsQueryFilter) {
+    return {
+      robots: "noindex,follow",
+      canonicalPath: buildPath(nearestIndexableAncestor(state)),
+      inSitemap: false,
+      reason: "buyer-entered parts filter — non-canonical search result",
+    };
+  }
 
   // --- sorted views are duplicates of the unsorted view -------------------
   if (isSorted) {
