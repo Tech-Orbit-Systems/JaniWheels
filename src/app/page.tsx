@@ -321,7 +321,7 @@ export default async function HomePage() {
               Create your listing and connect directly with interested buyers.
             </p>
             <Link
-              href="/sell"
+              href="/post-ad"
               className="mt-7 inline-flex items-center gap-2 rounded-lg bg-[#f7b500] px-5 py-3 text-sm font-extrabold text-zinc-950 hover:bg-[#ffc62b]"
             >
               Post an Ad <ArrowRight size={17} aria-hidden />

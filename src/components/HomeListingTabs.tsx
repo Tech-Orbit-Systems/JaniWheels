@@ -66,7 +66,7 @@ export function HomeListingTabs({
             No active {current.label.toLowerCase()} listings yet.
           </p>
           <Link
-            href="/sell"
+            href="/post-ad"
             className="mt-3 inline-flex font-bold text-[#9b7100] hover:underline"
           >
             Post the first ad

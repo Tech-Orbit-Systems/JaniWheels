@@ -9,7 +9,7 @@ const marketplaceLinks = [
 ] as const;
 
 const actionLinks = [
-  ["Post an Ad", "/sell"],
+  ["Post an Ad", "/post-ad"],
   ["Vehicle Inspection", "/inspection"],
   ["My Ads", "/dashboard"],
   ["Dealer Registration", "/dealers/register"],

@@ -67,7 +67,7 @@ export default async function DashboardPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-slate-900">My ads</h1>
         <Link
-          href="/sell"
+          href="/post-ad"
           className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
           Post another ad
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
         <div className="rounded-lg border border-slate-200 bg-white p-10 text-center">
           <p className="text-slate-700">You haven&apos;t posted anything yet.</p>
           <Link
-            href="/sell"
+            href="/post-ad"
             className="mt-3 inline-block text-sm font-medium text-blue-700 hover:underline"
           >
             Post your first ad — it&apos;s free

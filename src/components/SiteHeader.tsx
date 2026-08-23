@@ -72,7 +72,7 @@ export function SiteHeader() {
 function PostAdLink({ compact = false }: { compact?: boolean }) {
   return (
     <Link
-      href="/sell"
+      href="/post-ad"
       className={`inline-flex items-center justify-center rounded-lg bg-[#f7b500] font-bold text-[#151515] transition hover:bg-[#ffc62b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
         compact ? "px-3 py-2 text-xs sm:text-sm" : "px-4 py-2.5 text-sm"
       }`}
