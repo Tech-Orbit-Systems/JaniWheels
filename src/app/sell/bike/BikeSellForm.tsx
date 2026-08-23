@@ -70,9 +70,9 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
             ["trail", "Trail / Off-road"], ["scooter", "Petrol Scooter"], ["three-wheeler", "Three Wheeler"],
             ["electric-motorcycle", "Electric Motorcycle"], ["electric-scooter", "Electric Scooter"], ["electric-bicycle", "Electric Bicycle"],
           ].map(([value, label]) => (
-            <label key={value} className={`cursor-pointer rounded-xl border p-3 text-sm font-bold transition ${bikeType === value ? "border-emerald-500 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-500" : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300"}`}>
+            <label key={value} className={`cursor-pointer rounded-xl border p-3 text-sm font-bold transition ${bikeType === value ? "border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-500" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>
               <input type="radio" name="bikeType" value={value} checked={bikeType === value} onChange={() => setBikeType(value)} className="sr-only" />
-              {value.startsWith("electric-") && <Zap size={16} className="mb-2 text-emerald-600" aria-hidden />}{label}
+              {value.startsWith("electric-") && <Zap size={16} className="mb-2 text-blue-600" aria-hidden />}{label}
             </label>
           ))}
         </div>
@@ -88,9 +88,9 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
           <Field label="Model year" error={error("year")}><select name="year" className={selectClass} required><option value="">Select year</option>{YEARS.map((year) => <option key={year}>{year}</option>)}</select></Field>
           <Field label="Mileage (km)" error={error("mileageKm")}><input name="mileageKm" type="number" min={0} max={500000} inputMode="numeric" className={inputClass} required /></Field>
         </div>
-        <details className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50 p-4">
-          <summary className="cursor-pointer text-sm font-bold text-emerald-900">Bike or e-bike not listed?</summary>
-          <p className="mt-2 text-xs text-emerald-800">Enter it for this ad only. It will not create a global make, model or filter.</p>
+        <details className="rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4">
+          <summary className="cursor-pointer text-sm font-bold text-blue-900">Bike or e-bike not listed?</summary>
+          <p className="mt-2 text-xs text-blue-800">Enter it for this ad only. It will not create a global make, model or filter.</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             <Field label="Make name" error={error("customMakeName")}><input name="customMakeName" maxLength={80} className={inputClass} /></Field>
             <Field label="Model name" error={error("customModelName")}><input name="customModelName" maxLength={80} className={inputClass} /></Field>
@@ -139,26 +139,26 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
       </FormSection>
 
       <FormSection icon={Camera} title="Photos" hint="Add clear left, right, front, rear, meter and document/label photos.">
-        <input type="file" accept="image/*" multiple onChange={(e) => upload(e.target.files)} className="block w-full rounded-xl border border-dashed border-emerald-300 bg-emerald-50 p-4 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-700 file:px-4 file:py-2 file:font-bold file:text-white" />
-        {uploading && <p className="text-sm text-zinc-500">Uploading…</p>}{uploadError && <ErrorText>{uploadError}</ErrorText>}{error("imageKeys") && <ErrorText>{error("imageKeys")}</ErrorText>}
-        {imageKeys.length > 0 && <p className="text-sm font-bold text-emerald-700">{imageKeys.length} photo{imageKeys.length === 1 ? "" : "s"} added</p>}
+        <input type="file" accept="image/*" multiple onChange={(e) => upload(e.target.files)} className="block w-full rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-bold file:text-white" />
+        {uploading && <p className="text-sm text-slate-500">Uploading…</p>}{uploadError && <ErrorText>{uploadError}</ErrorText>}{error("imageKeys") && <ErrorText>{error("imageKeys")}</ErrorText>}
+        {imageKeys.length > 0 && <p className="text-sm font-bold text-blue-700">{imageKeys.length} photo{imageKeys.length === 1 ? "" : "s"} added</p>}
         {imageKeys.map((key) => <input key={key} type="hidden" name="imageKeys" value={key} />)}
       </FormSection>
 
       <FormSection icon={ShieldCheck} title="Features & condition notes">
-        {Object.entries(groupedFeatures).map(([group, items]) => <div key={group}><h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-zinc-500">{group}</h3><div className="flex flex-wrap gap-3">{items.map((feature) => <Check key={feature.id} name="featureIds" value={String(feature.id)} label={feature.name} />)}</div></div>)}
+        {Object.entries(groupedFeatures).map(([group, items]) => <div key={group}><h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-slate-500">{group}</h3><div className="flex flex-wrap gap-3">{items.map((feature) => <Check key={feature.id} name="featureIds" value={String(feature.id)} label={feature.name} />)}</div></div>)}
         <Field label="Other features not listed" hint="Comma-separated; saved only on this ad."><textarea name="customFeatureNames" rows={2} maxLength={800} className={inputClass} placeholder="Example: sidecar, carburetor heater, custom battery monitor" /></Field>
         <Field label="Description" hint="Mention maintenance, battery replacement, accident history, faults and modifications."><textarea name="description" rows={6} maxLength={5000} className={inputClass} /></Field>
       </FormSection>
 
-      <button type="submit" disabled={pending || uploading} className="w-full rounded-xl bg-emerald-700 px-5 py-4 text-base font-extrabold text-white shadow-lg shadow-emerald-700/20 hover:bg-emerald-800 disabled:opacity-60">{pending ? "Posting your bike…" : electric ? "Post Electric Bike Ad — Free" : "Post Bike Ad — Free"}</button>
+      <button type="submit" disabled={pending || uploading} className="w-full rounded-xl bg-blue-600 px-5 py-4 text-base font-extrabold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-60">{pending ? "Posting your bike…" : electric ? "Post Electric Bike Ad — Free" : "Post Bike Ad — Free"}</button>
     </form>
   );
 }
 
-const inputClass = "w-full rounded-xl border border-zinc-300 bg-white px-3 py-3 text-base text-zinc-950 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20";
+const inputClass = "w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base text-slate-950 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
 const selectClass = inputClass;
-function FormSection({ icon: Icon, title, hint, children }: { icon: typeof Bike; title: string; hint?: string; children: React.ReactNode }) { return <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><Icon size={21} aria-hidden /></span><div><h2 className="text-lg font-extrabold text-zinc-950">{title}</h2>{hint && <p className="mt-1 text-sm leading-6 text-zinc-500">{hint}</p>}</div></div><div className="mt-5 space-y-4">{children}</div></section>; }
-function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: React.ReactNode }) { return <label className="block"><span className="text-sm font-bold text-zinc-700">{label}</span><span className="mt-1.5 block">{children}</span>{hint && <span className="mt-1 block text-xs text-zinc-500">{hint}</span>}{error && <ErrorText>{error}</ErrorText>}</label>; }
-function Check({ name, label, value, defaultChecked = false }: { name: string; label: string; value?: string; defaultChecked?: boolean }) { return <label className="flex items-center gap-2 text-sm font-medium text-zinc-700"><input type="checkbox" name={name} value={value} defaultChecked={defaultChecked} className="size-4 accent-emerald-700" />{label}</label>; }
+function FormSection({ icon: Icon, title, hint, children }: { icon: typeof Bike; title: string; hint?: string; children: React.ReactNode }) { return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><Icon size={21} aria-hidden /></span><div><h2 className="text-lg font-extrabold text-slate-950">{title}</h2>{hint && <p className="mt-1 text-sm leading-6 text-slate-500">{hint}</p>}</div></div><div className="mt-5 space-y-4">{children}</div></section>; }
+function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: React.ReactNode }) { return <label className="block"><span className="text-sm font-bold text-slate-700">{label}</span><span className="mt-1.5 block">{children}</span>{hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}{error && <ErrorText>{error}</ErrorText>}</label>; }
+function Check({ name, label, value, defaultChecked = false }: { name: string; label: string; value?: string; defaultChecked?: boolean }) { return <label className="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" name={name} value={value} defaultChecked={defaultChecked} className="size-4 accent-blue-600" />{label}</label>; }
 function ErrorText({ children }: { children?: React.ReactNode }) { return <span role="alert" className="mt-1 block text-xs font-medium text-red-600">{children}</span>; }

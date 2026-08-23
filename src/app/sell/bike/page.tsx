@@ -41,12 +41,12 @@ export default async function SellBikePage() {
   }));
 
   return (
-    <main className="bg-gradient-to-b from-[#f4fff9] to-white pb-16">
+    <main className="bg-white pb-16">
       <div className="mx-auto w-full max-w-4xl px-4 py-9 sm:py-12">
         <div className="mb-8 max-w-2xl">
-          <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-emerald-700">Motorcycles & electric mobility</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-zinc-950 sm:text-4xl">Sell your bike</h1>
-          <p className="mt-3 leading-7 text-zinc-600">Choose petrol or electric and provide the details buyers need to compare your ride confidently.</p>
+          <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-blue-700">Motorcycles & electric mobility</p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Sell your bike</h1>
+          <p className="mt-3 leading-7 text-slate-600">Choose petrol or electric and provide the details buyers need to compare your ride confidently.</p>
         </div>
         <BikeSellForm makes={makeRows} cities={cityRows} features={featureRows} />
       </div>
