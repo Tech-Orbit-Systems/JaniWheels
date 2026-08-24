@@ -29,6 +29,13 @@
       "when": 1787481785463,
       "tag": "0003_perpetual_hellfire_club",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787566278875,
+      "tag": "0004_zippy_power_man",
+      "breakpoints": true
     }
   ]
 }

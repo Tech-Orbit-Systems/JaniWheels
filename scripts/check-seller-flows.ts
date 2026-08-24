@@ -1,6 +1,6 @@
 import { bikeListingSchema, carListingSchema, partListingSchema } from "../src/lib/listings/validation";
 
-const imageKeys = ["uploads/test.webp"];
+const imageKeys = ["202608/0123456789abcdef0123456789abcdef.webp"];
 const validBike = {
   variantId: 1, bikeType: "motorcycle", condition: "used", isElectric: false,
   cityId: 1, year: 2024, mileageKm: 1200, pricePkr: 250000,
@@ -39,6 +39,8 @@ const checks = [
   ["ad-local bike taxonomy accepted", bikeListingSchema.safeParse({ ...validBike, variantId: undefined, customMakeName: "Rare Bike", customModelName: "R1", customFeatureNames: ["Sidecar"] }).success],
   ["ad-local part compatibility accepted", partListingSchema.safeParse({ ...validPart, customCategoryName: "Vacuum valve", customCompatibleMakeName: "Geely", customCompatibleModelName: "CK" }).success],
   ["custom compatible model requires make", !partListingSchema.safeParse({ ...validPart, customCompatibleModelName: "CK" }).success],
+  ["forged upload key rejected", !partListingSchema.safeParse({ ...validPart, imageKeys: ["../../secret.jpg"] }).success],
+  ["duplicate upload key rejected", !partListingSchema.safeParse({ ...validPart, imageKeys: [imageKeys[0], imageKeys[0]] }).success],
 ] as const;
 
 let failed = 0;

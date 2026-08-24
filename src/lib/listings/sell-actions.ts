@@ -11,6 +11,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { bikeListingSchema, carListingSchema, partListingSchema, sanitizeDescription } from "./validation";
 import { publishBikeListing, publishCarListing, publishPartListing } from "./publish";
 import { buildListingPath } from "./slug";
+import { UploadOwnershipError } from "@/lib/images/ownership";
 
 export interface SellState {
   error?: string;
@@ -103,14 +104,22 @@ export async function createCarListingAction(
     }
   }
 
-  const result = await publishCarListing(user.id, parsed.data, {
-    dealerId: dealer?.id,
-    publisher: dealer
-      ? dealer.verifiedAt
-        ? "verified_dealer"
-        : "unverified_dealer"
-      : "individual",
-  });
+  let result;
+  try {
+    result = await publishCarListing(user.id, parsed.data, {
+      dealerId: dealer?.id,
+      publisher: dealer
+        ? dealer.verifiedAt
+          ? "verified_dealer"
+          : "unverified_dealer"
+        : "individual",
+    });
+  } catch (error) {
+    if (error instanceof UploadOwnershipError) {
+      return { error: error.message, fieldErrors: { imageKeys: error.message } };
+    }
+    throw error;
+  }
 
   revalidatePath("/used-cars");
   redirect(
@@ -172,10 +181,18 @@ export async function createPartListingAction(
       return { error: `You already have ${FREE_ACTIVE_LIMIT} live ads. Mark one as sold, or upgrade to a dealer account.` };
     }
   }
-  const result = await publishPartListing(user.id, parsed.data, {
-    dealerId: dealer?.id,
-    publisher: dealer ? (dealer.verifiedAt ? "verified_dealer" : "unverified_dealer") : "individual",
-  });
+  let result;
+  try {
+    result = await publishPartListing(user.id, parsed.data, {
+      dealerId: dealer?.id,
+      publisher: dealer ? (dealer.verifiedAt ? "verified_dealer" : "unverified_dealer") : "individual",
+    });
+  } catch (error) {
+    if (error instanceof UploadOwnershipError) {
+      return { error: error.message, fieldErrors: { imageKeys: error.message } };
+    }
+    throw error;
+  }
   revalidatePath("/auto-parts");
   redirect(`${buildListingPath("part", result.slug, result.listingId)}?posted=1${result.strippedContact ? "&stripped=1" : ""}`);
 }
@@ -249,10 +266,18 @@ export async function createBikeListingAction(
     }
   }
 
-  const result = await publishBikeListing(user.id, parsed.data, {
-    dealerId: dealer?.id,
-    publisher: dealer ? (dealer.verifiedAt ? "verified_dealer" : "unverified_dealer") : "individual",
-  });
+  let result;
+  try {
+    result = await publishBikeListing(user.id, parsed.data, {
+      dealerId: dealer?.id,
+      publisher: dealer ? (dealer.verifiedAt ? "verified_dealer" : "unverified_dealer") : "individual",
+    });
+  } catch (error) {
+    if (error instanceof UploadOwnershipError) {
+      return { error: error.message, fieldErrors: { imageKeys: error.message } };
+    }
+    throw error;
+  }
   revalidatePath("/used-bikes");
   redirect(`${buildListingPath("bike", result.slug, result.listingId)}?posted=1${result.strippedContact ? "&stripped=1" : ""}`);
 }

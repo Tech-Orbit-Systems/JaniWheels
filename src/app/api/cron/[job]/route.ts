@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { listings } from "@/db/schema/listings";
+import { listings, pendingUploads } from "@/db/schema/listings";
 import { sessions } from "@/db/schema/users";
+import { removeStoredImage } from "@/lib/images/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,7 +57,21 @@ const JOBS = {
       .where(sql`${sessions.expiresAt} < NOW()`)
       .returning({ id: sessions.id });
 
-    return { sessions: dead.length };
+    const abandoned = await db
+      .delete(pendingUploads)
+      .where(sql`${pendingUploads.claimedAt} IS NULL AND ${pendingUploads.createdAt} < NOW() - INTERVAL '24 hours'`)
+      .returning({ key: pendingUploads.storageKey });
+
+    let imagesRemoved = 0;
+    for (const upload of abandoned) {
+      if (await removeStoredImage(upload.key)) imagesRemoved++;
+    }
+
+    return {
+      sessions: dead.length,
+      abandonedUploads: abandoned.length,
+      imagesRemoved,
+    };
   },
 } as const;
 

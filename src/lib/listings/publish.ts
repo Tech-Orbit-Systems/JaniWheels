@@ -23,6 +23,7 @@ import {
   type CarListingInput,
   type PartListingInput,
 } from "./validation";
+import { claimUploadedImages } from "@/lib/images/ownership";
 
 /**
  * THE PUBLISH PATH
@@ -155,6 +156,8 @@ export async function publishBikeListing(
       chargerIncluded: input.isElectric ? (input.chargerIncluded ?? false) : null,
       batteryWarrantyMonths: input.isElectric ? (input.batteryWarrantyMonths ?? null) : null,
     });
+
+    await claimUploadedImages(tx, sellerId, row.id, input.imageKeys);
 
     await tx.insert(listingImages).values(input.imageKeys.map((key, i) => ({
       listingId: row.id,
@@ -300,6 +303,8 @@ export async function publishCarListing(
       auctionGrade: input.auctionGrade ?? null,
     });
 
+    await claimUploadedImages(tx, sellerId, row.id, input.imageKeys);
+
     // Guarded because Drizzle throws on `.values([])`.
     if (input.imageKeys.length) {
       await tx.insert(listingImages).values(
@@ -416,6 +421,8 @@ export async function publishPartListing(
       warrantyMonths: input.warrantyMonths ?? null,
       stockQty: input.stockQty,
     });
+
+    await claimUploadedImages(tx, sellerId, row.id, input.imageKeys);
 
     await tx.insert(listingImages).values(input.imageKeys.map((key, i) => ({
       listingId: row.id,

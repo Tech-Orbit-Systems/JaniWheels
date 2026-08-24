@@ -13,6 +13,11 @@ const CURRENT_YEAR = new Date().getFullYear();
 
 const adLocalLabel = z.string().trim().min(2, "Enter at least 2 characters.").max(80).optional();
 const customFeatureNames = z.array(z.string().trim().min(2).max(80)).max(20).default([]);
+const imageKeys = (emptyMessage: string) => z
+  .array(z.string().regex(/^\d{6}\/[a-f0-9]{32}\.(?:jpg|png|webp|avif|heic)$/, "Upload the photo again."))
+  .min(1, emptyMessage)
+  .max(30)
+  .refine((keys) => new Set(keys).size === keys.length, "The same photo cannot be attached twice.");
 
 export const carListingSchema = z.object({
   variantId: z.number().int().positive({
@@ -66,10 +71,7 @@ export const carListingSchema = z.object({
   featureIds: z.array(z.number().int().positive()).max(60).default([]),
   customFeatureNames,
 
-  imageKeys: z
-    .array(z.string().min(1))
-    .min(1, "Add at least one photo — listings without photos barely sell.")
-    .max(30),
+  imageKeys: imageKeys("Add at least one photo — listings without photos barely sell."),
 }).superRefine((data, ctx) => {
   if (!data.variantId && (!data.customMakeName || !data.customModelName)) {
     ctx.addIssue({ code: "custom", path: ["variantId"], message: "Choose a listed variant or enter the missing make and model." });
@@ -127,7 +129,7 @@ export const bikeListingSchema = z
     description: z.string().trim().max(5000, "Description is too long.").optional(),
     featureIds: z.array(z.number().int().positive()).max(40).default([]),
     customFeatureNames,
-    imageKeys: z.array(z.string().min(1)).min(1, "Add at least one bike photo.").max(30),
+    imageKeys: imageKeys("Add at least one bike photo."),
   })
   .superRefine((data, ctx) => {
     if (!data.variantId && (!data.customMakeName || !data.customModelName)) {
@@ -183,7 +185,7 @@ export const partListingSchema = z.object({
   pricePkr: z.number().int().min(500, "Price looks too low.").max(50_000_000),
   isNegotiable: z.boolean().default(false),
   description: z.string().trim().max(5000, "Description is too long.").optional(),
-  imageKeys: z.array(z.string().min(1)).min(1, "Add at least one photo.").max(30),
+  imageKeys: imageKeys("Add at least one photo."),
 }).superRefine((data, ctx) => {
   if (data.compatibleYearFrom && data.compatibleYearTo && data.compatibleYearFrom > data.compatibleYearTo) {
     ctx.addIssue({ code: "custom", path: ["compatibleYearTo"], message: "The ending year must be after the starting year." });

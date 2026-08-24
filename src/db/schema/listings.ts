@@ -8,6 +8,7 @@ import {
   boolean,
   timestamp,
   index,
+  uniqueIndex,
   primaryKey,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -233,7 +234,39 @@ export const listingImages = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("listing_images_listing_idx").on(t.listingId, t.position)],
+  (t) => [
+    index("listing_images_listing_idx").on(t.listingId, t.position),
+    uniqueIndex("listing_images_storage_key_uq").on(t.storageKey),
+  ],
+);
+
+/**
+ * Upload ownership ledger.
+ *
+ * A browser-submitted storage key is not proof of ownership. Every upload is
+ * therefore registered against its authenticated user and can be claimed by
+ * exactly one listing. Unclaimed rows are safe for scheduled cleanup.
+ */
+export const pendingUploads = pgTable(
+  "pending_uploads",
+  {
+    storageKey: text("storage_key").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    bytes: integer("bytes").notNull(),
+    listingId: integer("listing_id").references(() => listings.id, {
+      onDelete: "cascade",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("pending_uploads_user_created_idx").on(t.userId, t.createdAt),
+    index("pending_uploads_cleanup_idx").on(t.claimedAt, t.createdAt),
+  ],
 );
 
 export const listingFeatures = pgTable(
