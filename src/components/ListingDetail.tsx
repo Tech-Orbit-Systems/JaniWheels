@@ -14,6 +14,7 @@ import { getSimilarListings } from "@/lib/listings/detail";
 import { PhoneReveal } from "./PhoneReveal";
 import { ReportListing } from "./ReportListing";
 import { ModerationActions } from "@/app/admin/moderation/ModerationActions";
+import { BuyerListingActions } from "./BuyerListingActions";
 
 function imageUrl(key: string, width: number): string {
   const provider = process.env.NEXT_PUBLIC_IMAGE_PROVIDER ?? "local";
@@ -33,9 +34,11 @@ function titleCase(s: string): string {
 export async function ListingDetail({
   listing,
   isAdmin = false,
+  initiallySaved = false,
 }: {
   listing: ListingDetailRow;
   isAdmin?: boolean;
+  initiallySaved?: boolean;
 }) {
   const similar = await getSimilarListings({
       id: listing.id,
@@ -266,6 +269,7 @@ export async function ListingDetail({
           {listing.isNegotiable && (
             <p className="text-xs text-slate-500">Negotiable</p>
           )}
+          {listing.status === "active" && <BuyerListingActions listingId={listing.id} vertical={listing.vertical} initiallySaved={initiallySaved} detail />}
 
           <div className="mt-4">
             <PhoneReveal

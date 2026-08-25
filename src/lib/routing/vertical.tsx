@@ -20,6 +20,9 @@ import { BrowseView } from "@/components/BrowseView";
 import { ListingDetail } from "@/components/ListingDetail";
 import { Breadcrumbs, type Crumb } from "@/components/Breadcrumbs";
 import { RecentlyViewed } from "@/components/RecentlyViewed";
+import { db } from "@/db";
+import { savedListings } from "@/db/schema/analytics";
+import { and, eq } from "drizzle-orm";
 
 /**
  * Shared implementation for /used-cars, /used-bikes and /auto-parts.
@@ -209,6 +212,8 @@ export async function VerticalPage({
   if (!canViewListingDetail(listing.status, listing.sellerId, viewer)) {
     notFound();
   }
+  const [saved] = viewer ? await db.select({ listingId: savedListings.listingId }).from(savedListings)
+    .where(and(eq(savedListings.userId, viewer.id), eq(savedListings.listingId, listing.id))).limit(1) : [];
 
   // The id identifies the row, so the slug is free to drift — a seller edits
   // the title, or the slug format improves. Redirect rather than serve the
@@ -325,7 +330,7 @@ export async function VerticalPage({
         </p>
       )}
 
-      <ListingDetail listing={listing} isAdmin={viewer?.isAdmin === true} />
+      <ListingDetail listing={listing} isAdmin={viewer?.isAdmin === true} initiallySaved={Boolean(saved)} />
       {listing.status === "active" && (
         <RecentlyViewed currentListingId={listing.id} recordCurrent />
       )}

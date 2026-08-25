@@ -3,6 +3,7 @@ import Image from "next/image";
 import { formatPkr, formatMileage, relativeTime } from "@/lib/format";
 import { buildListingPath } from "@/lib/listings/slug";
 import type { SearchResultRow } from "@/lib/listings/search";
+import { BuyerListingActions } from "./BuyerListingActions";
 
 /**
  * Result card.
@@ -25,9 +26,11 @@ function imageUrl(key: string | null, width: number): string {
 export function ListingCard({
   row,
   vertical,
+  initiallySaved = false,
 }: {
   row: SearchResultRow;
   vertical: "car" | "bike" | "part";
+  initiallySaved?: boolean;
 }) {
   const href = buildListingPath(vertical, row.slug, row.id);
   const specs = [
@@ -83,6 +86,7 @@ export function ListingCard({
           </p>
         </div>
       </Link>
+      <BuyerListingActions listingId={row.id} vertical={vertical} initiallySaved={initiallySaved} />
     </li>
   );
 }

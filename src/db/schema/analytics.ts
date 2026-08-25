@@ -8,6 +8,7 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { verticalEnum, leadTypeEnum } from "./enums";
 import { listings } from "./listings";
@@ -72,6 +73,40 @@ export const savedSearches = pgTable(
       .defaultNow(),
   },
   (t) => [index("saved_searches_user_idx").on(t.userId)],
+);
+
+/**
+ * One row per saved-search/listing match. The unique key makes alert runs
+ * retry-safe: a scheduler can repeat a job without emailing the same match
+ * twice. Delivery is intentionally provider-agnostic for V1.
+ */
+export const savedSearchNotifications = pgTable(
+  "saved_search_notifications",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    savedSearchId: integer("saved_search_id")
+      .notNull()
+      .references(() => savedSearches.id, { onDelete: "cascade" }),
+    listingId: integer("listing_id")
+      .notNull()
+      .references(() => listings.id, { onDelete: "cascade" }),
+    recipientEmail: text("recipient_email").notNull(),
+    delivered: boolean("delivered").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("saved_search_notifications_match_uq").on(
+      t.savedSearchId,
+      t.listingId,
+    ),
+    index("saved_search_notifications_delivery_idx").on(
+      t.delivered,
+      t.createdAt,
+    ),
+  ],
 );
 
 export const savedListings = pgTable(

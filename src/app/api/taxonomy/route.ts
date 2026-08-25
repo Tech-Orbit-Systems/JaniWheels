@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
   if (Number.isSafeInteger(makeId) && makeId > 0) {
     const rows = await db
-      .select({ id: models.id, name: models.name })
+      .select({ id: models.id, name: models.name, slug: models.slug, fullSlug: models.fullSlug })
       .from(models)
       .where(and(eq(models.makeId, makeId), eq(models.isActive, true)))
       .orderBy(desc(models.popularity), asc(models.name));

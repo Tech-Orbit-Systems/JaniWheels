@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { listings, pendingUploads } from "@/db/schema/listings";
 import { sessions } from "@/db/schema/users";
+import { users } from "@/db/schema/users";
+import { savedSearchNotifications, savedSearches } from "@/db/schema/analytics";
+import { searchListings } from "@/lib/listings/search";
+import type { FacetState } from "@/lib/seo/facets";
 import { removeStoredImage } from "@/lib/images/storage";
 
 export const runtime = "nodejs";
@@ -72,6 +76,30 @@ const JOBS = {
       abandonedUploads: abandoned.length,
       imagesRemoved,
     };
+  },
+
+  /**
+   * Finds new matches and places provider-neutral notifications in an outbox.
+   * The unique match key makes retries safe. A production email adapter can
+   * deliver pending rows without coupling marketplace search to a vendor.
+   */
+  "saved-search-alerts": async () => {
+    const searches = await db.select({ search: savedSearches, email: users.email })
+      .from(savedSearches).innerJoin(users, eq(savedSearches.userId, users.id))
+      .where(and(ne(savedSearches.alertFrequency, "off"), sql`${users.email} IS NOT NULL`, sql`(${savedSearches.alertFrequency} = 'instant' OR ${savedSearches.lastNotifiedAt} IS NULL OR ${savedSearches.lastNotifiedAt} < NOW() - INTERVAL '23 hours')`));
+    let queued = 0;
+    for (const { search, email } of searches) {
+      const stored = search.filters as { state?: FacetState };
+      if (!stored.state || !email) continue;
+      const result = await searchListings({ ...stored.state, page: 1, sort: "recent" });
+      const newRows = result.rows.filter(row => !search.lastNotifiedAt || (row.publishedAt && new Date(row.publishedAt) > search.lastNotifiedAt));
+      if (newRows.length) {
+        const inserted = await db.insert(savedSearchNotifications).values(newRows.map(row => ({ savedSearchId: search.id, listingId: row.id, recipientEmail: email }))).onConflictDoNothing().returning({ id: savedSearchNotifications.id });
+        queued += inserted.length;
+      }
+      await db.update(savedSearches).set({ lastNotifiedAt: new Date() }).where(eq(savedSearches.id, search.id));
+    }
+    return { searchesChecked: searches.length, notificationsQueued: queued };
   },
 } as const;
 

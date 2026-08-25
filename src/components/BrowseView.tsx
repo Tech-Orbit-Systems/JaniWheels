@@ -12,6 +12,13 @@ import { Breadcrumbs, type Crumb } from "./Breadcrumbs";
 import { RelatedLinks } from "./RelatedLinks";
 import { PartFilters } from "./PartFilters";
 import { getPartFilterOptions } from "@/lib/listings/part-filter-options";
+import { getVehicleFilterOptions } from "@/lib/listings/vehicle-filter-options";
+import { VehicleFilters } from "./VehicleFilters";
+import { SaveSearchForm } from "./SaveSearchForm";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/db";
+import { savedListings } from "@/db/schema/analytics";
+import { and, eq, inArray } from "drizzle-orm";
 
 /**
  * The browse page, shared by all three verticals.
@@ -38,9 +45,17 @@ export async function BrowseView({
 
   const decision = decideIndexation(state);
   const results = await searchListings(state);
-  const partFilterOptions = state.vertical === "part" ? await getPartFilterOptions() : null;
+  const [partFilterOptions, vehicleFilterOptions, user] = await Promise.all([
+    state.vertical === "part" ? getPartFilterOptions() : null,
+    state.vertical !== "part" ? getVehicleFilterOptions(state.vertical) : null,
+    getCurrentUser(),
+  ]);
   const heading = facetPageTitle(state);
   const base = buildPath({ vertical: state.vertical });
+  const currentPath = buildPath({ ...state, page: undefined });
+  const savedRows = user && results.rows.length ? await db.select({ listingId: savedListings.listingId }).from(savedListings)
+    .where(and(eq(savedListings.userId, user.id), inArray(savedListings.listingId, results.rows.map(row => row.id)))) : [];
+  const savedIds = new Set(savedRows.map(row => row.listingId));
 
   const crumbs: Crumb[] = [
     { name: "Home", path: "/" },
@@ -88,10 +103,11 @@ export async function BrowseView({
             {results.total === 1 ? "listing" : "listings"}
           </p>
         </div>
-        <SortSelect state={state} />
+        <div className="flex flex-wrap items-center gap-2"><SaveSearchForm authenticated={Boolean(user)} path={currentPath} vertical={state.vertical} filters={JSON.stringify(state)} defaultName={heading} /><SortSelect state={state} /></div>
       </div>
 
       {partFilterOptions && <PartFilters state={state} {...partFilterOptions} />}
+      {vehicleFilterOptions && <VehicleFilters state={state} {...vehicleFilterOptions} />}
 
       {process.env.NODE_ENV === "development" && (
         /* Dev-only view of the indexation decision. Getting this wrong is
@@ -116,7 +132,7 @@ export async function BrowseView({
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {results.rows.map((row) => (
-            <ListingCard key={row.id} row={row} vertical={state.vertical} />
+            <ListingCard key={row.id} row={row} vertical={state.vertical} initiallySaved={savedIds.has(row.id)} />
           ))}
         </ul>
       )}
