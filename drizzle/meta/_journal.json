@@ -50,6 +50,13 @@
       "when": 1787674291355,
       "tag": "0006_regular_korvac",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787688171599,
+      "tag": "0007_red_karen_page",
+      "breakpoints": true
     }
   ]
 }

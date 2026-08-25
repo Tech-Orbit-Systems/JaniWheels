@@ -290,10 +290,16 @@ export async function ListingDetail({
                 View all cars from this dealer
               </Link>
             ) : (
-              <p className="text-xs text-slate-500">
-                Member since {listing.sellerSince.getFullYear()}
-              </p>
+              <Link
+                href={`/sellers/${listing.sellerId}`}
+                className="text-xs text-blue-700 hover:underline"
+              >
+                View this seller&apos;s active ads
+              </Link>
             )}
+            <p className="text-xs text-slate-500">
+              Member since {listing.sellerSince.getFullYear()}
+            </p>
             <p className="mt-1 text-xs text-slate-500">
               {listing.areaName ? `${listing.areaName}, ` : ""}
               {listing.cityName}

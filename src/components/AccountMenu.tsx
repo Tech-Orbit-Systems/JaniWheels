@@ -63,6 +63,7 @@ export async function AccountMenu() {
         </Link>
         <Link href="/dashboard/saved" className={item}>Saved ads</Link>
         <Link href="/dashboard/saved-searches" className={item}>Saved searches</Link>
+        <Link href="/dashboard/profile" className={item}>Account settings</Link>
         {user.type === "dealer" ? (
           <Link href="/dashboard/dealer" className={item}>
             Dealer console

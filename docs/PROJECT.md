@@ -40,6 +40,10 @@ and load testing on the selected infrastructure.
 
 Authentication stores scrypt password hashes and hashed random session tokens.
 The session cookie is HTTP-only, secure in production and same-site.
+Password reset links use 256-bit random tokens, store only SHA-256 digests,
+expire after 30 minutes, are single-use and revoke every existing session when
+consumed. Resend is the production email adapter; local development prints the
+reset URL in the server terminal when email credentials are absent.
 
 ## SEO model
 

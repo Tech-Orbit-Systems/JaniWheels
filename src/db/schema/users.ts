@@ -8,6 +8,7 @@ import {
   smallint,
   index,
   uniqueIndex,
+  bigserial,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { sellerTypeEnum } from "./enums";
@@ -43,6 +44,9 @@ export const users = pgTable(
       .notNull()
       .defaultNow(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     uniqueIndex("users_phone_uq").on(t.phone),
@@ -104,10 +108,48 @@ export const sessions = pgTable(
   (t) => [index("sessions_user_idx").on(t.userId)],
 );
 
+/**
+ * Password-reset links are random bearer credentials. Only their SHA-256
+ * digest is retained, so a database leak cannot be turned into working reset
+ * links. Rows are single-use and short-lived.
+ */
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    requestedIp: text("requested_ip"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("password_reset_tokens_hash_uq").on(t.tokenHash),
+    index("password_reset_tokens_user_created_idx").on(t.userId, t.createdAt),
+    index("password_reset_tokens_expiry_idx").on(t.expiresAt),
+  ],
+);
+
 export const usersRelations = relations(users, ({ one, many }) => ({
   dealer: one(dealers, { fields: [users.id], references: [dealers.userId] }),
   sessions: many(sessions),
+  passwordResetTokens: many(passwordResetTokens),
 }));
+
+export const passwordResetTokensRelations = relations(
+  passwordResetTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [passwordResetTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const dealersRelations = relations(dealers, ({ one }) => ({
   user: one(users, { fields: [dealers.userId], references: [users.id] }),

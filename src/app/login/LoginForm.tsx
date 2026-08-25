@@ -59,6 +59,13 @@ export function LoginForm({
         autoComplete={registering ? "new-password" : "current-password"}
         error={state.fieldErrors?.password}
       />
+      {!registering && (
+        <div className="-mt-2 text-right">
+          <Link href="/forgot-password" className="text-sm font-medium text-blue-700 hover:underline">
+            Forgot password?
+          </Link>
+        </div>
+      )}
 
       {state.error && (
         <p role="alert" className="text-sm text-red-600">
