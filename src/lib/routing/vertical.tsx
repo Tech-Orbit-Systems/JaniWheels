@@ -19,6 +19,7 @@ import { canViewListingDetail } from "@/lib/listings/visibility";
 import { BrowseView } from "@/components/BrowseView";
 import { ListingDetail } from "@/components/ListingDetail";
 import { Breadcrumbs, type Crumb } from "@/components/Breadcrumbs";
+import { RecentlyViewed } from "@/components/RecentlyViewed";
 
 /**
  * Shared implementation for /used-cars, /used-bikes and /auto-parts.
@@ -325,6 +326,9 @@ export async function VerticalPage({
       )}
 
       <ListingDetail listing={listing} isAdmin={viewer?.isAdmin === true} />
+      {listing.status === "active" && (
+        <RecentlyViewed currentListingId={listing.id} recordCurrent />
+      )}
     </main>
   );
 }

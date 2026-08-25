@@ -39,7 +39,7 @@ export interface SearchResultRow {
   fuel: string | null;
   transmission: string | null;
   engineCc: number | null;
-  publishedAt: Date | null;
+  publishedAt: Date | string | null;
   primaryImageKey: string | null;
   sellerType?: string | null;
   dealerName?: string | null;

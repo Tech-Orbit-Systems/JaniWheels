@@ -24,6 +24,7 @@ import { HomeSearch } from "@/components/HomeSearch";
 import { searchListings } from "@/lib/listings/search";
 import { buildPath } from "@/lib/seo/facets";
 import { abs } from "@/lib/seo/jsonld";
+import { RecentlyViewed } from "@/components/RecentlyViewed";
 
 export const revalidate = 300;
 
@@ -196,6 +197,8 @@ export default async function HomePage() {
           }}
         />
       </section>
+
+      <RecentlyViewed limit={8} />
 
       {verifiedDealers.length > 0 && (
         <section className="mt-20 bg-zinc-50 py-16">
