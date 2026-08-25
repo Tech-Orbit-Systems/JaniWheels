@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { listings, listingImages } from "@/db/schema/listings";
 import { cities } from "@/db/schema/geo";
@@ -12,6 +12,7 @@ import { formatPkr, relativeTime } from "@/lib/format";
 import { MarkSoldButton } from "./MarkSoldButton";
 import { ResubmitButton } from "./ResubmitButton";
 import { moderationLog } from "@/db/schema/trust";
+import { ListingManagementButtons } from "./ListingManagementButtons";
 
 export const metadata: Metadata = {
   title: "My ads",
@@ -56,7 +57,7 @@ export default async function DashboardPage() {
     })
     .from(listings)
     .innerJoin(cities, eq(listings.cityId, cities.id))
-    .where(eq(listings.sellerId, user.id))
+    .where(and(eq(listings.sellerId, user.id), isNull(listings.sellerDeletedAt)))
     .orderBy(desc(listings.createdAt));
 
   const totalLeads = rows.reduce((n, r) => n + r.leadCount, 0);
@@ -137,6 +138,20 @@ export default async function DashboardPage() {
                   </span>
                   <span className="text-slate-500">{r.viewCount} views</span>
                   {r.status === "active" && <MarkSoldButton listingId={r.id} />}
+                  {r.status !== "removed" && (
+                    <Link
+                      href={`/dashboard/listings/${r.id}/edit`}
+                      className="font-medium text-blue-700 underline hover:text-blue-900"
+                    >
+                      Edit ad
+                    </Link>
+                  )}
+                  {r.status !== "removed" && (
+                    <ListingManagementButtons
+                      listingId={r.id}
+                      canReactivate={r.status === "sold" || r.status === "expired"}
+                    />
+                  )}
                   {r.status === "pending_review" && (
                     <span className="text-amber-800">Under admin review — hidden from buyers</span>
                   )}

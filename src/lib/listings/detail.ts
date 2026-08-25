@@ -43,6 +43,7 @@ export const getListingDetail = cache(
         pricePkr: listings.pricePkr,
         isNegotiable: listings.isNegotiable,
         status: listings.status,
+        sellerDeletedAt: listings.sellerDeletedAt,
         year: listings.year,
         mileageKm: listings.mileageKm,
         engineCc: listings.engineCc,
@@ -142,7 +143,7 @@ export const getListingDetail = cache(
       .where(and(eq(listings.id, id), eq(listings.vertical, vertical)))
       .limit(1);
 
-    if (!row) return null;
+    if (!row || row.sellerDeletedAt) return null;
 
     const [images, featureRows, customFeatureRows] = await Promise.all([
       db

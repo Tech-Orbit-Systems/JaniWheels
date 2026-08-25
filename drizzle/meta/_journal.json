@@ -36,6 +36,13 @@
       "when": 1787566278875,
       "tag": "0004_zippy_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787650885269,
+      "tag": "0005_huge_pestilence",
+      "breakpoints": true
     }
   ]
 }

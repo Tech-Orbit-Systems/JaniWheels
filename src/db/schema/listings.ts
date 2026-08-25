@@ -103,6 +103,8 @@ export const listings = pgTable(
     publishedAt: timestamp("published_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     soldAt: timestamp("sold_at", { withTimezone: true }),
+    /** Seller deletion is a soft delete so trust/moderation history survives. */
+    sellerDeletedAt: timestamp("seller_deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
