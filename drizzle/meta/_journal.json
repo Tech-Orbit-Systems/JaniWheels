@@ -57,6 +57,13 @@
       "when": 1787688171599,
       "tag": "0007_red_karen_page",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787741372573,
+      "tag": "0008_perfect_hawkeye",
+      "breakpoints": true
     }
   ]
 }

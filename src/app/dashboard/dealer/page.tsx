@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import {
   getDealerDashboardStats,
   getDealerForUser,
+  getLatestDealerVerificationDecision,
 } from "@/lib/dealers/queries";
 
 export const metadata: Metadata = {
@@ -19,7 +20,10 @@ export default async function DealerDashboard() {
   const dealer = await getDealerForUser(user.id);
   if (!dealer) redirect("/dealers/register");
 
-  const stats = await getDealerDashboardStats(dealer.id);
+  const [stats, verificationDecision] = await Promise.all([
+    getDealerDashboardStats(dealer.id),
+    getLatestDealerVerificationDecision(user.id),
+  ]);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8">
@@ -48,6 +52,12 @@ export default async function DealerDashboard() {
         </div>
         <div className="flex gap-2">
           <Link
+            href="/dashboard/dealer/settings"
+            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+          >
+            Dealer settings
+          </Link>
+          <Link
             href="/dashboard"
             className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
           >
@@ -64,9 +74,9 @@ export default async function DealerDashboard() {
 
       {!dealer.verifiedAt && (
         <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Your dealership profile has been submitted for manual verification.
-          Your valid ads publish immediately; verification controls the dealer
-          badge, while reports and moderation keep the marketplace safe.
+          {verificationDecision?.action === "dealer_revoke"
+            ? `Dealer verification was removed${verificationDecision.reason ? `: ${verificationDecision.reason}` : "."} Update any incorrect details and contact JaniWheels for review.`
+            : "Your dealership profile has been submitted for manual verification. Your valid ads publish immediately; verification controls the dealer badge, while reports and moderation keep the marketplace safe."}
         </p>
       )}
 

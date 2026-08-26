@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -9,6 +10,8 @@ import { makes, models } from "@/db/schema/taxonomy";
 import { ListingCard } from "@/components/ListingCard";
 import { abs, breadcrumbJsonLd } from "@/lib/seo/jsonld";
 import { PAGE_SIZE } from "@/lib/listings/search";
+import { displayPkPhone } from "@/lib/format";
+import { imageDeliveryUrl } from "@/lib/images/url";
 
 /**
  * Dealer storefront.
@@ -27,6 +30,8 @@ async function getDealer(slug: string) {
       about: dealers.about,
       address: dealers.address,
       logoUrl: dealers.logoUrl,
+      landline: dealers.landline,
+      whatsapp: dealers.whatsapp,
       verifiedAt: dealers.verifiedAt,
       cityName: cities.name,
       memberSince: users.createdAt,
@@ -75,6 +80,7 @@ export default async function DealerPage({
   const rows = await db
     .select({
       id: listings.id,
+      vertical: listings.vertical,
       slug: listings.slug,
       title: listings.title,
       pricePkr: listings.pricePkr,
@@ -136,28 +142,45 @@ export default async function DealerPage({
       />
 
       <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold text-slate-900">
-            {dealer.businessName}
-          </h1>
-          {dealer.verifiedAt && (
-            <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-              Verified dealer
-            </span>
-          )}
+        <div className="flex items-start gap-4">
+          <div className="relative size-20 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+            {dealer.logoUrl ? (
+              <Image src={imageDeliveryUrl(dealer.logoUrl, 160)} alt={`${dealer.businessName} logo`} fill sizes="80px" className="object-contain p-1.5" />
+            ) : (
+              <span className="flex size-full items-center justify-center text-2xl font-bold text-slate-400">{dealer.businessName.charAt(0).toUpperCase()}</span>
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-semibold text-slate-900">
+                {dealer.businessName}
+              </h1>
+              {dealer.verifiedAt && (
+                <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                  Verified dealer
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-slate-500">
+              {dealer.address ? `${dealer.address}, ` : ""}
+              {dealer.cityName} · member since {dealer.memberSince.getFullYear()}
+            </p>
+            {(dealer.landline || dealer.whatsapp) && (
+              <p className="mt-1 text-sm text-slate-600">
+                {dealer.landline ? `Landline ${dealer.landline}` : ""}
+                {dealer.landline && dealer.whatsapp ? " · " : ""}
+                {dealer.whatsapp ? `WhatsApp ${displayPkPhone(dealer.whatsapp)}` : ""}
+              </p>
+            )}
+          </div>
         </div>
-        <p className="mt-1 text-sm text-slate-500">
-          {dealer.address ? `${dealer.address}, ` : ""}
-          {dealer.cityName} · member since{" "}
-          {dealer.memberSince.getFullYear()}
-        </p>
         {dealer.about && (
           <p className="mt-3 text-sm text-slate-700">{dealer.about}</p>
         )}
       </div>
 
       <h2 className="mb-3 text-lg font-semibold text-slate-900">
-        {rows.length} car{rows.length === 1 ? "" : "s"} available
+        {rows.length} active {rows.length === 1 ? "ad" : "ads"}
       </h2>
 
       {rows.length === 0 ? (
@@ -167,7 +190,7 @@ export default async function DealerPage({
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((row) => (
-            <ListingCard key={row.id} row={row} vertical="car" />
+            <ListingCard key={row.id} row={row} vertical={row.vertical} />
           ))}
         </ul>
       )}

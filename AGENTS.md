@@ -51,10 +51,12 @@ changing routes or interactive behaviour.
 
 ## Current V1 gaps
 
-- Sellers can currently create cars only; bike and parts creation is pending.
-- Listing edit/delete UI, comparison, favourites, recently viewed and saved
-  search UI are pending.
-- Profile editing, password reset and basic email alerts are pending.
+- Cars, bikes and parts seller flows, owner edit/delete and image management
+  are implemented; final DB/browser acceptance is deferred.
+- Favourites, comparison, recently viewed and saved-search UI are implemented;
+  production alert delivery still needs provider configuration.
+- Account profiles, password reset, dealer settings and manual dealer
+  verification are implemented; final DB/browser acceptance is deferred.
 - Sell My Car Assistance and inspection/admin operations are pending.
-- Dealer verification administration and broader admin controls are pending.
+- Broader admin listing and user controls are pending.
 - Production branding, mobile navigation and full launch QA are pending.

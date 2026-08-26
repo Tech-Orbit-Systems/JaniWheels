@@ -1,10 +1,11 @@
 import "server-only";
 
-import { eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { dealers } from "@/db/schema/users";
 import { listings } from "@/db/schema/listings";
+import { moderationLog } from "@/db/schema/trust";
 
 export const getDealerForUser = cache(async (userId: number) => {
   const [row] = await db
@@ -13,6 +14,11 @@ export const getDealerForUser = cache(async (userId: number) => {
       businessName: dealers.businessName,
       slug: dealers.slug,
       cityId: dealers.cityId,
+      address: dealers.address,
+      logoUrl: dealers.logoUrl,
+      about: dealers.about,
+      landline: dealers.landline,
+      whatsapp: dealers.whatsapp,
       verifiedAt: dealers.verifiedAt,
     })
     .from(dealers)
@@ -20,6 +26,27 @@ export const getDealerForUser = cache(async (userId: number) => {
     .limit(1);
   return row ?? null;
 });
+
+export async function getLatestDealerVerificationDecision(userId: number) {
+  const [row] = await db
+    .select({
+      action: moderationLog.action,
+      reason: moderationLog.reason,
+      createdAt: moderationLog.createdAt,
+    })
+    .from(moderationLog)
+    .where(and(
+      eq(moderationLog.userId, userId),
+      inArray(moderationLog.action, [
+        "dealer_verify",
+        "dealer_revoke",
+        "dealer_review_reset",
+      ]),
+    ))
+    .orderBy(desc(moderationLog.createdAt))
+    .limit(1);
+  return row ?? null;
+}
 
 export async function getDealerDashboardStats(dealerId: number) {
   const [row] = await db

@@ -118,6 +118,7 @@ export const moderationLog = pgTable(
   },
   (t) => [
     index("moderation_log_listing_idx").on(t.listingId),
+    index("moderation_log_user_action_idx").on(t.userId, t.action, t.createdAt),
     index("moderation_log_created_idx").on(t.createdAt),
   ],
 );

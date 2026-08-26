@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { dealers } from "@/db/schema/users";
 import { cities } from "@/db/schema/geo";
@@ -34,6 +34,7 @@ export default async function DealersIndexPage() {
       listings,
       and(eq(listings.dealerId, dealers.id), eq(listings.status, "active")),
     )
+    .where(isNotNull(dealers.verifiedAt))
     .groupBy(
       dealers.id,
       dealers.slug,
@@ -113,7 +114,7 @@ export default async function DealersIndexPage() {
                       )}
                     </div>
                     <p className="mt-1 text-sm text-slate-500">
-                      {d.liveCount} car{d.liveCount === 1 ? "" : "s"} available
+                      {d.liveCount} active {d.liveCount === 1 ? "ad" : "ads"}
                     </p>
                   </Link>
                 </li>

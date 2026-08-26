@@ -74,9 +74,14 @@ export async function AccountMenu() {
           </Link>
         )}
         {row?.isAdmin && (
-          <Link href="/admin/moderation" className={item}>
-            Moderation
-          </Link>
+          <>
+            <Link href="/admin/moderation" className={item}>
+              Moderation
+            </Link>
+            <Link href="/admin/dealers" className={item}>
+              Dealer verification
+            </Link>
+          </>
         )}
 
         <form action={logoutAction} className="border-t border-slate-100 pt-1">

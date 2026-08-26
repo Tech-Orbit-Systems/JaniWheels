@@ -22,7 +22,7 @@ The shared listing model supports three verticals:
 | Listings | `src/lib/listings` | Validation, publishing, search, details and seller actions |
 | Marketplace routes | `src/app/used-*`, `src/app/auto-parts` | Browse and SEO facet pages |
 | Seller dashboard | `src/app/dashboard` | Listing status, buyer-interest counts and management |
-| Dealers | `src/app/dealers`, `src/lib/dealers` | Profiles, storefronts, basic dashboard and registration |
+| Dealers | `src/app/dealers`, `src/lib/dealers`, `src/app/admin/dealers` | Registration, owner settings, storefronts and audited manual verification |
 | Trust | `src/lib/trust`, `src/app/admin` | Reports, moderation and inspection requests |
 | SEO | `src/lib/seo` | Facet parsing, canonicals, indexation and structured data |
 | Media | `src/lib/images`, `src/app/api/upload` | Listing image storage abstraction |
@@ -44,6 +44,11 @@ Password reset links use 256-bit random tokens, store only SHA-256 digests,
 expire after 30 minutes, are single-use and revoke every existing session when
 consumed. Resend is the production email adapter; local development prints the
 reset URL in the server terminal when email credentials are absent.
+
+Dealer verification is a manual admin decision. The badge is derived directly
+from `dealers.verified_at`, and every approval, revocation or automatic review
+reset is appended to `moderation_log`. Verified profiles return to review when
+the owner changes business identity details or the public logo.
 
 ## SEO model
 
