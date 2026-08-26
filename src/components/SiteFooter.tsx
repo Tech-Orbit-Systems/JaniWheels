@@ -11,6 +11,7 @@ const marketplaceLinks = [
 const actionLinks = [
   ["Post an Ad", "/post-ad"],
   ["Vehicle Inspection", "/inspection"],
+  ["Sell My Car Assistance", "/sell-my-car"],
   ["My Ads", "/dashboard"],
   ["Dealer Registration", "/dealers/register"],
 ] as const;

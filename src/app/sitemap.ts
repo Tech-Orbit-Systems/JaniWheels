@@ -38,6 +38,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/used-bikes`, changeFrequency: "hourly", priority: 0.8 },
     { url: `${SITE_URL}/auto-parts`, changeFrequency: "daily", priority: 0.7 },
     { url: `${SITE_URL}/inspection`, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${SITE_URL}/sell-my-car`, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE_URL}/dealers`, changeFrequency: "daily", priority: 0.7 },
     { url: `${SITE_URL}/dealers/register`, changeFrequency: "monthly", priority: 0.5 },
   ];

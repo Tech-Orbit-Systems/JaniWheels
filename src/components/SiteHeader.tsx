@@ -9,6 +9,7 @@ const navigation = [
   { href: "/auto-parts", label: "Auto Parts" },
   { href: "/dealers", label: "Dealers" },
   { href: "/inspection", label: "Inspection" },
+  { href: "/sell-my-car", label: "Sell My Car" },
 ];
 
 export function SiteHeader() {

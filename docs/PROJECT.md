@@ -72,6 +72,14 @@ follow-up notes, and publish selected updates to the customer dashboard. Every
 change is append-only in `inspection_events`. This does not assign inspectors,
 optimise workforce schedules, collect payment or generate inspection reports.
 
+Sell My Car Assistance is also request-based. A seller submits structured
+vehicle, document, condition, timing and contact details. Staff can move the
+case through contact, detail confirmation, ad preparation, ad live, buyer
+follow-up and final sold/cancelled states. Customer-visible updates and private
+staff notes are retained in an append-only event history. V1 does not provide
+automatic valuation, buy the vehicle, guarantee a buyer/price/timeline, collect
+payment or manage ownership transfer.
+
 ## SEO model
 
 Facet URLs are parsed through a registry with canonical ordering. Only approved
