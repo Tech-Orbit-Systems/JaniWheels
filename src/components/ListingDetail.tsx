@@ -319,7 +319,8 @@ export async function ListingDetail({
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Admin moderation
               </p>
-              <ModerationActions listingId={listing.id} />
+              <Link href={`/dashboard/listings/${listing.id}/edit`} className="mb-3 inline-block text-xs font-bold text-blue-700 hover:underline">Edit full advertisement</Link>
+              <ModerationActions listingId={listing.id} status={listing.status} />
             </div>
           )}
 

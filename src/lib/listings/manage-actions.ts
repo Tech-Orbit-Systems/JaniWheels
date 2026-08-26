@@ -17,6 +17,7 @@ import {
 import { areas, cities } from "@/db/schema/geo";
 import { makes, models, partCategories, variants } from "@/db/schema/taxonomy";
 import { getCurrentUser } from "@/lib/auth/session";
+import { moderationLog } from "@/db/schema/trust";
 import { claimUploadedImages, UploadOwnershipError } from "@/lib/images/ownership";
 import { removeStoredImage } from "@/lib/images/storage";
 import { buildListingSlug, buildListingPath } from "./slug";
@@ -185,7 +186,10 @@ export async function updateListingAction(
 ): Promise<SellState> {
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=/dashboard/listings/${listingId}/edit`);
-  const listing = await ownedListing(user.id, listingId);
+  const listing = user.isAdmin
+    ? await db.select({ id: listings.id, sellerId: listings.sellerId, vertical: listings.vertical, status: listings.status, sellerDeletedAt: listings.sellerDeletedAt })
+      .from(listings).where(eq(listings.id, listingId)).limit(1).then(([row]) => row?.sellerDeletedAt ? null : row)
+    : await ownedListing(user.id, listingId);
   if (!listing || listing.status === "removed") return { error: "This ad cannot be edited." };
 
   const parsed = parseEdit(listing.vertical, formData);
@@ -198,7 +202,8 @@ export async function updateListingAction(
     removedKeys = await db.transaction(async (tx) => {
       const [locked] = await tx.select({ sellerId: listings.sellerId, status: listings.status })
         .from(listings).where(eq(listings.id, listingId)).limit(1);
-      if (!locked || locked.sellerId !== user.id || locked.status === "removed") throw new Error("LISTING_UNAVAILABLE");
+      const adminEdit = Boolean(user.isAdmin && locked?.sellerId !== user.id);
+      if (!locked || (!adminEdit && locked.sellerId !== user.id) || locked.status === "removed") throw new Error("LISTING_UNAVAILABLE");
 
       const existing = await tx.select({ key: listingImages.storageKey })
         .from(listingImages).where(eq(listingImages.listingId, listingId));
@@ -208,7 +213,7 @@ export async function updateListingAction(
       if (newKeys.length) await claimUploadedImages(tx, user.id, listingId, newKeys);
 
       const description = sanitizeDescription(parsed.data.description ?? "").text || null;
-      const nextStatus = locked.status === "rejected" ? "pending_review" : locked.status;
+      const nextStatus = !adminEdit && locked.status === "rejected" ? "pending_review" : locked.status;
 
       if (parsed.vertical === "car") {
         const data = parsed.data;
@@ -331,6 +336,15 @@ export async function updateListingAction(
 
       await tx.delete(listingImages).where(eq(listingImages.listingId, listingId));
       await tx.insert(listingImages).values(parsed.data.imageKeys.map((key, position) => ({ listingId, storageKey: key, position })));
+      if (adminEdit) await tx.insert(moderationLog).values({
+        listingId,
+        userId: locked.sellerId,
+        moderatorId: user.id,
+        action: "edit",
+        reason: "Administrator edited listing details.",
+        isAutomated: false,
+        metadata: { preservedStatus: locked.status },
+      });
       if (removed.length) await tx.delete(pendingUploads).where(and(
         eq(pendingUploads.listingId, listingId),
         inArray(pendingUploads.storageKey, removed),
@@ -347,7 +361,7 @@ export async function updateListingAction(
   await Promise.all(removedKeys.map((key) => removeStoredImage(key)));
   revalidatePath("/dashboard");
   revalidatePath(buildListingPath(listing.vertical, "updated", listingId));
-  redirect(`/dashboard?updated=1`);
+  redirect(user.isAdmin && listing.sellerId !== user.id ? `/admin/listings?updated=${listingId}` : `/dashboard?updated=1`);
 }
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];

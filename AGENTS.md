@@ -59,6 +59,7 @@ changing routes or interactive behaviour.
   password reset, dealer settings and manual dealer verification are
   implemented; provider configuration and final DB/browser acceptance are
   deferred.
-- Sell My Car Assistance and inspection/admin operations are pending.
-- Broader admin listing and user controls are pending.
+- Sell My Car Assistance and inspection administration are pending.
+- Admin listing moderation, audited administrator edits and user ban/unban
+  controls are implemented; final DB/browser acceptance is deferred.
 - Production branding, mobile navigation and full launch QA are pending.

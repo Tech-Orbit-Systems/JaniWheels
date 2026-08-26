@@ -54,7 +54,8 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     .leftJoin(partDetails, eq(partDetails.listingId, listings.id))
     .where(eq(listings.id, id)).limit(1);
 
-  if (!listing || listing.sellerId !== user.id || listing.sellerDeletedAt || listing.status === "removed") notFound();
+  const adminEdit = Boolean(listing && user.isAdmin && listing.sellerId !== user.id);
+  if (!listing || (!adminEdit && listing.sellerId !== user.id) || listing.sellerDeletedAt || listing.status === "removed") notFound();
 
   const [cityRows, areaRows, imageRows, featureRows, customFeatureRows, makeRows, categoryRows] = await Promise.all([
     db.select({ id: cities.id, name: cities.name }).from(cities).orderBy(desc(cities.popularity), asc(cities.name)),
@@ -86,8 +87,8 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
   }).sort((a, b) => a.name.localeCompare(b.name));
 
   return <main className="mx-auto w-full max-w-5xl px-4 py-8">
-    <Link href="/dashboard" className="text-sm font-bold text-blue-700 hover:underline">← My ads</Link>
-    <div className="mt-4 mb-7"><p className="text-xs font-extrabold uppercase tracking-[0.18em] text-blue-700">Manage advertisement</p><h1 className="mt-1 text-3xl font-black text-slate-950">Edit {listing.title}</h1><p className="mt-2 text-sm text-slate-600">Changes to a rejected ad will resubmit it for review. Other ad statuses remain unchanged.</p></div>
+    <Link href={adminEdit ? "/admin/listings" : "/dashboard"} className="text-sm font-bold text-blue-700 hover:underline">← {adminEdit ? "Admin listings" : "My ads"}</Link>
+    <div className="mt-4 mb-7"><p className="text-xs font-extrabold uppercase tracking-[0.18em] text-blue-700">{adminEdit ? "Administrator edit" : "Manage advertisement"}</p><h1 className="mt-1 text-3xl font-black text-slate-950">Edit {listing.title}</h1><p className="mt-2 text-sm text-slate-600">{adminEdit ? "This edit is recorded in the moderation audit trail and does not change the ad status." : "Changes to a rejected ad will resubmit it for review. Other ad statuses remain unchanged."}</p></div>
     <ListingEditForm listing={listing} cities={cityRows} initialAreas={areaRows} images={imageRows.map((image) => image.key)}
       makes={makeRows.map((make) => ({ id: make.id, name: `${make.name}${listing.vertical === "part" ? ` (${make.vertical === "bike" ? "Bike" : "Car"})` : ""}` }))}
       initialModels={initialModels} initialVariants={initialVariants} compatibleModels={compatibleModels}

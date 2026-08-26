@@ -9,7 +9,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { listingReports, inspections, moderationLog } from "@/db/schema/trust";
 import { listings } from "@/db/schema/listings";
-import { users } from "@/db/schema/users";
+import { sessions, users } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { normalizePkPhone } from "@/lib/format";
 import {
@@ -292,4 +292,113 @@ export async function moderateAction(
   revalidatePath("/auto-parts");
   revalidatePath("/dashboard");
   return outcome;
+}
+
+export type AdminListingDecision = "flag" | "reinstate" | "remove";
+
+export async function setAdminListingStateAction(
+  listingId: number,
+  decision: AdminListingDecision,
+  reason?: string,
+): Promise<{ ok: boolean; message: string }> {
+  const admin = await requireAdmin();
+  const cleanReason = reason?.trim();
+  if (!cleanReason || cleanReason.length < 5) {
+    return { ok: false, message: "Enter a reason of at least 5 characters." };
+  }
+  if (cleanReason.length > 500) {
+    return { ok: false, message: "The moderation reason is too long." };
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [listing] = await tx.select({
+      sellerId: listings.sellerId,
+      status: listings.status,
+      sellerDeletedAt: listings.sellerDeletedAt,
+    }).from(listings).where(eq(listings.id, listingId)).limit(1);
+    if (!listing || listing.sellerDeletedAt) return { ok: false, message: "Listing not found." };
+
+    const nextStatus = decision === "reinstate" ? "active" : decision === "flag" ? "pending_review" : "removed";
+    if (decision === "reinstate" && listing.status === "removed") {
+      return { ok: false, message: "Permanently removed ads cannot be reinstated." };
+    }
+    if (listing.status === nextStatus) {
+      return { ok: false, message: `This listing is already ${nextStatus.replace("_", " ")}.` };
+    }
+
+    const now = new Date();
+    await tx.update(listings).set({
+      status: nextStatus,
+      updatedAt: now,
+      ...(decision === "reinstate" ? { publishedAt: now } : {}),
+    }).where(eq(listings.id, listingId));
+    await tx.insert(moderationLog).values({
+      listingId,
+      userId: listing.sellerId,
+      moderatorId: admin.id,
+      action: decision,
+      reason: cleanReason,
+      isAutomated: false,
+      metadata: { previousStatus: listing.status, nextStatus },
+    });
+    if (decision !== "flag") {
+      await tx.update(listingReports).set({
+        status: decision === "reinstate" ? "dismissed" : "actioned",
+        resolvedByUserId: admin.id,
+        resolvedAt: now,
+      }).where(and(eq(listingReports.listingId, listingId), eq(listingReports.status, "open")));
+    }
+    return {
+      ok: true,
+      message: decision === "reinstate" ? "Listing reinstated and public." : decision === "flag" ? "Listing hidden and queued for review." : "Listing permanently removed.",
+    };
+  });
+  revalidateModerationSurfaces();
+  return result;
+}
+
+export async function setUserBanAction(
+  targetUserId: number,
+  decision: "ban" | "unban",
+  reason?: string,
+): Promise<{ ok: boolean; message: string }> {
+  const admin = await requireAdmin();
+  const cleanReason = reason?.trim();
+  if (!cleanReason || cleanReason.length < 5) {
+    return { ok: false, message: "Enter a reason of at least 5 characters." };
+  }
+  if (cleanReason.length > 500) return { ok: false, message: "The reason is too long." };
+  if (targetUserId === admin.id) return { ok: false, message: "You cannot change your own access." };
+
+  const result = await db.transaction(async (tx) => {
+    const [target] = await tx.select({ isAdmin: users.isAdmin, isBanned: users.isBanned })
+      .from(users).where(eq(users.id, targetUserId)).limit(1);
+    if (!target) return { ok: false, message: "User not found." };
+    if (target.isAdmin) return { ok: false, message: "Administrator access cannot be changed here." };
+    const shouldBan = decision === "ban";
+    if (target.isBanned === shouldBan) return { ok: false, message: `User is already ${shouldBan ? "banned" : "active"}.` };
+
+    await tx.update(users).set({ isBanned: shouldBan, updatedAt: new Date() }).where(eq(users.id, targetUserId));
+    if (shouldBan) await tx.delete(sessions).where(eq(sessions.userId, targetUserId));
+    await tx.insert(moderationLog).values({
+      userId: targetUserId,
+      moderatorId: admin.id,
+      action: decision,
+      reason: cleanReason,
+      isAutomated: false,
+    });
+    return { ok: true, message: shouldBan ? "User banned and active sessions revoked." : "User access restored." };
+  });
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/moderation");
+  return result;
+}
+
+function revalidateModerationSurfaces() {
+  revalidatePath("/admin/moderation");
+  revalidatePath("/admin/listings");
+  revalidatePath("/used-cars");
+  revalidatePath("/used-bikes");
+  revalidatePath("/auto-parts");
+  revalidatePath("/dashboard");
 }

@@ -75,8 +75,14 @@ export async function AccountMenu() {
         )}
         {row?.isAdmin && (
           <>
+            <Link href="/admin/listings" className={item}>
+              All listings
+            </Link>
             <Link href="/admin/moderation" className={item}>
               Moderation
+            </Link>
+            <Link href="/admin/users" className={item}>
+              User controls
             </Link>
             <Link href="/admin/dealers" className={item}>
               Dealer verification

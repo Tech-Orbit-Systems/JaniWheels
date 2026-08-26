@@ -76,7 +76,7 @@ export default async function ModerationPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Moderation</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3"><h1 className="text-2xl font-semibold text-slate-900">Moderation</h1><nav className="flex gap-3 text-sm font-semibold text-blue-700"><Link href="/admin/listings">All listings</Link><Link href="/admin/users">Users</Link><Link href="/admin/dealers">Dealers</Link></nav></div>
       <p className="mb-6 mt-1 text-sm text-slate-500">
         {pending.length} awaiting review · {reported.length} reported
       </p>
@@ -108,7 +108,7 @@ export default async function ModerationPage() {
                     {relativeTime(l.createdAt)}
                   </p>
                 </div>
-                <ModerationActions listingId={l.id} />
+                <ModerationActions listingId={l.id} status="pending_review" />
               </li>
             ))}
           </ul>
@@ -142,7 +142,7 @@ export default async function ModerationPage() {
                     · {r.reasons} · status {r.status}
                   </p>
                 </div>
-                <ModerationActions listingId={r.listingId} />
+                <ModerationActions listingId={r.listingId} status={r.status} />
               </li>
             ))}
           </ul>

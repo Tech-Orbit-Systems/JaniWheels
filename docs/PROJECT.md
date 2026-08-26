@@ -23,7 +23,7 @@ The shared listing model supports three verticals:
 | Marketplace routes | `src/app/used-*`, `src/app/auto-parts` | Browse and SEO facet pages |
 | Seller dashboard | `src/app/dashboard` | Listing status, buyer-interest counts and management |
 | Dealers | `src/app/dealers`, `src/lib/dealers`, `src/app/admin/dealers` | Registration, owner settings, storefronts and audited manual verification |
-| Trust | `src/lib/trust`, `src/app/admin` | Reports, moderation and inspection requests |
+| Trust | `src/lib/trust`, `src/app/admin` | Reports, moderation, audited listing controls, user access controls and inspection requests |
 | SEO | `src/lib/seo` | Facet parsing, canonicals, indexation and structured data |
 | Media | `src/lib/images`, `src/app/api/upload` | Listing image storage abstraction |
 | Database | `src/db/schema` | PostgreSQL schema and Drizzle definitions |
@@ -59,6 +59,12 @@ Dealer verification is a manual admin decision. The badge is derived directly
 from `dealers.verified_at`, and every approval, revocation or automatic review
 reset is appended to `moderation_log`. Verified profiles return to review when
 the owner changes business identity details or the public logo.
+
+Administrators have an all-status listing console and a user access console.
+Listing flag, approval, rejection, reinstate, removal and administrator-edit
+events are appended to `moderation_log`. Manual bans revoke all active sessions;
+self-ban and administrator-ban are blocked. A seller may fix and resubmit a
+rejected ad twice, while the third rejection permanently removes that ad.
 
 ## SEO model
 
