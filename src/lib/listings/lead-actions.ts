@@ -65,6 +65,9 @@ export async function revealPhoneAction(
   if (row.status !== "active") {
     return { ok: false, error: "This listing is no longer available." };
   }
+  if (!row.phone) {
+    return { ok: false, error: "The seller has not provided a mobile number." };
+  }
 
   const user = await getCurrentUser();
   const anon = user ? null : await anonId();

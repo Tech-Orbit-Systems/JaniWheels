@@ -38,8 +38,18 @@ Search stays in PostgreSQL for V1. Indexed facet columns are sufficient for the
 agreed conditional target of 20,000+ listings, subject to production query-plan
 and load testing on the selected infrastructure.
 
-Authentication stores scrypt password hashes and hashed random session tokens.
-The session cookie is HTTP-only, secure in production and same-site.
+Google is the primary account entry point and uses Authorization Code with
+PKCE, state and nonce. The callback validates Google's signed ID token,
+audience, issuer, expiry, nonce and verified-email claim before establishing a
+local session. Provider subjects, rather than provider email addresses, are the
+stable identity keys. Existing mobile/password login remains supported.
+
+Email/password registration is secondary and requires a single-use 24-hour
+verification link before sign-in. Buyer accounts may omit a phone number, but
+car, bike and parts posting routes and actions require one. Numbers remain
+unverified because SMS OTP is outside the signed V1 scope. Authentication
+stores scrypt password hashes and hashed random session tokens. The session
+cookie is HTTP-only, secure in production and same-site.
 Password reset links use 256-bit random tokens, store only SHA-256 digests,
 expire after 30 minutes, are single-use and revoke every existing session when
 consumed. Resend is the production email adapter; local development prints the

@@ -272,10 +272,14 @@ export async function ListingDetail({
           {listing.status === "active" && <BuyerListingActions listingId={listing.id} vertical={listing.vertical} initiallySaved={initiallySaved} detail />}
 
           <div className="mt-4">
-            <PhoneReveal
-              listingId={listing.id}
-              maskedPhone={maskPkPhone(listing.sellerPhone)}
-            />
+            {listing.sellerPhone ? (
+              <PhoneReveal
+                listingId={listing.id}
+                maskedPhone={maskPkPhone(listing.sellerPhone)}
+              />
+            ) : (
+              <p className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-500">Seller contact unavailable.</p>
+            )}
           </div>
 
           <div className="mt-4 border-t border-slate-100 pt-4 text-sm">

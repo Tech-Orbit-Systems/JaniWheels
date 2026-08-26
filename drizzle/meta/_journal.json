@@ -64,6 +64,13 @@
       "when": 1787741372573,
       "tag": "0008_perfect_hawkeye",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787746073972,
+      "tag": "0009_luxuriant_black_bolt",
+      "breakpoints": true
     }
   ]
 }

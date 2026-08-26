@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { listings, pendingUploads } from "@/db/schema/listings";
-import { passwordResetTokens, sessions } from "@/db/schema/users";
+import { emailVerificationTokens, passwordResetTokens, sessions } from "@/db/schema/users";
 import { users } from "@/db/schema/users";
 import { savedSearchNotifications, savedSearches } from "@/db/schema/analytics";
 import { searchListings } from "@/lib/listings/search";
@@ -66,6 +66,11 @@ const JOBS = {
       .where(sql`${passwordResetTokens.expiresAt} < NOW() - INTERVAL '24 hours' OR ${passwordResetTokens.usedAt} IS NOT NULL`)
       .returning({ id: passwordResetTokens.id });
 
+    const verificationTokens = await db
+      .delete(emailVerificationTokens)
+      .where(sql`${emailVerificationTokens.expiresAt} < NOW() - INTERVAL '24 hours' OR ${emailVerificationTokens.usedAt} IS NOT NULL`)
+      .returning({ id: emailVerificationTokens.id });
+
     const abandoned = await db
       .delete(pendingUploads)
       .where(sql`${pendingUploads.claimedAt} IS NULL AND ${pendingUploads.createdAt} < NOW() - INTERVAL '24 hours'`)
@@ -79,6 +84,7 @@ const JOBS = {
     return {
       sessions: dead.length,
       passwordResetTokens: resetTokens.length,
+      emailVerificationTokens: verificationTokens.length,
       abandonedUploads: abandoned.length,
       imagesRemoved,
     };

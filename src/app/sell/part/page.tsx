@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { makes, partCategories } from "@/db/schema/taxonomy";
 import { cities } from "@/db/schema/geo";
 import { getCurrentUser } from "@/lib/auth/session";
+import { requirePostingPhone } from "@/lib/auth/seller-readiness";
 import { PartSellForm } from "./PartSellForm";
 
 export const metadata: Metadata = { title: "Sell Auto Parts", robots: { index: false, follow: false } };
@@ -13,6 +14,7 @@ export const metadata: Metadata = { title: "Sell Auto Parts", robots: { index: f
 export default async function SellPartPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/sell/part");
+  requirePostingPhone(user);
   const [categories, makesRows, cityRows] = await Promise.all([
     db.select({ id: partCategories.id, name: partCategories.name, parentId: partCategories.parentId }).from(partCategories).orderBy(asc(partCategories.parentId), desc(partCategories.popularity), asc(partCategories.name)),
     db.select({ id: makes.id, name: makes.name, vertical: makes.vertical }).from(makes).where(and(inArray(makes.vertical, ["car", "bike"]), eq(makes.isActive, true))).orderBy(desc(makes.popularity), asc(makes.name)),

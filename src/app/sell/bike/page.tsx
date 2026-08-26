@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { cities } from "@/db/schema/geo";
 import { features, makes, models, variants } from "@/db/schema/taxonomy";
 import { getCurrentUser } from "@/lib/auth/session";
+import { requirePostingPhone } from "@/lib/auth/seller-readiness";
 import { BikeSellForm } from "./BikeSellForm";
 
 export const metadata: Metadata = {
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
 export default async function SellBikePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/sell/bike");
+  requirePostingPhone(user);
 
   const [baseMakeRows, electricMakeRows, cityRows, featureRows] = await Promise.all([
     db.select({

@@ -28,7 +28,7 @@ function hashToken(token: string): string {
 
 export interface SessionUser {
   id: number;
-  phone: string;
+  phone: string | null;
   name: string | null;
   type: "individual" | "dealer";
   isAdmin: boolean;

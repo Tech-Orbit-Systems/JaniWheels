@@ -55,8 +55,10 @@ changing routes or interactive behaviour.
   are implemented; final DB/browser acceptance is deferred.
 - Favourites, comparison, recently viewed and saved-search UI are implemented;
   production alert delivery still needs provider configuration.
-- Account profiles, password reset, dealer settings and manual dealer
-  verification are implemented; final DB/browser acceptance is deferred.
+- Google-first authentication, verified email registration, account profiles,
+  password reset, dealer settings and manual dealer verification are
+  implemented; provider configuration and final DB/browser acceptance are
+  deferred.
 - Sell My Car Assistance and inspection/admin operations are pending.
 - Broader admin listing and user controls are pending.
 - Production branding, mobile navigation and full launch QA are pending.

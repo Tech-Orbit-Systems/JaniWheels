@@ -87,7 +87,7 @@ export default async function AdminDealersPage() {
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-slate-600">{dealer.address ? `${dealer.address}, ` : ""}{dealer.cityName}</p>
-                  <p className="mt-1 text-xs text-slate-500">Owner: {dealer.ownerName ?? "Unnamed"} · {displayPkPhone(dealer.ownerPhone)}{dealer.ownerEmail ? ` · ${dealer.ownerEmail}` : ""}</p>
+                  <p className="mt-1 text-xs text-slate-500">Owner: {dealer.ownerName ?? "Unnamed"} · {dealer.ownerPhone ? displayPkPhone(dealer.ownerPhone) : "No mobile number"}{dealer.ownerEmail ? ` · ${dealer.ownerEmail}` : ""}</p>
                   {(dealer.landline || dealer.whatsapp) && <p className="mt-1 text-xs text-slate-500">Showroom: {dealer.landline ?? "No landline"}{dealer.whatsapp ? ` · WhatsApp ${displayPkPhone(dealer.whatsapp)}` : ""}</p>}
                   {dealer.about && <p className="mt-2 line-clamp-3 max-w-3xl text-sm text-slate-700">{dealer.about}</p>}
                   <p className="mt-2 text-xs text-slate-400">Registered {relativeTime(dealer.createdAt)}</p>

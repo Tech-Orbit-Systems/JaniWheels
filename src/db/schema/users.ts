@@ -15,8 +15,10 @@ import { sellerTypeEnum } from "./enums";
 import { cities } from "./geo";
 
 /**
- * Accounts use a mobile number and password. SMS OTP is intentionally not
- * part of V1; phone verification is handled through the manual trust flow.
+ * Accounts may originate from Google or verified email/password registration.
+ * A mobile number is optional for buyers and required at the seller boundary.
+ * SMS OTP remains outside V1, so an entered number must never be presented as
+ * verified unless phoneVerifiedAt is populated by a future signed feature.
  */
 
 export const users = pgTable(
@@ -24,11 +26,12 @@ export const users = pgTable(
   {
     id: serial("id").primaryKey(),
     /** E.164, always stored normalized: +923001234567 */
-    phone: text("phone").notNull(),
+    phone: text("phone"),
     passwordHash: text("password_hash"),
     phoneVerifiedAt: timestamp("phone_verified_at", { withTimezone: true }),
     name: text("name"),
     email: text("email"),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     avatarUrl: text("avatar_url"),
     type: sellerTypeEnum("type").notNull().default("individual"),
     /** Soft trust score — raised by verified sales, lowered by reports. */
@@ -108,6 +111,61 @@ export const sessions = pgTable(
   (t) => [index("sessions_user_idx").on(t.userId)],
 );
 
+/** Provider subjects are the stable identity key; provider emails may change. */
+export const authAccounts = pgTable(
+  "auth_accounts",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    providerSubject: text("provider_subject").notNull(),
+    providerEmail: text("provider_email"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("auth_accounts_provider_subject_uq").on(
+      t.provider,
+      t.providerSubject,
+    ),
+    uniqueIndex("auth_accounts_user_provider_uq").on(t.userId, t.provider),
+    index("auth_accounts_user_idx").on(t.userId),
+  ],
+);
+
+/** Email links are short-lived bearer credentials; only SHA-256 hashes persist. */
+export const emailVerificationTokens = pgTable(
+  "email_verification_tokens",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    requestedIp: text("requested_ip"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("email_verification_tokens_hash_uq").on(t.tokenHash),
+    index("email_verification_tokens_user_created_idx").on(
+      t.userId,
+      t.createdAt,
+    ),
+    index("email_verification_tokens_expiry_idx").on(t.expiresAt),
+  ],
+);
+
 /**
  * Password-reset links are random bearer credentials. Only their SHA-256
  * digest is retained, so a database leak cannot be turned into working reset
@@ -138,8 +196,27 @@ export const passwordResetTokens = pgTable(
 export const usersRelations = relations(users, ({ one, many }) => ({
   dealer: one(dealers, { fields: [users.id], references: [dealers.userId] }),
   sessions: many(sessions),
+  authAccounts: many(authAccounts),
+  emailVerificationTokens: many(emailVerificationTokens),
   passwordResetTokens: many(passwordResetTokens),
 }));
+
+export const authAccountsRelations = relations(authAccounts, ({ one }) => ({
+  user: one(users, {
+    fields: [authAccounts.userId],
+    references: [users.id],
+  }),
+}));
+
+export const emailVerificationTokensRelations = relations(
+  emailVerificationTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [emailVerificationTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const passwordResetTokensRelations = relations(
   passwordResetTokens,

@@ -2,11 +2,12 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema/users";
 import { normalizePkPhone } from "@/lib/format";
+import { issueEmailVerification } from "./email-verification";
 import { hashPassword, verifyPassword } from "./password";
 import { createSession, destroySession } from "./session";
 
@@ -17,6 +18,7 @@ export interface AuthState {
   error?: string;
   fieldErrors?: Record<string, string>;
   next?: string;
+  registeredEmail?: string;
 }
 
 const passwordSchema = z
@@ -25,14 +27,17 @@ const passwordSchema = z
   .max(128, "Password is too long.");
 
 const signInSchema = z.object({
-  phone: z.string().min(10, "Enter your mobile number.").max(20),
+  identifier: z
+    .string()
+    .trim()
+    .min(3, "Enter your email address or mobile number.")
+    .max(254),
   password: z.string().min(1, "Enter your password.").max(128),
 });
 
 const registerSchema = z.object({
   name: z.string().trim().min(2, "Enter your full name.").max(100),
   email: z.string().trim().email("Enter a valid email address.").max(254),
-  phone: z.string().min(10, "Enter your mobile number.").max(20),
   password: passwordSchema,
 });
 
@@ -75,7 +80,6 @@ export async function authenticateAction(
     const parsed = registerSchema.safeParse({
       name: formData.get("name"),
       email: formData.get("email"),
-      phone: formData.get("phone"),
       password: formData.get("password"),
     });
     if (!parsed.success) {
@@ -87,27 +91,17 @@ export async function authenticateAction(
       };
     }
 
-    const phone = normalizePkPhone(parsed.data.phone);
-    if (!phone) {
-      return {
-        mode,
-        next,
-        error: "Please fix the highlighted fields.",
-        fieldErrors: { phone: "Enter a valid Pakistani mobile number." },
-      };
-    }
-
     const email = parsed.data.email.toLowerCase();
     const [existing] = await db
       .select({ id: users.id })
       .from(users)
-      .where(or(eq(users.phone, phone), eq(users.email, email)))
+      .where(eq(users.email, email))
       .limit(1);
     if (existing) {
       return {
         mode,
         next,
-        error: "An account already exists with this mobile number or email.",
+        error: "An account already exists with this email address.",
       };
     }
 
@@ -117,13 +111,28 @@ export async function authenticateAction(
         .values({
           name: parsed.data.name,
           email,
-          phone,
+          phone: null,
           passwordHash: await hashPassword(parsed.data.password),
-          lastSeenAt: new Date(),
         })
         .returning({ id: users.id });
-
-      await createSession(created.id, await requestMeta());
+      const meta = await requestMeta();
+      try {
+        await issueEmailVerification({
+          userId: created.id,
+          email,
+          name: parsed.data.name,
+          requestedIp: meta.ip,
+          next,
+        });
+      } catch (error) {
+        console.error("Registration verification delivery failed", error);
+        return {
+          mode,
+          next,
+          error:
+            "Your account was created, but the verification email could not be sent. Request a new verification link.",
+        };
+      }
     } catch (error) {
       const code =
         typeof error === "object" && error && "code" in error
@@ -133,17 +142,17 @@ export async function authenticateAction(
         return {
           mode,
           next,
-          error: "An account already exists with this mobile number or email.",
+          error: "An account already exists with this email address.",
         };
       }
       throw error;
     }
 
-    redirect(next);
+    return { mode, next, registeredEmail: email };
   }
 
   const parsed = signInSchema.safeParse({
-    phone: formData.get("phone"),
+    identifier: formData.get("identifier"),
     password: formData.get("password"),
   });
   if (!parsed.success) {
@@ -155,16 +164,19 @@ export async function authenticateAction(
     };
   }
 
-  const phone = normalizePkPhone(parsed.data.phone);
-  const [account] = phone
+  const asEmail = parsed.data.identifier.includes("@");
+  const email = asEmail ? parsed.data.identifier.toLowerCase() : null;
+  const phone = asEmail ? null : normalizePkPhone(parsed.data.identifier);
+  const [account] = email || phone
     ? await db
         .select({
           id: users.id,
           passwordHash: users.passwordHash,
+          emailVerifiedAt: users.emailVerifiedAt,
           isBanned: users.isBanned,
         })
         .from(users)
-        .where(eq(users.phone, phone))
+        .where(email ? eq(users.email, email) : eq(users.phone, phone!))
         .limit(1)
     : [];
 
@@ -173,7 +185,14 @@ export async function authenticateAction(
     account?.passwordHash ?? (await dummyHash),
   );
   if (!account || !valid || account.isBanned) {
-    return { mode, next, error: "Incorrect mobile number or password." };
+    return { mode, next, error: "Incorrect email, mobile number or password." };
+  }
+  if (asEmail && !account.emailVerifiedAt) {
+    return {
+      mode,
+      next,
+      error: "Verify your email before signing in. You can request a new verification link below.",
+    };
   }
 
   await db

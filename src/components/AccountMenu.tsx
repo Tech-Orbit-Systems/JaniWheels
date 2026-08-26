@@ -44,7 +44,7 @@ export async function AccountMenu() {
         className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-zinc-200 hover:bg-white/10 hover:text-white"
       >
         <span className="hidden sm:inline">
-          {user.name ?? displayPkPhone(user.phone)}
+          {user.name ?? (user.phone ? displayPkPhone(user.phone) : "Account")}
         </span>
         <span className="sm:hidden">Account</span>
         <span aria-hidden className="text-xs text-zinc-400">
@@ -55,7 +55,7 @@ export async function AccountMenu() {
       {/* CSS-only dropdown — focus-within keeps it keyboard reachable. */}
       <div className="invisible absolute right-0 z-20 mt-1 w-52 rounded-lg border border-slate-200 bg-white py-1 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
         <p className="border-b border-slate-100 px-3 pb-2 pt-1 text-xs text-slate-500">
-          {displayPkPhone(user.phone)}
+          {user.phone ? displayPkPhone(user.phone) : "Google/email account"}
         </p>
 
         <Link href="/dashboard" className={item}>

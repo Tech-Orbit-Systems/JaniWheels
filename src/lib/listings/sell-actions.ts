@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { carDetails, listings } from "@/db/schema/listings";
 import { dealers } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
+import { requirePostingPhone } from "@/lib/auth/seller-readiness";
 import { bikeListingSchema, carListingSchema, partListingSchema, sanitizeDescription } from "./validation";
 import { publishBikeListing, publishCarListing, publishPartListing } from "./publish";
 import { buildListingPath } from "./slug";
@@ -44,6 +45,7 @@ export async function createCarListingAction(
 ): Promise<SellState> {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/sell");
+  requirePostingPhone(user);
 
   const parsed = carListingSchema.safeParse({
     variantId: num(formData.get("variantId")),
@@ -135,6 +137,7 @@ export async function createPartListingAction(
 ): Promise<SellState> {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/sell/part");
+  requirePostingPhone(user);
   const parsed = partListingSchema.safeParse({
     categoryId: num(formData.get("categoryId")),
     condition: formData.get("condition"),
@@ -203,6 +206,7 @@ export async function createBikeListingAction(
 ): Promise<SellState> {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/sell/bike");
+  requirePostingPhone(user);
 
   const bikeType = String(formData.get("bikeType") ?? "motorcycle");
   const isElectric = bikeType.startsWith("electric-");

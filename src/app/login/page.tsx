@@ -11,10 +11,15 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; mode?: string; reset?: string }>;
+  searchParams: Promise<{
+    next?: string;
+    mode?: string;
+    reset?: string;
+    google?: string;
+  }>;
 }) {
   const user = await getCurrentUser();
-  const { next, mode: rawMode, reset } = await searchParams;
+  const { next, mode: rawMode, reset, google } = await searchParams;
   const target = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
   const mode = rawMode === "register" ? "register" : "sign_in";
 
@@ -28,12 +33,23 @@ export default async function LoginPage({
         </h1>
         <p className="mb-6 mt-1 text-sm text-slate-500">
           {mode === "register"
-            ? "Post and manage your classified ads."
-            : "Use your mobile number and password."}
+            ? "Google is the fastest way to join. Email registration is also available."
+            : "Continue with Google, email or your existing mobile login."}
         </p>
         {reset === "success" && (
           <p className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
             Your password has been changed. Sign in with the new password.
+          </p>
+        )}
+        {google && (
+          <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {google === "unavailable"
+              ? "Google sign-in is not configured yet. Use email or mobile login for now."
+              : google === "account_exists"
+                ? "An account already uses that email. Sign in with its password before linking Google."
+                : google === "cancelled"
+                  ? "Google sign-in was cancelled."
+                  : "Google sign-in could not be completed. Please try again."}
           </p>
         )}
         <LoginForm next={target} mode={mode} />

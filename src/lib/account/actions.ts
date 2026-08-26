@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq, ne, or } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { sessions, users } from "@/db/schema/users";
@@ -20,8 +20,7 @@ export interface AccountFormState {
 
 const profileSchema = z.object({
   name: z.string().trim().min(2, "Enter your full name.").max(100, "Name is too long."),
-  email: z.string().trim().email("Enter a valid email address.").max(254),
-  phone: z.string().trim().min(10, "Enter your mobile number.").max(20),
+  phone: z.string().trim().max(20),
   currentPassword: z.string().max(128).optional(),
 });
 
@@ -63,37 +62,37 @@ export async function updateProfileAction(
   const account = await requireAccount();
   const parsed = profileSchema.safeParse({
     name: formData.get("name"),
-    email: formData.get("email"),
     phone: formData.get("phone"),
     currentPassword: String(formData.get("currentPassword") ?? "") || undefined,
   });
   if (!parsed.success) return { error: "Please fix the highlighted fields.", fieldErrors: fieldIssues(parsed.error) };
 
-  const phone = normalizePkPhone(parsed.data.phone);
-  if (!phone) return { error: "Please fix the highlighted fields.", fieldErrors: { phone: "Enter a valid Pakistani mobile number." } };
-  const email = parsed.data.email.toLowerCase();
-  const contactChanged = phone !== account.phone || email !== account.email;
+  const phone = parsed.data.phone ? normalizePkPhone(parsed.data.phone) : null;
+  if (parsed.data.phone && !phone) return { error: "Please fix the highlighted fields.", fieldErrors: { phone: "Enter a valid Pakistani mobile number." } };
+  const contactChanged = phone !== account.phone;
 
-  if (contactChanged) {
-    if (!parsed.data.currentPassword || !account.passwordHash || !(await verifyPassword(parsed.data.currentPassword, account.passwordHash))) {
-      return { error: "Confirm your current password to change email or mobile number.", fieldErrors: { currentPassword: "Current password is incorrect." } };
+  if (contactChanged && account.passwordHash) {
+    if (!parsed.data.currentPassword || !(await verifyPassword(parsed.data.currentPassword, account.passwordHash))) {
+      return { error: "Confirm your current password to change your mobile number.", fieldErrors: { currentPassword: "Current password is incorrect." } };
     }
   }
 
-  const [duplicate] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(ne(users.id, account.id), or(eq(users.phone, phone), eq(users.email, email))))
-    .limit(1);
+  const [duplicate] = phone
+    ? await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(ne(users.id, account.id), eq(users.phone, phone)))
+        .limit(1)
+    : [];
   if (duplicate) {
-    return { error: "That email address or mobile number is already linked to another account." };
+    return { error: "That mobile number is already linked to another account." };
   }
 
   try {
-    await db.update(users).set({ name: parsed.data.name, email, phone, updatedAt: new Date() }).where(eq(users.id, account.id));
+    await db.update(users).set({ name: parsed.data.name, phone, updatedAt: new Date() }).where(eq(users.id, account.id));
   } catch (error) {
     const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
-    if (code === "23505") return { error: "That email address or mobile number is already linked to another account." };
+    if (code === "23505") return { error: "That mobile number is already linked to another account." };
     throw error;
   }
 

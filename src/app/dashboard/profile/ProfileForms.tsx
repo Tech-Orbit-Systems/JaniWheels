@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useActionState } from "react";
 import {
   changePasswordAction,
@@ -12,27 +13,33 @@ import {
 
 const input = "mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900";
 
-export function ProfileForms({ account }: { account: { name: string; email: string; phone: string; avatarUrl: string | null; avatarSrc: string | null } }) {
+export function ProfileForms({ account }: { account: { name: string; email: string; phone: string; hasPassword: boolean; avatarUrl: string | null; avatarSrc: string | null } }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr]">
       <div className="space-y-6">
         <ProfileDetails account={account} />
-        <PasswordForm />
+        {account.hasPassword ? <PasswordForm /> : (
+          <section className="rounded-xl border border-slate-200 bg-white p-5">
+            <h2 className="text-lg font-semibold text-slate-900">Password</h2>
+            <p className="mt-1 text-sm text-slate-500">This account signs in with Google. Use password reset if you also want to create a password.</p>
+            <Link href="/forgot-password" className="mt-3 inline-block text-sm font-medium text-blue-700 hover:underline">Create a password</Link>
+          </section>
+        )}
       </div>
       <AvatarForm account={account} />
     </div>
   );
 }
 
-function ProfileDetails({ account }: { account: { name: string; email: string; phone: string } }) {
+function ProfileDetails({ account }: { account: { name: string; email: string; phone: string; hasPassword: boolean } }) {
   const [state, action, pending] = useActionState<AccountFormState, FormData>(updateProfileAction, {});
   return (
     <form action={action} className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
       <div><h2 className="text-lg font-semibold text-slate-900">Personal details</h2><p className="text-sm text-slate-500">These details are used on your ads and account.</p></div>
       <Field label="Full name" error={state.fieldErrors?.name}><input name="name" required maxLength={100} autoComplete="name" defaultValue={account.name} className={input} /></Field>
-      <Field label="Email address" error={state.fieldErrors?.email}><input name="email" type="email" required maxLength={254} autoComplete="email" defaultValue={account.email} className={input} /></Field>
-      <Field label="Mobile number" error={state.fieldErrors?.phone}><input name="phone" type="tel" required maxLength={20} autoComplete="tel" defaultValue={account.phone} className={input} /></Field>
-      <Field label="Current password" hint="Required only when changing your email or mobile number." error={state.fieldErrors?.currentPassword}><input name="currentPassword" type="password" maxLength={128} autoComplete="current-password" className={input} /></Field>
+      <Field label="Verified email address"><input type="email" readOnly value={account.email} className={`${input} bg-slate-50 text-slate-600`} /></Field>
+      <Field label="Mobile number" hint="Optional for browsing; required before posting an ad. SMS verification is not active yet." error={state.fieldErrors?.phone}><input name="phone" type="tel" maxLength={20} autoComplete="tel" placeholder="0300 1234567" defaultValue={account.phone} className={input} /></Field>
+      {account.hasPassword && <Field label="Current password" hint="Required only when changing your mobile number." error={state.fieldErrors?.currentPassword}><input name="currentPassword" type="password" maxLength={128} autoComplete="current-password" className={input} /></Field>}
       <Status state={state} />
       <button disabled={pending} className="rounded bg-[#f7b500] px-4 py-2.5 font-bold text-[#151515] hover:bg-[#ffc62b] disabled:opacity-60">{pending ? "Saving…" : "Save profile"}</button>
     </form>
