@@ -43,8 +43,12 @@ export const inspections = pgTable(
     address: text("address"),
     contactPhone: text("contact_phone").notNull(),
 
-    /** requested | contacted | cancelled */
+    /** requested | contacted | confirmed | completed | cancelled */
     status: text("status").notNull().default("requested"),
+
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -54,6 +58,31 @@ export const inspections = pgTable(
     index("inspections_listing_idx").on(t.listingId),
     index("inspections_status_idx").on(t.status, t.createdAt),
     index("inspections_city_idx").on(t.cityId),
+  ],
+);
+
+/** Append-only operational history. Internal notes are never selected by customer pages. */
+export const inspectionEvents = pgTable(
+  "inspection_events",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    inspectionId: integer("inspection_id")
+      .notNull()
+      .references(() => inspections.id, { onDelete: "cascade" }),
+    actorUserId: integer("actor_user_id")
+      .notNull()
+      .references(() => users.id),
+    fromStatus: text("from_status"),
+    toStatus: text("to_status").notNull(),
+    internalNote: text("internal_note"),
+    customerMessage: text("customer_message"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("inspection_events_inspection_idx").on(t.inspectionId, t.createdAt),
+    index("inspection_events_actor_idx").on(t.actorUserId, t.createdAt),
   ],
 );
 

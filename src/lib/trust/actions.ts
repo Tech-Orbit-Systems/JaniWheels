@@ -7,7 +7,7 @@ import { randomBytes } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { listingReports, inspections, moderationLog } from "@/db/schema/trust";
+import { inspectionEvents, listingReports, inspections, moderationLog } from "@/db/schema/trust";
 import { listings } from "@/db/schema/listings";
 import { sessions, users } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -16,6 +16,7 @@ import {
   rejectionDecision,
   shouldBanAfterFinalRemoval,
 } from "./moderation-policy";
+import { isInspectionStatus, validateInspectionUpdate } from "./inspection-policy";
 
 /**
  * Trust actions: reporting bad listings, booking an inspection, and the
@@ -196,19 +197,68 @@ export async function bookInspectionAction(
     };
   }
 
-  const [row] = await db
-    .insert(inspections)
-    .values({
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(inspections).values({
       listingId: parsed.data.listingId ?? null,
       requestedByUserId: user.id,
       cityId: parsed.data.cityId,
       address: parsed.data.address,
       contactPhone: phone,
       status: "requested",
-    })
-    .returning({ id: inspections.id });
+    }).returning({ id: inspections.id });
+    await tx.insert(inspectionEvents).values({
+      inspectionId: created.id,
+      actorUserId: user.id,
+      fromStatus: null,
+      toStatus: "requested",
+      customerMessage: "Your inspection request has been received.",
+    });
+    return created;
+  });
 
   return { ok: true, reference: `INS-${row.id}` };
+}
+
+export interface InspectionAdminState { ok?: boolean; error?: string }
+
+export async function updateInspectionAction(
+  _prev: InspectionAdminState,
+  formData: FormData,
+): Promise<InspectionAdminState> {
+  const admin = await requireAdmin();
+  const inspectionId = Number(formData.get("inspectionId"));
+  const nextRaw = String(formData.get("status") ?? "");
+  const internalNote = String(formData.get("internalNote") ?? "").trim();
+  const customerMessage = String(formData.get("customerMessage") ?? "").trim();
+  if (!Number.isSafeInteger(inspectionId) || inspectionId < 1 || !isInspectionStatus(nextRaw)) {
+    return { error: "Invalid inspection update." };
+  }
+  if (internalNote.length > 2000 || customerMessage.length > 1000) {
+    return { error: "The note or customer update is too long." };
+  }
+
+  const error = await db.transaction(async (tx) => {
+    const [current] = await tx.select({ status: inspections.status })
+      .from(inspections).where(eq(inspections.id, inspectionId)).for("update").limit(1);
+    if (!current || !isInspectionStatus(current.status)) return "Inspection request not found.";
+    const validationError = validateInspectionUpdate({ current: current.status, next: nextRaw, internalNote, customerMessage });
+    if (validationError) return validationError;
+
+    await tx.update(inspections).set({ status: nextRaw, updatedAt: new Date() }).where(eq(inspections.id, inspectionId));
+    await tx.insert(inspectionEvents).values({
+      inspectionId,
+      actorUserId: admin.id,
+      fromStatus: current.status,
+      toStatus: nextRaw,
+      internalNote: internalNote || null,
+      customerMessage: customerMessage || null,
+    });
+    return null;
+  });
+  if (error) return { error };
+  revalidatePath("/admin/inspections");
+  revalidatePath("/dashboard/inspections");
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------

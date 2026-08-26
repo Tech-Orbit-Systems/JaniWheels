@@ -66,6 +66,12 @@ events are appended to `moderation_log`. Manual bans revoke all active sessions;
 self-ban and administrator-ban are blocked. A seller may fix and resubmit a
 rejected ad twice, while the third rejection permanently removes that ad.
 
+Inspection administration is request-based: staff can move a request through
+requested, contacted, confirmed, completed or cancelled states, record private
+follow-up notes, and publish selected updates to the customer dashboard. Every
+change is append-only in `inspection_events`. This does not assign inspectors,
+optimise workforce schedules, collect payment or generate inspection reports.
+
 ## SEO model
 
 Facet URLs are parsed through a registry with canonical ordering. Only approved
