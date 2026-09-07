@@ -27,6 +27,7 @@
     "check": "npm run typecheck && npm run check:seo && npm run check:visibility && npm run check:publication && npm run check:seller-flows && npm run check:uploads && npm run check:recently-viewed && npm run check:buyer-discovery && npm run check:account-management && npm run check:dealer-management && npm run check:google-auth && npm run check:admin-controls && npm run check:inspection-admin && npm run check:sell-assistance",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:repair:google-auth": "tsx scripts/repair-local-google-auth-schema.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed/run.ts",

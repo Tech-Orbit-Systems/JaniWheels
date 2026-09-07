@@ -101,6 +101,19 @@ checks.push([
     'SET "email_verified_at" = COALESCE("created_at", now())',
   ]),
 ]);
+checks.push([
+  "local startup repairs migration-ledger drift before Google authentication",
+  contains("scripts/repair-local-google-auth-schema.ts", [
+    'new Set(["localhost", "127.0.0.1", "::1"])',
+    "create table if not exists \"auth_accounts\"",
+    "create table if not exists \"email_verification_tokens\"",
+    "add column if not exists \"email_verified_at\"",
+  ]) &&
+    contains("start-dev.ps1", [
+      "npm run db:repair:google-auth",
+      "Local schema repair failed. Dev server not started.",
+    ]),
+]);
 
 let failures = 0;
 for (const [name, passed] of checks) {

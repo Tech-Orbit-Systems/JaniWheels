@@ -44,6 +44,12 @@ npm run dev
 `DATABASE_URL`, `SESSION_SECRET` and the public site URL must be configured in
 `.env`. Never commit that file.
 
+On Windows, `start-dev.ps1` also performs an idempotent localhost-only check for
+the Google/email authentication tables. This repairs development databases
+whose Drizzle migration ledger says migration `0009` ran even though those
+tables are absent. It refuses to modify staging or production databases. Run
+the same check manually with `npm run db:repair:google-auth`.
+
 To add local demonstration inventory:
 
 ```bash
