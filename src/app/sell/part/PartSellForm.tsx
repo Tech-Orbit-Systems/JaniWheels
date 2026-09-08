@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { Boxes, Camera, CarFront, MapPin, PackageCheck, Tags } from "lucide-react";
 import { createPartListingAction, type SellState } from "@/lib/listings/sell-actions";
+import { MapLocationPicker } from "@/components/MapLocationPicker";
 
 type Option = { id: number; name: string };
 type Category = Option & { parentId: number | null };
@@ -85,7 +86,7 @@ export function PartSellForm({ categories, makes, cities }: { categories: Catego
         <Check name="isNegotiable" label="Price is negotiable" />
       </FormSection>
 
-      <FormSection icon={MapPin} title="Part location"><div className="grid gap-4 sm:grid-cols-2"><Field label="City" error={error("cityId")}><select name="cityId" value={cityId} onChange={(e) => setCityId(e.target.value)} className={selectClass} required><option value="">Select city</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></Field><Field label="Area"><select name="areaId" className={selectClass} disabled={!areas.length}><option value="">Select area</option>{areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select></Field></div><Field label="City / town not listed" hint="Enter it for this ad, and select its nearest official city or district above for search."><input name="customCityName" maxLength={80} className={inputClass} placeholder="Town or municipality" /></Field><Field label="Locality / area not listed" hint="Saved only on this ad."><input name="customAreaName" maxLength={80} className={inputClass} placeholder="Market, sector or village" /></Field></FormSection>
+      <FormSection icon={MapPin} title="Part location"><div className="grid gap-4 sm:grid-cols-2"><Field label="City" error={error("cityId")}><select name="cityId" value={cityId} onChange={(e) => setCityId(e.target.value)} className={selectClass} required><option value="">Select city</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></Field><Field label="Area"><select name="areaId" className={selectClass} disabled={!areas.length}><option value="">Select area</option>{areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select></Field></div><Field label="City / town not listed" hint="Enter it for this ad, and select its nearest official city or district above for search."><input name="customCityName" maxLength={80} className={inputClass} placeholder="Town or municipality" /></Field><Field label="Locality / area not listed" hint="Saved only on this ad."><input name="customAreaName" maxLength={80} className={inputClass} placeholder="Market, sector or village" /></Field><MapLocationPicker /></FormSection>
 
       <FormSection icon={Camera} title="Part photos" hint="Photograph the actual item, packaging, labels, connectors, mounting points and any damage.">
         <input type="file" accept="image/*" multiple onChange={(e) => upload(e.target.files)} className="block w-full rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-extrabold file:text-white" />

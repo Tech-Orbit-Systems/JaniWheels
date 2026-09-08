@@ -127,6 +127,9 @@ export async function ListingDetail({
     (acc[f.groupName] ??= []).push(f.name);
     return acc;
   }, {});
+  const approximateMap = listing.approximateLatitude != null && listing.approximateLongitude != null
+    ? `https://maps.google.com/maps?q=${listing.approximateLatitude},${listing.approximateLongitude}&z=13&output=embed`
+    : null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
@@ -344,6 +347,8 @@ export async function ListingDetail({
             </Link>
           </div>
         )}
+
+        {approximateMap && <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white"><iframe title="Approximate listing area" src={approximateMap} className="h-52 w-full" loading="lazy" referrerPolicy="no-referrer" /><p className="px-3 py-2 text-xs text-slate-500">Approximate area only. The seller&apos;s exact pin is private.</p></div>}
 
         <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-600">
           <p className="mb-1.5 font-semibold text-slate-800">Staying safe</p>

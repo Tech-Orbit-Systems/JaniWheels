@@ -68,6 +68,8 @@ export const getListingDetail = cache(
         cityName: sql<string>`COALESCE(${listings.customCityName}, ${cities.name})`,
         citySlug: cities.slug,
         areaName: sql<string | null>`COALESCE(${areas.name}, ${listings.customAreaName})`,
+        approximateLatitude: listings.approximateLatitude,
+        approximateLongitude: listings.approximateLongitude,
 
         // car / bike shared extras, coalesced across the two detail tables
         color: sql<string | null>`COALESCE(${carDetails.color}, ${bikeDetails.color})`,

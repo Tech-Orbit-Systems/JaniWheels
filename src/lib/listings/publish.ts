@@ -24,6 +24,7 @@ import {
   type PartListingInput,
 } from "./validation";
 import { claimUploadedImages } from "@/lib/images/ownership";
+import { listingCoordinates } from "./location";
 
 /**
  * THE PUBLISH PATH
@@ -115,6 +116,7 @@ export async function publishBikeListing(
       areaId: input.areaId ?? null,
       customCityName: input.customCityName ?? null,
       customAreaName: input.customAreaName ?? null,
+      ...listingCoordinates(input.exactLatitude, input.exactLongitude),
       makeId: variant?.makeId ?? null,
       modelId: variant?.modelId ?? null,
       variantId: variant?.variantId ?? null,
@@ -269,6 +271,7 @@ export async function publishCarListing(
         areaId: input.areaId ?? null,
         customCityName: input.customCityName ?? null,
         customAreaName: input.customAreaName ?? null,
+        ...listingCoordinates(input.exactLatitude, input.exactLongitude),
 
         // Denormalized from the variant — the single source of these values.
         makeId: variant?.makeId ?? null,
@@ -394,6 +397,7 @@ export async function publishPartListing(
       areaId: input.areaId ?? null,
       customCityName: input.customCityName ?? null,
       customAreaName: input.customAreaName ?? null,
+      ...listingCoordinates(input.exactLatitude, input.exactLongitude),
       status: publication.status,
       photoCount: input.imageKeys.length,
       publishedAt: publication.publishedAt,

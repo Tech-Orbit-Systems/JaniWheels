@@ -5,12 +5,14 @@ import { useActionState, useState } from "react";
 import { Camera, ChevronLeft, ChevronRight, MapPin, Save, Trash2 } from "lucide-react";
 import { updateListingAction } from "@/lib/listings/manage-actions";
 import type { SellState } from "@/lib/listings/sell-actions";
+import { MapLocationPicker } from "@/components/MapLocationPicker";
 
 type Option = { id: number; name: string };
 type Listing = {
   id: number; vertical: "car" | "bike" | "part"; status: string; title: string;
   description: string | null; pricePkr: number; isNegotiable: boolean;
   cityId: number; areaId: number | null; customCityName: string | null; customAreaName: string | null;
+  exactLatitude: number | null; exactLongitude: number | null;
   makeId: number | null; modelId: number | null; variantId: number | null;
   customMakeName: string | null; customModelName: string | null; customVariantName: string | null;
   year: number | null; mileageKm: number | null; assembly: "local" | "imported" | null;
@@ -176,7 +178,7 @@ export function ListingEditForm({ listing, cities, initialAreas, images: origina
       <Field label="Area"><select name="areaId" value={areaId} onChange={(event) => setAreaId(event.target.value)} className={inputClass}><option value="">Not specified</option>{areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select></Field>
       <Field label="Town/city not listed"><input name="customCityName" maxLength={80} defaultValue={listing.customCityName ?? ""} className={inputClass} /></Field>
       <Field label="Area not listed"><input name="customAreaName" maxLength={80} defaultValue={listing.customAreaName ?? ""} className={inputClass} /></Field>
-    </div><Checks><Check name="isNegotiable" label="Price is negotiable" checked={listing.isNegotiable} /></Checks></Section>
+    </div><MapLocationPicker initialLatitude={listing.exactLatitude} initialLongitude={listing.exactLongitude} /><Checks><Check name="isNegotiable" label="Price is negotiable" checked={listing.isNegotiable} /></Checks></Section>
 
     {listing.vertical !== "part" && <Section title="Features"><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{features.map((feature) => <label key={feature.id} className="flex items-center gap-2 rounded-lg border border-slate-200 p-2 text-sm text-slate-700"><input type="checkbox" name="featureIds" value={feature.id} defaultChecked={selectedFeatureIds.includes(feature.id)} className="size-4 accent-blue-600" />{feature.name}</label>)}</div><Field label="Other features (comma or line separated)"><textarea name="customFeatureNames" rows={3} maxLength={1600} defaultValue={customFeatures.join(", ")} className={inputClass} /></Field></Section>}
 

@@ -18,6 +18,13 @@ const imageKeys = (emptyMessage: string) => z
   .min(1, emptyMessage)
   .max(30)
   .refine((keys) => new Set(keys).size === keys.length, "The same photo cannot be attached twice.");
+const coordinates = {
+  exactLatitude: z.number().min(-90, "Choose a valid map location.").max(90, "Choose a valid map location.").optional(),
+  exactLongitude: z.number().min(-180, "Choose a valid map location.").max(180, "Choose a valid map location.").optional(),
+};
+function validateCoordinatePair(data: { exactLatitude?: number; exactLongitude?: number }, ctx: z.RefinementCtx) {
+  if ((data.exactLatitude == null) !== (data.exactLongitude == null)) ctx.addIssue({ code: "custom", path: ["exactLatitude"], message: "Choose the location again on the map." });
+}
 
 export const carListingSchema = z.object({
   variantId: z.number().int().positive({
@@ -30,6 +37,7 @@ export const carListingSchema = z.object({
   areaId: z.number().int().positive().optional(),
   customCityName: adLocalLabel,
   customAreaName: adLocalLabel,
+  ...coordinates,
 
   year: z
     .number()
@@ -73,6 +81,7 @@ export const carListingSchema = z.object({
 
   imageKeys: imageKeys("Add at least one photo — listings without photos barely sell."),
 }).superRefine((data, ctx) => {
+  validateCoordinatePair(data, ctx);
   if (!data.variantId && (!data.customMakeName || !data.customModelName)) {
     ctx.addIssue({ code: "custom", path: ["variantId"], message: "Choose a listed variant or enter the missing make and model." });
   }
@@ -103,6 +112,7 @@ export const bikeListingSchema = z
     areaId: z.number().int().positive().optional(),
     customCityName: adLocalLabel,
     customAreaName: adLocalLabel,
+    ...coordinates,
     registeredCityId: z.number().int().positive().optional(),
     isUnregistered: z.boolean().default(false),
     year: z.number().int().min(1970).max(CURRENT_YEAR + 1),
@@ -132,6 +142,7 @@ export const bikeListingSchema = z
     imageKeys: imageKeys("Add at least one bike photo."),
   })
   .superRefine((data, ctx) => {
+    validateCoordinatePair(data, ctx);
     if (!data.variantId && (!data.customMakeName || !data.customModelName)) {
       ctx.addIssue({ code: "custom", path: ["variantId"], message: "Choose a listed variant or enter the missing make and model." });
     }
@@ -181,12 +192,14 @@ export const partListingSchema = z.object({
   areaId: z.number().int().positive().optional(),
   customCityName: adLocalLabel,
   customAreaName: adLocalLabel,
+  ...coordinates,
   customCategoryName: adLocalLabel,
   pricePkr: z.number().int().min(500, "Price looks too low.").max(50_000_000),
   isNegotiable: z.boolean().default(false),
   description: z.string().trim().max(5000, "Description is too long.").optional(),
   imageKeys: imageKeys("Add at least one photo."),
 }).superRefine((data, ctx) => {
+  validateCoordinatePair(data, ctx);
   if (data.compatibleYearFrom && data.compatibleYearTo && data.compatibleYearFrom > data.compatibleYearTo) {
     ctx.addIssue({ code: "custom", path: ["compatibleYearTo"], message: "The ending year must be after the starting year." });
   }

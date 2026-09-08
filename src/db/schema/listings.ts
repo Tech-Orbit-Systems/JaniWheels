@@ -6,6 +6,7 @@ import {
   smallint,
   text,
   boolean,
+  doublePrecision,
   timestamp,
   index,
   uniqueIndex,
@@ -75,6 +76,12 @@ export const listings = pgTable(
     customCityName: text("custom_city_name"),
     /** Seller-entered locality is display-only for this ad, never a geo facet. */
     customAreaName: text("custom_area_name"),
+    /** Exact seller-selected coordinates are private and must never enter public projections. */
+    exactLatitude: doublePrecision("exact_latitude"),
+    exactLongitude: doublePrecision("exact_longitude"),
+    /** Server-derived coarse grid centre safe for public map display. */
+    approximateLatitude: doublePrecision("approximate_latitude"),
+    approximateLongitude: doublePrecision("approximate_longitude"),
 
     status: listingStatusEnum("status").notNull().default("draft"),
 

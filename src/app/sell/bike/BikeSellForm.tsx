@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { BatteryCharging, Bike, Camera, MapPin, ShieldCheck, Zap } from "lucide-react";
 import { createBikeListingAction, type SellState } from "@/lib/listings/sell-actions";
+import { MapLocationPicker } from "@/components/MapLocationPicker";
 
 type Option = { id: number; name: string };
 type MakeOption = Option & { isElectric: boolean };
@@ -135,6 +136,7 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
         </div>
         <Field label="City / town not listed" hint="Enter it for this ad, and select its nearest official city or district above for search."><input name="customCityName" maxLength={80} className={inputClass} placeholder="Town or municipality" /></Field>
         <Field label="Locality / area not listed" hint="Saved only on this ad. Select the nearest official city above."><input name="customAreaName" maxLength={80} className={inputClass} placeholder="Sector, society or village" /></Field>
+        <MapLocationPicker />
         <div className="flex flex-wrap gap-5"><Check name="hasDocuments" label="Complete documents available" defaultChecked /><Check name="isUnregistered" label="Unregistered" /><Check name="isNegotiable" label="Price negotiable" /></div>
       </FormSection>
 

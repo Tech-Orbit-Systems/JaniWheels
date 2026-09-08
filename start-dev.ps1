@@ -57,6 +57,11 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host '  [DB] Local schema repair failed. Dev server not started.' -ForegroundColor Red
     exit $LASTEXITCODE
 }
+& npm.cmd run db:repair:map-location
+if ($LASTEXITCODE -ne 0) {
+    Write-Host '  [DB] Map-location schema repair failed. Dev server not started.' -ForegroundColor Red
+    exit $LASTEXITCODE
+}
 
 # --- 3. Next.js dev server -------------------------------------------------
 if (Test-Port 3000) {

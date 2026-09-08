@@ -21,6 +21,7 @@ import { moderationLog } from "@/db/schema/trust";
 import { claimUploadedImages, UploadOwnershipError } from "@/lib/images/ownership";
 import { removeStoredImage } from "@/lib/images/storage";
 import { buildListingSlug, buildListingPath } from "./slug";
+import { listingCoordinates } from "./location";
 import {
   bikeListingSchema,
   carListingSchema,
@@ -88,6 +89,8 @@ function parseEdit(vertical: "car" | "bike" | "part", formData: FormData): Parse
     areaId: num(formData.get("areaId")),
     customCityName: text(formData.get("customCityName")),
     customAreaName: text(formData.get("customAreaName")),
+    exactLatitude: num(formData.get("exactLatitude")),
+    exactLongitude: num(formData.get("exactLongitude")),
     pricePkr: num(formData.get("pricePkr")),
     isNegotiable: formData.get("isNegotiable") === "on",
     description: text(formData.get("description")),
@@ -236,6 +239,7 @@ export async function updateListingAction(
           description, pricePkr: data.pricePkr, isNegotiable: data.isNegotiable,
           cityId: data.cityId, areaId: data.areaId ?? null,
           customCityName: data.customCityName ?? null, customAreaName: data.customAreaName ?? null,
+          ...listingCoordinates(data.exactLatitude, data.exactLongitude),
           makeId: variant?.makeId ?? null, modelId: variant?.modelId ?? null,
           variantId: variant?.id ?? null, customMakeName: variant ? null : makeName,
           customModelName: variant ? null : modelName, customVariantName: variant ? null : (variantName ?? null),
@@ -271,6 +275,7 @@ export async function updateListingAction(
           description, pricePkr: data.pricePkr, isNegotiable: data.isNegotiable,
           cityId: data.cityId, areaId: data.areaId ?? null,
           customCityName: data.customCityName ?? null, customAreaName: data.customAreaName ?? null,
+          ...listingCoordinates(data.exactLatitude, data.exactLongitude),
           makeId: variant?.makeId ?? null, modelId: variant?.modelId ?? null,
           variantId: variant?.id ?? null, customMakeName: variant ? null : makeName,
           customModelName: variant ? null : modelName, customVariantName: variant ? null : (variantName ?? null),
@@ -319,6 +324,7 @@ export async function updateListingAction(
           description, pricePkr: data.pricePkr, isNegotiable: data.isNegotiable,
           cityId: data.cityId, areaId: data.areaId ?? null,
           customCityName: data.customCityName ?? null, customAreaName: data.customAreaName ?? null,
+          ...listingCoordinates(data.exactLatitude, data.exactLongitude),
           status: nextStatus, photoCount: data.imageKeys.length, updatedAt: new Date(),
         }).where(eq(listings.id, listingId));
         await tx.update(partDetails).set({

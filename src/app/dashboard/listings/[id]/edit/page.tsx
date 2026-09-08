@@ -20,6 +20,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     title: listings.title, description: listings.description, pricePkr: listings.pricePkr,
     isNegotiable: listings.isNegotiable, cityId: listings.cityId, areaId: listings.areaId,
     customCityName: listings.customCityName, customAreaName: listings.customAreaName,
+    exactLatitude: listings.exactLatitude, exactLongitude: listings.exactLongitude,
     makeId: listings.makeId, modelId: listings.modelId, variantId: listings.variantId,
     customMakeName: listings.customMakeName, customModelName: listings.customModelName,
     customVariantName: listings.customVariantName, year: listings.year,

@@ -5,6 +5,7 @@ import {
   createCarListingAction,
   type SellState,
 } from "@/lib/listings/sell-actions";
+import { MapLocationPicker } from "@/components/MapLocationPicker";
 
 interface Option {
   id: number;
@@ -211,6 +212,7 @@ export function SellForm({
         <Field label="Locality / area not listed" hint="Saved only on this ad. Select the nearest official city above.">
           <input name="customAreaName" maxLength={80} className={inputClass} placeholder="Town, society, sector or village" />
         </Field>
+        <MapLocationPicker />
       </Section>
 
       <Section title="Condition & price">

@@ -110,6 +110,10 @@ The next confirmed V1 functionality is privacy-safe approximate map-based ad
 location. Its exact coordinates must remain private while only an approved
 approximate area may be exposed publicly.
 
+Google Maps configuration has been added locally. Billing remains unresolved
+and must be enabled before the final Google Maps browser acceptance test. Keep
+this as an explicit final-QA blocker; do not expose the configured key.
+
 Database acceptance continues alongside each development package. The
 comprehensive browser, branding, mobile responsiveness, and full QA pass is
 deliberately deferred until functionality development is complete.
