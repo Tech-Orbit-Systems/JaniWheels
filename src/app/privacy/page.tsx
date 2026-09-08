@@ -1,0 +1,16 @@
+import type { Metadata } from "next";
+import { ContentList, ContentPage, ContentSection, InlineLink } from "@/components/ContentPage";
+import { abs } from "@/lib/seo/jsonld";
+
+export const metadata: Metadata = { title: "Privacy Policy | JaniWheels", description: "How JaniWheels handles account, listing, contact and marketplace activity information.", alternates: { canonical: abs("/privacy") } };
+const updated = "8 September 2026";
+
+export default function PrivacyPage() { return <ContentPage eyebrow="Legal" title="Privacy Policy" intro="This policy describes the information JaniWheels uses to operate accounts, classifieds and marketplace safety features." updated={updated}>
+  <ContentSection title="Information we handle"><ContentList><li>Account details such as name, email, optional phone number and authentication identifiers.</li><li>Listing, dealer, inspection and Sell My Car Assistance information you submit.</li><li>Images and public profile information selected for publication.</li><li>Session, security, reporting, moderation and basic marketplace activity records.</li><li>Messages or details you provide when requesting support.</li></ContentList></ContentSection>
+  <ContentSection title="How information is used"><p>We use information to authenticate users, publish and manage listings, provide search and buyer tools, respond to service requests, prevent abuse, moderate content, maintain audit history and improve service reliability.</p></ContentSection>
+  <ContentSection title="Public information"><p>Active listings and dealer or seller profiles may display the information needed for buyers to understand an advert and contact its seller. Do not include sensitive documents or unnecessary personal information in public text or images.</p></ContentSection>
+  <ContentSection title="Google authentication"><p>When you choose Google sign-in, JaniWheels validates Google-provided identity information including a provider-specific account identifier, verified email, name and profile image where available. Google credentials and passwords are not stored by JaniWheels.</p></ContentSection>
+  <ContentSection title="Sharing and service providers"><p>Information may be processed by infrastructure, email, image-storage, security and monitoring providers needed to operate JaniWheels. We may also disclose information where legally required or reasonably necessary to protect users and the service. We do not sell personal information as a standalone product.</p></ContentSection>
+  <ContentSection title="Retention and choices"><p>Information is retained while needed for the account, marketplace operations, fraud prevention, legal obligations and dispute records. Some moderation and service history is append-only for accountability. You may edit supported profile and listing fields from your dashboard and may <InlineLink href="/contact">contact us</InlineLink> about a privacy or account request.</p></ContentSection>
+  <ContentSection title="Security and updates"><p>We use access controls, hashed credentials and secure session practices, but no internet service can promise absolute security. We may update this policy as JaniWheels and its providers change.</p></ContentSection>
+</ContentPage>; }

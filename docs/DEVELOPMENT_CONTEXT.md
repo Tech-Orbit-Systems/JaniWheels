@@ -86,16 +86,29 @@ for alerts, email, images, database, and hosting still require configuration.
   local Google signup. PostgreSQL error `42703` for missing `users.updated_at`
   was the confirmed root cause.
 
-## Next planned work
+## Stage 6.1 checkpoint
 
-The last agreed functional package in `Dev 2` was Stage 6.1:
+Stage 6.1 Legal and Content was implemented on `codex/legal-and-content` on 8
+September 2026:
 
 - Terms and Conditions
 - Privacy Policy
 - About JaniWheels
 - Contact
 - Safety information
-- Correct footer/navigation links and metadata
+- Report a Concern guidance
+- Correct footer links and canonical metadata
+- Automated legal/content checks and whole-site sweep coverage
+
+The full project check suite, lint, production build, and targeted local HTTP
+smoke checks pass. Comprehensive content approval, branding, accessibility, and
+responsive browser review remain part of final QA as agreed.
+
+## Next planned work
+
+The next confirmed V1 functionality is privacy-safe approximate map-based ad
+location. Its exact coordinates must remain private while only an approved
+approximate area may be exposed publicly.
 
 Database acceptance continues alongside each development package. The
 comprehensive browser, branding, mobile responsiveness, and full QA pass is

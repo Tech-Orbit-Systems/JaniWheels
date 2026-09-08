@@ -16,6 +16,15 @@ const actionLinks = [
   ["Dealer Registration", "/dealers/register"],
 ] as const;
 
+const companyLinks = [
+  ["About JaniWheels", "/about"],
+  ["Contact", "/contact"],
+  ["Safety", "/safety"],
+  ["Report a Concern", "/report-concern"],
+  ["Terms and Conditions", "/terms"],
+  ["Privacy Policy", "/privacy"],
+] as const;
+
 const socialLinks = [
   ["Facebook", "JaniWheels", "https://www.facebook.com/JaniWheels/"],
   ["Instagram", "@janiwheels2", "https://www.instagram.com/janiwheels2/"],
@@ -25,7 +34,7 @@ const socialLinks = [
 export function SiteFooter({ siteName }: { siteName: string }) {
   return (
     <footer className="mt-20 border-t border-white/10 bg-[#101214] text-zinc-300">
-      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr]">
+      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-[1.35fr_1fr_1fr_1fr]">
         <div>
           <BrandLogo className="mb-5" />
           <p className="max-w-sm text-sm leading-6 text-zinc-400">
@@ -51,6 +60,7 @@ export function SiteFooter({ siteName }: { siteName: string }) {
 
         <FooterColumn title="Marketplace" links={marketplaceLinks} />
         <FooterColumn title="Sell & services" links={actionLinks} />
+        <FooterColumn title="Company & legal" links={companyLinks} />
       </div>
 
       <div className="border-t border-white/10">

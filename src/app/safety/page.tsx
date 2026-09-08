@@ -1,0 +1,13 @@
+import type { Metadata } from "next";
+import { ContentList, ContentPage, ContentSection, InlineLink } from "@/components/ContentPage";
+import { abs } from "@/lib/seo/jsonld";
+
+export const metadata: Metadata = { title: "Buying and Selling Safely | JaniWheels", description: "Practical safety guidance for buyers and sellers using JaniWheels in Pakistan.", alternates: { canonical: abs("/safety") } };
+
+export default function SafetyPage() { return <ContentPage eyebrow="Trust and safety" title="Protect yourself when buying or selling" intro="Slow down, verify the facts independently and walk away when pressure or payment instructions do not feel right.">
+  <ContentSection title="Before meeting"><ContentList><li>Compare the price with similar listings and be cautious of an unusually low offer.</li><li>Ask clear questions about ownership, registration, condition, accident history and outstanding finance.</li><li>Do not send advance payment merely to reserve a vehicle or part.</li><li>Keep early communication focused on the advertised item and protect unnecessary personal details.</li></ContentList></ContentSection>
+  <ContentSection title="Meeting and inspection"><ContentList><li>Meet in daylight at a safe public location and tell someone where you are going.</li><li>Take another person with you where practical.</li><li>Verify the seller, registration and original documents independently.</li><li>Use a qualified independent mechanic or inspection professional before deciding.</li><li>For a test drive, agree on identity and security arrangements first.</li></ContentList></ContentSection>
+  <ContentSection title="Payments and transfer"><ContentList><li>JaniWheels does not collect transaction payments or provide escrow.</li><li>Confirm funds through your own bank rather than relying on a screenshot or message.</li><li>Do not share one-time passwords, PINs, card credentials or account passwords.</li><li>Complete the legally required ownership-transfer process and retain appropriate records.</li></ContentList></ContentSection>
+  <ContentSection title="Recognise common warning signs"><p>Pressure to act immediately, refusal to meet or verify documents, requests for gift cards or unusual transfers, mismatched identities, copied photos and moving the conversation to an unrelated third party can signal fraud.</p></ContentSection>
+  <ContentSection title="Report a concern"><p>Use the Report control on the relevant listing and stop engaging if you believe there is risk. See <InlineLink href="/report-concern">how to report a concern</InlineLink>. For immediate danger or suspected crime, contact the appropriate local authorities.</p></ContentSection>
+</ContentPage>; }

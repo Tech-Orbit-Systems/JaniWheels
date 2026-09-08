@@ -1,0 +1,16 @@
+import type { Metadata } from "next";
+import { ContentList, ContentPage, ContentSection, InlineLink } from "@/components/ContentPage";
+import { abs } from "@/lib/seo/jsonld";
+
+export const metadata: Metadata = { title: "Terms and Conditions | JaniWheels", description: "Terms governing access to and use of the JaniWheels automotive classified marketplace.", alternates: { canonical: abs("/terms") } };
+const updated = "8 September 2026";
+
+export default function TermsPage() { return <ContentPage eyebrow="Legal" title="Terms and Conditions" intro="These terms explain the rules for using JaniWheels as an automotive classified marketplace." updated={updated}>
+  <ContentSection title="1. Marketplace role"><p>JaniWheels enables users to publish and discover classified advertisements and contact one another. We are not a party to a vehicle or parts transaction and do not guarantee a listing, seller, buyer, price, condition, ownership, inspection outcome or successful sale.</p></ContentSection>
+  <ContentSection title="2. Account responsibilities"><ContentList><li>Provide accurate account information and keep access credentials secure.</li><li>Use Google or email-based access only for accounts you are authorised to control.</li><li>Do not impersonate another person or evade a suspension or ban.</li><li>You are responsible for activity performed through your account.</li></ContentList></ContentSection>
+  <ContentSection title="3. Listing rules"><ContentList><li>Advertise only vehicles or parts you are legally entitled to offer.</li><li>Use accurate descriptions, prices, taxonomy, condition and images.</li><li>Do not post misleading, duplicate, unlawful, discriminatory or fraudulent material.</li><li>Do not place phone numbers, email addresses or external links inside descriptions where the form prohibits them.</li><li>Mark sold items appropriately and remove listings that are no longer available.</li></ContentList></ContentSection>
+  <ContentSection title="4. Buyer and seller checks"><p>Users must independently verify identity, ownership, documents, condition, price and transaction arrangements. Review our <InlineLink href="/safety">safety guidance</InlineLink> before meeting or paying another person.</p></ContentSection>
+  <ContentSection title="5. Moderation and availability"><p>We may flag, hide, reject, reinstate or remove content and may restrict accounts where reasonably required for safety, legal compliance or enforcement of these terms. We may update, suspend or discontinue features and cannot promise uninterrupted availability.</p></ContentSection>
+  <ContentSection title="6. Assistance and inspection requests"><p>Inspection and Sell My Car Assistance submissions are requests for follow-up. They do not guarantee availability, inspection results, valuation, price, buyer, sale timeline or transfer support, and they do not create a payment transaction through JaniWheels.</p></ContentSection>
+  <ContentSection title="7. Privacy and changes"><p>Our <InlineLink href="/privacy">Privacy Policy</InlineLink> explains how personal information is handled. We may revise these terms as the service changes; the updated date identifies the current version.</p></ContentSection>
+</ContentPage>; }
