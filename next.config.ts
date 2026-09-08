@@ -60,13 +60,15 @@ const config: NextConfig = {
                 "script-src 'self' 'unsafe-inline'",
                 process.env.NODE_ENV === "development" ? "'unsafe-eval'" : "",
                 "https://www.googletagmanager.com",
+                "https://maps.googleapis.com",
+                "https://maps.gstatic.com",
               ]
                 .filter(Boolean)
                 .join(" "),
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
-              "font-src 'self' data:",
-              "connect-src 'self' https://www.google-analytics.com",
+              "font-src 'self' data: https://fonts.gstatic.com",
+              "connect-src 'self' https://www.google-analytics.com https://maps.googleapis.com https://maps.gstatic.com",
               "frame-ancestors 'self'",
               "base-uri 'self'",
               "form-action 'self'",

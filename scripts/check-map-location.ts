@@ -18,5 +18,6 @@ for (const form of ["SellForm.tsx", "bike/BikeSellForm.tsx", "part/PartSellForm.
 }
 const picker = await readFile(new URL("../src/components/MapLocationPicker.tsx", import.meta.url), "utf8");
 assert.ok(picker.includes("maps.googleapis.com/maps/api/js"), "Picker must load Google Maps JavaScript API");
+assert.ok(picker.includes("loading=async"), "Picker must use Google's asynchronous loading mode");
 assert.ok(!picker.includes("openstreetmap"), "Picker must not use the previous map provider");
 console.log("Map-location privacy checks passed.");
