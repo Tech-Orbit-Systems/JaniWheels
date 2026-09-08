@@ -52,7 +52,7 @@ if (Test-Port 5432) {
 # --- 2. Local schema guard --------------------------------------------------
 Set-Location $ProjectDir
 Write-Host '  [2/3] Database     checking local auth schema...' -ForegroundColor DarkGray
-& npm run db:repair:google-auth
+& npm.cmd run db:repair:google-auth
 if ($LASTEXITCODE -ne 0) {
     Write-Host '  [DB] Local schema repair failed. Dev server not started.' -ForegroundColor Red
     exit $LASTEXITCODE
@@ -74,4 +74,4 @@ Write-Host '  Press Ctrl+C to stop the site. PostgreSQL keeps running.'
 Write-Host ''
 
 Set-Location $ProjectDir
-& npm run dev
+& npm.cmd run dev

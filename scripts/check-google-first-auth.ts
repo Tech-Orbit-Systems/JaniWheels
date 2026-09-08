@@ -110,7 +110,8 @@ checks.push([
     "add column if not exists \"email_verified_at\"",
   ]) &&
     contains("start-dev.ps1", [
-      "npm run db:repair:google-auth",
+      "npm.cmd run db:repair:google-auth",
+      "npm.cmd run dev",
       "Local schema repair failed. Dev server not started.",
     ]),
 ]);

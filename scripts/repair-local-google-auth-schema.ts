@@ -19,11 +19,40 @@ if (!localHosts.has(hostname)) {
 const sql = postgres(databaseUrl, { max: 1 });
 
 try {
-  const before = await sql<{ authAccounts: string | null }[]>`
-    select to_regclass('public.auth_accounts')::text as "authAccounts"
+  const before = await sql<
+    {
+      authAccounts: string | null;
+      emailVerificationTokens: string | null;
+      emailVerifiedAt: boolean;
+      phoneNullable: boolean;
+    }[]
+  >`
+    select
+      to_regclass('public.auth_accounts')::text as "authAccounts",
+      to_regclass('public.email_verification_tokens')::text as "emailVerificationTokens",
+      exists (
+        select 1
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'users'
+          and column_name = 'email_verified_at'
+      ) as "emailVerifiedAt",
+      coalesce((
+        select is_nullable = 'YES'
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'users'
+          and column_name = 'phone'
+      ), false) as "phoneNullable"
   `;
 
-  if (before[0]?.authAccounts) {
+  const schemaPresent =
+    Boolean(before[0]?.authAccounts) &&
+    Boolean(before[0]?.emailVerificationTokens) &&
+    before[0]?.emailVerifiedAt === true &&
+    before[0]?.phoneNullable === true;
+
+  if (schemaPresent) {
     console.log("  [DB] Google authentication schema already present");
   } else {
     console.log("  [DB] Repairing missing local Google authentication schema...");
@@ -90,10 +119,14 @@ try {
       `;
     });
 
-    const after = await sql<{ authAccounts: string | null }[]>`
-      select to_regclass('public.auth_accounts')::text as "authAccounts"
+    const after = await sql<
+      { authAccounts: string | null; emailVerificationTokens: string | null }[]
+    >`
+      select
+        to_regclass('public.auth_accounts')::text as "authAccounts",
+        to_regclass('public.email_verification_tokens')::text as "emailVerificationTokens"
     `;
-    if (!after[0]?.authAccounts) {
+    if (!after[0]?.authAccounts || !after[0]?.emailVerificationTokens) {
       throw new Error("Local Google authentication schema repair did not complete.");
     }
 
