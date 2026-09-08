@@ -25,6 +25,7 @@ try {
       emailVerificationTokens: string | null;
       emailVerifiedAt: boolean;
       phoneNullable: boolean;
+      updatedAt: boolean;
     }[]
   >`
     select
@@ -43,14 +44,22 @@ try {
         where table_schema = 'public'
           and table_name = 'users'
           and column_name = 'phone'
-      ), false) as "phoneNullable"
+      ), false) as "phoneNullable",
+      exists (
+        select 1
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'users'
+          and column_name = 'updated_at'
+      ) as "updatedAt"
   `;
 
   const schemaPresent =
     Boolean(before[0]?.authAccounts) &&
     Boolean(before[0]?.emailVerificationTokens) &&
     before[0]?.emailVerifiedAt === true &&
-    before[0]?.phoneNullable === true;
+    before[0]?.phoneNullable === true &&
+    before[0]?.updatedAt === true;
 
   if (schemaPresent) {
     console.log("  [DB] Google authentication schema already present");
@@ -62,6 +71,10 @@ try {
       await tx`
         alter table "users"
         add column if not exists "email_verified_at" timestamp with time zone
+      `;
+      await tx`
+        alter table "users"
+        add column if not exists "updated_at" timestamp with time zone default now() not null
       `;
       await tx`
         update "users"
@@ -120,13 +133,28 @@ try {
     });
 
     const after = await sql<
-      { authAccounts: string | null; emailVerificationTokens: string | null }[]
+      {
+        authAccounts: string | null;
+        emailVerificationTokens: string | null;
+        updatedAt: boolean;
+      }[]
     >`
       select
         to_regclass('public.auth_accounts')::text as "authAccounts",
-        to_regclass('public.email_verification_tokens')::text as "emailVerificationTokens"
+        to_regclass('public.email_verification_tokens')::text as "emailVerificationTokens",
+        exists (
+          select 1
+          from information_schema.columns
+          where table_schema = 'public'
+            and table_name = 'users'
+            and column_name = 'updated_at'
+        ) as "updatedAt"
     `;
-    if (!after[0]?.authAccounts || !after[0]?.emailVerificationTokens) {
+    if (
+      !after[0]?.authAccounts ||
+      !after[0]?.emailVerificationTokens ||
+      !after[0]?.updatedAt
+    ) {
       throw new Error("Local Google authentication schema repair did not complete.");
     }
 

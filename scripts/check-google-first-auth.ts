@@ -108,6 +108,7 @@ checks.push([
     "create table if not exists \"auth_accounts\"",
     "create table if not exists \"email_verification_tokens\"",
     "add column if not exists \"email_verified_at\"",
+    "add column if not exists \"updated_at\"",
   ]) &&
     contains("start-dev.ps1", [
       "npm.cmd run db:repair:google-auth",
