@@ -1,7 +1,4 @@
 import Link from "next/link";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { users } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { logoutAction } from "@/lib/auth/actions";
 import { displayPkPhone } from "@/lib/format";
@@ -30,12 +27,6 @@ export async function AccountMenu() {
       </Link>
     );
   }
-
-  const [row] = await db
-    .select({ isAdmin: users.isAdmin })
-    .from(users)
-    .where(eq(users.id, user.id))
-    .limit(1);
 
   return (
     <div className="group relative">
@@ -74,7 +65,7 @@ export async function AccountMenu() {
             Become a dealer
           </Link>
         )}
-        {row?.isAdmin && (
+        {user.isAdmin && (
           <>
             <Link href="/admin/listings" className={item}>
               All listings

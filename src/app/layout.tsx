@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     template: `%s`,
   },
   description:
-    "Buy and sell used cars, bikes and auto parts through a trusted classified marketplace in Pakistan.",
+    "Buy and sell used cars, bikes and auto parts in Pakistan. Browse ads by city and budget, and contact sellers directly.",
   openGraph: { siteName: SITE_NAME, locale: "en_PK", type: "website" },
 };
 
@@ -45,9 +45,16 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
         />
 
+        <a
+          href="#main-content"
+          className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-[#f7b500] px-4 py-2 font-bold text-[#151515] shadow-lg transition-transform focus:translate-y-0"
+        >
+          Skip to main content
+        </a>
+
         <SiteHeader />
 
-        {children}
+        <div id="main-content">{children}</div>
 
         <SiteFooter siteName={SITE_NAME} />
       </body>

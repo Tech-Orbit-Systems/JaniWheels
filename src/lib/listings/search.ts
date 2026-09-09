@@ -218,7 +218,9 @@ function buildOrderBy(sort: SortKey) {
 
 export async function searchListings(
   state: FacetState,
+  options: { previewLimit?: number } = {},
 ): Promise<SearchResult> {
+  const pageSize = options.previewLimit === undefined ? PAGE_SIZE : Math.max(1, Math.min(PAGE_SIZE, Math.floor(options.previewLimit)));
   const page = Math.max(1, state.page ?? 1);
   const sort = (state.sort as SortKey) ?? "recent";
   const where = and(...buildWhere(state));
@@ -273,8 +275,13 @@ export async function searchListings(
     .leftJoin(primaryImage, eq(primaryImage.listingId, listings.id))
     .where(where)
     .orderBy(...buildOrderBy(sort))
-    .limit(PAGE_SIZE)
-    .offset((page - 1) * PAGE_SIZE);
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+
+  // Homepage previews have no pagination and do not need an inventory count.
+  if (options.previewLimit !== undefined) {
+    return { rows, total: rows.length, page, pageCount: 1 };
+  }
 
   const [{ count }] = await db
     .select({ count: sql<number>`COUNT(*)::int` })

@@ -6,7 +6,7 @@ import { abs } from "@/lib/seo/jsonld";
 export const metadata: Metadata = { title: "Contact JaniWheels", description: "Contact JaniWheels for marketplace support, safety concerns and account assistance.", alternates: { canonical: abs("/contact") } };
 
 export default function ContactPage() {
-  return <ContentPage eyebrow="Contact" title="How can we help?" intro="Choose the route that best matches your question. Never send passwords, verification codes or full payment-card details.">
+  return <ContentPage eyebrow="Contact" title="How can we help?" intro="Need help with an ad, your account or a service request? Call, email or send us a WhatsApp message. Never send passwords, verification codes or full payment-card details.">
     <section className="grid gap-4 sm:grid-cols-2">
       <a href="mailto:info@janiwheels.com" className="rounded-xl border border-slate-200 bg-white p-6 transition hover:border-amber-400"><Mail className="text-amber-600" aria-hidden /><h2 className="mt-4 text-lg font-bold text-slate-950">Email us</h2><p className="mt-2 text-sm leading-6"><strong>info@janiwheels.com</strong></p></a>
       <a href="tel:+923333294075" className="rounded-xl border border-slate-200 bg-white p-6 transition hover:border-amber-400"><Phone className="text-amber-600" aria-hidden /><h2 className="mt-4 text-lg font-bold text-slate-950">Call us</h2><p className="mt-2 text-sm leading-6"><strong>0333 3294075</strong></p></a>

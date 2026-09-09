@@ -30,6 +30,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  overflow-x: clip;
 }
 
 body {
@@ -40,6 +41,11 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #f7b500;
+  outline-offset: 3px;
 }
 
 .no-scrollbar {

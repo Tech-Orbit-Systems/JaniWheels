@@ -2,6 +2,12 @@
 
 Last reconciled: 8 September 2026
 
+Performance/content checkpoint, 9 September 2026: see
+`docs/PERFORMANCE_CONTENT_REVIEW.md`. Duplicate account queries and unnecessary
+homepage rows/counts were removed; browse reads start concurrently. Public copy
+and inaccurate structured data were corrected. Full checks, lint, build and a
+97-URL production sweep passed. Changes remain local on `codex/branding-mobile`.
+
 ## Authority order
 
 Use evidence in this order when older chats, trackers, and the repository disagree:
@@ -72,16 +78,15 @@ for alerts, email, images, database, and hosting still require configuration.
 
 ## Current local checkpoint
 
-- Branch: `fix/google-auth-local-schema`
-- Remote checkpoint: `a312e647f58a1bde238d5b7e4a2215fbd976acb3`
+- Branch: `codex/branding-mobile`, based on remote `main` at `4e61232`.
 - Google signup has been verified end to end against the local database.
 - Confirmed local drift defect: `users.updated_at` was missing although the
   migration ledger and earlier repair guard treated auth schema as complete.
 - The local repair now detects, restores, and verifies `users.updated_at`.
 - Targeted Google-auth checks, the full project check suite, lint, and
   `build:safe` pass. Maximum reported First Load JS is 128 KB.
-- The repair improvement and its regression assertion are not yet committed or
-  pushed.
+- The Google-auth repair, Stage 6.1 content, and privacy-safe map-location
+  package are committed, pushed, and merged into `main`.
 - The Google-auth repair was verified on 8 September 2026 with a successful
   local Google signup. PostgreSQL error `42703` for missing `users.updated_at`
   was the confirmed root cause.
@@ -104,19 +109,23 @@ The full project check suite, lint, production build, and targeted local HTTP
 smoke checks pass. Comprehensive content approval, branding, accessibility, and
 responsive browser review remain part of final QA as agreed.
 
-## Next planned work
+## Current branding and responsive work
 
-The next confirmed V1 functionality is privacy-safe approximate map-based ad
-location. Its exact coordinates must remain private while only an approved
-approximate area may be exposed publicly.
+The privacy-safe approximate map-based ad location package is implemented. Its
+exact coordinates remain private and public listing output uses only the
+server-derived approximate coordinates.
 
 Google Maps configuration has been added locally. Billing remains unresolved
 and must be enabled before the final Google Maps browser acceptance test. Keep
 this as an explicit final-QA blocker; do not expose the configured key.
 
-Database acceptance continues alongside each development package. The
-comprehensive browser, branding, mobile responsiveness, and full QA pass is
-deliberately deferred until functionality development is complete.
+Production branding, mobile responsiveness, and accessibility review are now
+active on `codex/branding-mobile`. The shared shell includes official contact
+links, narrow-screen navigation protection, visible keyboard focus, and a
+skip-to-content route. Browser checks at 320px and 1440px cover the primary
+public, seller, account, and dashboard routes without runtime errors or
+horizontal overflow. Comprehensive final acceptance remains deferred until
+this phase is complete.
 
 The following launch work remains after the functional package:
 
@@ -141,9 +150,8 @@ complete:
 - Continue refining the Sell Your Car journey around the implemented Sell My
   Car Assistance and Inspection services without expanding V1 into valuation
   or transactions.
-- Add map/location selection during ad posting as signed V1 scope. Exact
-  location must remain private and public output must expose only an approved
-  approximate area.
+- Complete the Google Maps browser acceptance test after billing is enabled;
+  do not expose the configured key.
 
 ## Tracker reconciliation issue
 

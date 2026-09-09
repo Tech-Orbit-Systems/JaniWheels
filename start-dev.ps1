@@ -12,13 +12,18 @@ $ErrorActionPreference = 'Stop'
 
 $ProjectDir = $PSScriptRoot
 $NodeDir    = 'C:\Program Files\nodejs'
-$PgBin      = 'C:\Users\shahe\pg17\pgsql\bin'
-$PgData     = 'C:\Users\shahe\pg17\data'
-$PgLog      = 'C:\Users\shahe\pg17\pg.log'
 $env:Path   = "$NodeDir;$env:Path"
 
 function Test-Port($Port) {
-    $null -ne (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+    $client = [System.Net.Sockets.TcpClient]::new()
+    try {
+        $client.Connect('127.0.0.1', $Port)
+        return $true
+    } catch {
+        return $false
+    } finally {
+        $client.Dispose()
+    }
 }
 
 Write-Host ''
@@ -30,9 +35,29 @@ if (Test-Port 5432) {
     Write-Host '  [1/3] PostgreSQL   already running' -ForegroundColor DarkGray
 } else {
     Write-Host '  [1/3] PostgreSQL   starting...' -NoNewline
-    # Note: no -w flag. `pg_ctl -w start` holds the console open on Windows
-    # and never returns, which makes this script look like it hung.
-    & "$PgBin\pg_ctl.exe" -D $PgData -l $PgLog -o "-p 5432 -h 127.0.0.1" start | Out-Null
+
+    $postgresService = Get-Service -Name 'postgresql*' -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+
+    if ($postgresService) {
+        Start-Service -Name $postgresService.Name
+    } elseif ($env:JANIWHEELS_PG_BIN -and $env:JANIWHEELS_PG_DATA) {
+        $pgCtl = Join-Path $env:JANIWHEELS_PG_BIN 'pg_ctl.exe'
+        $pgLog = if ($env:JANIWHEELS_PG_LOG) {
+            $env:JANIWHEELS_PG_LOG
+        } else {
+            Join-Path $env:JANIWHEELS_PG_DATA 'pg.log'
+        }
+
+        if (-not (Test-Path -LiteralPath $pgCtl)) {
+            throw "PostgreSQL pg_ctl.exe was not found. Check JANIWHEELS_PG_BIN."
+        }
+
+        # No -w flag: on some Windows installations it keeps the console open.
+        & $pgCtl -D $env:JANIWHEELS_PG_DATA -l $pgLog -o "-p 5432 -h 127.0.0.1" start | Out-Null
+    } else {
+        throw 'PostgreSQL is not listening on port 5432. Start its Windows service or configure JANIWHEELS_PG_BIN and JANIWHEELS_PG_DATA.'
+    }
 
     $ready = $false
     foreach ($i in 1..20) {

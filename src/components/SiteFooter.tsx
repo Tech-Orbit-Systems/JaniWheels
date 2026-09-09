@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Mail, MessageCircle, Phone } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 
 const marketplaceLinks = [
@@ -41,6 +42,11 @@ export function SiteFooter({ siteName }: { siteName: string }) {
             Pakistan&apos;s automotive classified marketplace for cars, bikes
             and auto parts. Discover listings and contact sellers directly.
           </p>
+          <address className="mt-5 grid gap-2 text-sm not-italic">
+            <FooterContact href="mailto:info@janiwheels.com" label="info@janiwheels.com" icon={<Mail size={16} />} />
+            <FooterContact href="tel:+923333294075" label="0333 3294075" icon={<Phone size={16} />} />
+            <FooterContact href="https://wa.me/923333294075" label="WhatsApp: 0333 3294075" icon={<MessageCircle size={16} />} external />
+          </address>
           <div className="mt-5 flex flex-wrap gap-2" aria-label="JaniWheels social media">
             {socialLinks.map(([platform, handle, href]) => (
               <a
@@ -80,6 +86,19 @@ export function SiteFooter({ siteName }: { siteName: string }) {
         </div>
       </div>
     </footer>
+  );
+}
+
+function FooterContact({ href, label, icon, external = false }: { href: string; label: string; icon: React.ReactNode; external?: boolean }) {
+  return (
+    <a
+      href={href}
+      {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+      className="inline-flex w-fit items-center gap-2 text-zinc-300 transition hover:text-[#f7b500]"
+    >
+      <span className="text-[#f7b500]" aria-hidden>{icon}</span>
+      {label}
+    </a>
   );
 }
 

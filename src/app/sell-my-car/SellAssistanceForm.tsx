@@ -25,7 +25,7 @@ export function SellAssistanceForm({ cities, makes }: { cities: Option[]; makes:
     }
   }
 
-  if (state.ok) return <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-5"><h2 className="font-bold text-emerald-950">Request submitted</h2><p className="mt-1 text-sm text-emerald-900">Reference <strong>{state.reference}</strong>. You can track every customer-visible update in your dashboard.</p><a href="/dashboard/sell-assistance" className="mt-4 inline-flex rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white">Track my request</a></div>;
+  if (state.ok) return <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-5"><h2 className="font-bold text-emerald-950">Request submitted</h2><p className="mt-1 text-sm text-emerald-900">Reference <strong>{state.reference}</strong>. You can read updates from our team in your dashboard.</p><a href="/dashboard/sell-assistance" className="mt-4 inline-flex rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white">Track my request</a></div>;
 
   return <form action={action} className="space-y-7">
     {state.error && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{state.error}</p>}

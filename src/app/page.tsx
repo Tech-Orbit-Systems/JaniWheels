@@ -85,9 +85,9 @@ export default async function HomePage() {
       .where(isNull(partCategories.parentId))
       .orderBy(desc(partCategories.popularity), asc(partCategories.name))
       .limit(24),
-    searchListings({ vertical: "car" }),
-    searchListings({ vertical: "bike" }),
-    searchListings({ vertical: "part" }),
+    searchListings({ vertical: "car" }, { previewLimit: 8 }),
+    searchListings({ vertical: "bike" }, { previewLimit: 8 }),
+    searchListings({ vertical: "part" }, { previewLimit: 8 }),
     db
       .select({
         id: dealers.id,
@@ -171,11 +171,11 @@ export default async function HomePage() {
             </p>
             <h1 className="text-4xl font-black leading-[1.08] tracking-[-0.035em] sm:text-6xl">
               Find the right vehicle.
-              <span className="block text-[#f7b500]">Make your next move.</span>
+              <span className="block text-[#f7b500]">Find it on JaniWheels.</span>
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-300 sm:text-lg">
-              Search classified listings from private sellers and verified
-              dealers, then connect directly when you find the right match.
+              Browse cars, bikes and auto parts by price and city. Check the
+              photos and details, then call the seller to ask questions or arrange a visit.
             </p>
           </div>
         </div>
@@ -204,9 +204,9 @@ export default async function HomePage() {
         <section className="mt-20 bg-zinc-50 py-16">
           <div className="mx-auto w-full max-w-7xl px-4">
             <SectionHeading
-              eyebrow="Trusted showrooms"
+              eyebrow="Dealer listings"
               title="Verified dealers"
-              description="Browse active inventory from dealers whose verified status is recorded by JaniWheels."
+              description="See ads from dealers whose business details our team has reviewed."
               action={{ label: "View all dealers", href: "/dealers" }}
             />
             <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -261,7 +261,7 @@ export default async function HomePage() {
         <SectionHeading
           eyebrow="Buy with more confidence"
           title="JaniWheels assistance"
-          description="Request the inspection service currently available through JaniWheels."
+          description="Buying a used car? Ask our team about inspection availability in your area."
         />
         <div className="mt-8 overflow-hidden rounded-3xl bg-[#151719] text-white shadow-xl">
           <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
@@ -356,7 +356,7 @@ export default async function HomePage() {
             number="03"
             icon={Handshake}
             title="Contact the seller"
-            text="Connect directly with a private seller or a verified dealer and take the conversation forward."
+            text="Ask about the condition and documents, then arrange a time to see the vehicle."
           />
         </ol>
       </section>
@@ -366,13 +366,13 @@ export default async function HomePage() {
           <SectionHeading
             eyebrow="Marketplace safeguards"
             title="Trust and safety"
-            description="Clear trust signals and reporting tools help buyers make better-informed decisions."
+            description="Check the seller and documents before paying. Report an ad if something looks wrong."
           />
           <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <TrustItem
               icon={UserRoundCheck}
               title="Verified dealer identity"
-              text="Verified badges appear only on dealer profiles with recorded approval."
+              text="Our team reviews dealer details before adding a verified badge. Always check the vehicle separately."
             />
             <TrustItem
               icon={ShieldCheck}
@@ -396,7 +396,7 @@ export default async function HomePage() {
       <section className="mx-auto mt-20 w-full max-w-7xl px-4">
         <SectionHeading
           eyebrow="Explore popular searches"
-          title="Find your starting point"
+          title="Browse cars by model, city or make"
           description="Quick links to commonly browsed vehicles and locations."
         />
         <div className="mt-8 grid gap-8 lg:grid-cols-3">

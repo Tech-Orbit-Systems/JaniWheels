@@ -47,7 +47,7 @@ export function SiteHeader() {
               <span className="sr-only">Open navigation</span>
               <Menu aria-hidden size={21} />
             </summary>
-            <div className="absolute right-0 top-[calc(100%+0.6rem)] w-64 overflow-hidden rounded-xl border border-zinc-700 bg-[#17191c] p-2 shadow-2xl">
+            <div className="absolute right-0 top-[calc(100%+0.6rem)] w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-zinc-700 bg-[#17191c] p-2 shadow-2xl">
               <nav aria-label="Mobile navigation" className="grid">
                 {navigation.map((item) => (
                   <Link

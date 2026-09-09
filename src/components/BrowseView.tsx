@@ -44,8 +44,8 @@ export async function BrowseView({
   if (needsReorder) permanentRedirect(buildPath(state));
 
   const decision = decideIndexation(state);
-  const results = await searchListings(state);
-  const [partFilterOptions, vehicleFilterOptions, user] = await Promise.all([
+  const [results, partFilterOptions, vehicleFilterOptions, user] = await Promise.all([
+    searchListings(state),
     state.vertical === "part" ? getPartFilterOptions() : null,
     state.vertical !== "part" ? getVehicleFilterOptions(state.vertical) : null,
     getCurrentUser(),

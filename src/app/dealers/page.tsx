@@ -84,12 +84,12 @@ export default async function DealersIndexPage() {
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-slate-200 bg-white p-10 text-center">
-          <p className="text-slate-700">No dealers have registered yet.</p>
+          <p className="text-slate-700">No verified dealers are listed yet.</p>
           <Link
             href="/dealers/register"
             className="mt-3 inline-block text-sm font-medium text-blue-700 hover:underline"
           >
-            Be the first
+            Register your showroom
           </Link>
         </div>
       ) : (
