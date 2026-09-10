@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -125,7 +126,7 @@ export default async function HomePage() {
       .innerJoin(makes, eq(models.makeId, makes.id))
       .where(and(eq(models.vertical, "car"), eq(models.isActive, true)))
       .orderBy(desc(models.popularity))
-      .limit(8),
+      .limit(20),
     db
       .select({ id: cities.id, slug: cities.slug, name: cities.name })
       .from(cities)
@@ -137,7 +138,7 @@ export default async function HomePage() {
       .from(makes)
       .where(and(eq(makes.vertical, "car"), eq(makes.isActive, true)))
       .orderBy(desc(makes.popularity))
-      .limit(8),
+      .limit(12),
   ]);
 
   const homeMakes = makeRows.flatMap((row) =>
@@ -400,34 +401,43 @@ export default async function HomePage() {
           description="Quick links to commonly browsed vehicles and locations."
         />
         <div className="mt-8 grid gap-8 lg:grid-cols-3">
-          <LinkCollection
+          <ModelLinkCollection
             title="Popular models"
-            links={popularModels.map((model) => ({
-              label: `${model.makeName} ${model.name}`,
-              href: buildPath({
-                vertical: "car",
-                model: {
-                  id: model.id,
-                  slug: model.slug,
-                  name: model.name,
-                  makeSlug: model.makeSlug,
-                },
-              }),
-            }))}
+            links={popularModels
+              .filter((model) => currentModelImagePaths[`${model.makeSlug}-${model.slug}`])
+              .slice(0, 8)
+              .map((model) => ({
+                label: `${model.makeName} ${model.name}`,
+                imageSrc: currentModelImagePaths[`${model.makeSlug}-${model.slug}`],
+                href: buildPath({
+                  vertical: "car",
+                  model: {
+                    id: model.id,
+                    slug: model.slug,
+                    name: model.name,
+                    makeSlug: model.makeSlug,
+                  },
+                }),
+              }))}
           />
-          <LinkCollection
+          <CityLinkCollection
             title="Browse by city"
             links={popularCities.map((city) => ({
               label: city.name,
+              slug: city.slug,
               href: buildPath({ vertical: "car", city }),
             }))}
           />
-          <LinkCollection
+          <MakeLinkCollection
             title="Browse by make"
-            links={popularMakes.map((make) => ({
-              label: make.name,
-              href: buildPath({ vertical: "car", make }),
-            }))}
+            links={popularMakes
+              .filter((make) => makeImagePaths[make.slug])
+              .slice(0, 8)
+              .map((make) => ({
+                label: make.name,
+                slug: make.slug,
+                href: buildPath({ vertical: "car", make }),
+              }))}
           />
         </div>
       </section>
@@ -512,24 +522,90 @@ function TrustItem({
   );
 }
 
-function LinkCollection({
+const makeImagePaths: Record<string, string> = {
+  honda: "/home/makes/honda-building.webp",
+  hyundai: "/home/makes/hyundai-showroom-v2.webp",
+  kia: "/home/makes/kia-headquarters-v2.webp",
+  mg: "/home/makes/mg-building.webp",
+  changan: "/home/makes/changan-showroom-v2.webp",
+  nissan: "/home/makes/nissan-building.webp",
+  suzuki: "/home/makes/suzuki-showroom-v2.webp",
+  toyota: "/home/makes/toyota-building.webp",
+};
+
+const currentModelImagePaths: Record<string, string> = {
+  "toyota-corolla": "/home/models/toyota-corolla.webp",
+  "suzuki-alto": "/home/models/suzuki-alto-current.webp",
+  "honda-civic": "/home/models/honda-civic.webp",
+  "suzuki-cultus": "/home/models/suzuki-cultus-current.webp",
+  "honda-city": "/home/models/honda-city.webp",
+  "kia-sportage": "/home/models/kia-sportage.webp",
+  "toyota-yaris": "/home/models/toyota-yaris-white.webp",
+  "suzuki-swift": "/home/models/suzuki-swift.webp",
+};
+
+function CollectionTitle({ children }: { children: React.ReactNode }) {
+  return <h3 className="mb-3 font-extrabold text-zinc-950">{children}</h3>;
+}
+
+function ModelLinkCollection({
   title,
   links,
 }: {
   title: string;
-  links: Array<{ label: string; href: string }>;
+  links: Array<{ label: string; href: string; imageSrc: string }>;
 }) {
   return (
     <div>
-      <h3 className="mb-3 font-extrabold text-zinc-950">{title}</h3>
+      <CollectionTitle>{title}</CollectionTitle>
       <ul className="grid grid-cols-2 gap-2">
         {links.map((link) => (
           <li key={link.href}>
             <Link
               href={link.href}
-              className="flex min-h-11 items-center rounded-lg border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:border-[#d8a600] hover:text-[#815e00]"
+              className="group relative block h-24 overflow-hidden rounded-xl bg-zinc-900 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
             >
-              {link.label}
+              <Image src={link.imageSrc} alt="" fill sizes="(max-width: 1024px) 50vw, 16vw" className="object-cover opacity-80 transition duration-300 group-hover:scale-105 group-hover:opacity-65" />
+              <span className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" aria-hidden />
+              <span className="absolute inset-x-2 bottom-2 text-center text-sm font-extrabold text-white">{link.label}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function CityLinkCollection({ title, links }: { title: string; links: Array<{ label: string; href: string; slug: string }> }) {
+  return (
+    <div>
+      <CollectionTitle>{title}</CollectionTitle>
+      <ul className="grid grid-cols-2 gap-2">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link href={link.href} className="group relative block h-24 overflow-hidden rounded-xl bg-zinc-900 shadow-sm">
+              <Image src={link.slug === "karachi" || link.slug === "lahore" ? `/home/cities/${link.slug}-landmark.webp` : `/home/cities/${link.slug}.webp`} alt="" fill sizes="(max-width: 1024px) 50vw, 16vw" className="object-cover opacity-75 transition duration-300 group-hover:scale-105 group-hover:opacity-60" />
+              <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" aria-hidden />
+              <span className="absolute inset-x-2 bottom-2 text-center text-sm font-extrabold text-white">{link.label}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function MakeLinkCollection({ title, links }: { title: string; links: Array<{ label: string; href: string; slug: string }> }) {
+  return (
+    <div>
+      <CollectionTitle>{title}</CollectionTitle>
+      <ul className="grid grid-cols-2 gap-2">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link href={link.href} className="group relative block h-24 overflow-hidden rounded-xl bg-zinc-900 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <Image src={makeImagePaths[link.slug]} alt="" fill sizes="(max-width: 1024px) 50vw, 16vw" className="object-cover opacity-75 transition duration-300 group-hover:scale-105 group-hover:opacity-60" />
+              <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" aria-hidden />
+              <span className="absolute inset-x-2 bottom-2 text-center text-sm font-extrabold text-white">{link.label}</span>
             </Link>
           </li>
         ))}

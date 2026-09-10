@@ -6,6 +6,7 @@ import {
   type SellState,
 } from "@/lib/listings/sell-actions";
 import { MapLocationPicker } from "@/components/MapLocationPicker";
+import { FeatureMultiSelect } from "@/components/FeatureMultiSelect";
 
 interface Option {
   id: number;
@@ -99,11 +100,6 @@ export function SellForm({
   }
 
   const err = (f: string) => state.fieldErrors?.[f];
-
-  const grouped = features.reduce<Record<string, FeatureOption[]>>((acc, f) => {
-    (acc[f.groupName] ??= []).push(f);
-    return acc;
-  }, {});
 
   return (
     <form action={action} className="space-y-6">
@@ -267,19 +263,7 @@ export function SellForm({
       </Section>
 
       <Section title="Features">
-        {Object.entries(grouped).map(([group, items]) => (
-          <div key={group} className="mb-3">
-            <h3 className="mb-1.5 text-xs uppercase tracking-wide text-slate-500">{group}</h3>
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
-              {items.map((f) => (
-                <label key={f.id} className="flex items-center gap-2 text-sm text-slate-700">
-                  <input type="checkbox" name="featureIds" value={f.id} className="h-4 w-4" />
-                  {f.name}
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
+        <FeatureMultiSelect features={features} />
         <Field label="Other features not listed" hint="Separate multiple features with commas. These stay on this ad and never become filters automatically.">
           <textarea name="customFeatureNames" rows={2} maxLength={800} className={inputClass} placeholder="Example: cassette player, manual choke, solar ventilation fan" />
         </Field>

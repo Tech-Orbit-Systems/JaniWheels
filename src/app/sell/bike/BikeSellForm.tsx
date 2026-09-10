@@ -4,6 +4,7 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { BatteryCharging, Bike, Camera, MapPin, ShieldCheck, Zap } from "lucide-react";
 import { createBikeListingAction, type SellState } from "@/lib/listings/sell-actions";
 import { MapLocationPicker } from "@/components/MapLocationPicker";
+import { FeatureMultiSelect } from "@/components/FeatureMultiSelect";
 
 type Option = { id: number; name: string };
 type MakeOption = Option & { isElectric: boolean };
@@ -56,10 +57,6 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
   }
 
   const error = (field: string) => state.fieldErrors?.[field];
-  const groupedFeatures = features.reduce<Record<string, FeatureOption[]>>((groups, feature) => {
-    (groups[feature.groupName] ??= []).push(feature); return groups;
-  }, {});
-
   return (
     <form action={action} className="space-y-6">
       {state.error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">{state.error}</p>}
@@ -148,7 +145,7 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
       </FormSection>
 
       <FormSection icon={ShieldCheck} title="Features & condition notes">
-        {Object.entries(groupedFeatures).map(([group, items]) => <div key={group}><h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-slate-500">{group}</h3><div className="flex flex-wrap gap-3">{items.map((feature) => <Check key={feature.id} name="featureIds" value={String(feature.id)} label={feature.name} />)}</div></div>)}
+        <FeatureMultiSelect features={features} />
         <Field label="Other features not listed" hint="Comma-separated; saved only on this ad."><textarea name="customFeatureNames" rows={2} maxLength={800} className={inputClass} placeholder="Example: sidecar, carburetor heater, custom battery monitor" /></Field>
         <Field label="Description" hint="Mention maintenance, battery replacement, accident history, faults and modifications."><textarea name="description" rows={6} maxLength={5000} className={inputClass} /></Field>
       </FormSection>
