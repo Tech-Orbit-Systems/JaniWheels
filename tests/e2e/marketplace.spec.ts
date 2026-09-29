@@ -1,4 +1,14 @@
 import { expect, test } from "@playwright/test";
+import "dotenv/config";
+import postgres from "postgres";
+import sharp from "sharp";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl || !/(?:_test|_acceptance)$/.test(new URL(databaseUrl).pathname.slice(1))) {
+  throw new Error("Browser acceptance requires an isolated test database");
+}
+const sql = postgres(databaseUrl, { max: 1 });
+test.afterAll(async () => { await sql.end(); });
 
 test("homepage search switches between all three marketplaces", async ({ page }) => {
   await page.goto("/");
@@ -73,6 +83,127 @@ test("dealer can register and reach the new dashboard", async ({ page, isMobile 
   await expect(page).toHaveURL(/\/dashboard\/dealer(?:\?|$)/);
   await expect(page.getByRole("heading", { name: businessName })).toBeVisible();
   await expect(page.getByText("Verification pending")).toBeVisible();
+});
+
+test("seller uploads a photo and publishes a car", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  await page.goto("/login?next=/sell");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(`acceptance-seller-${device}@example.invalid`);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/sell(?:\?|$)/);
+
+  const car = page.locator("section").filter({ has: page.getByRole("heading", { name: "Which car?" }) });
+  const make = car.locator("select").nth(0);
+  const model = car.locator("select").nth(1);
+  const variant = car.locator('select[name="variantId"]');
+  await make.selectOption({ index: 1 });
+  await expect.poll(() => model.locator("option").count()).toBeGreaterThan(1);
+  await model.selectOption({ index: 1 });
+  await expect.poll(() => variant.locator("option").count()).toBeGreaterThan(1);
+  await variant.selectOption({ index: 1 });
+  await page.locator('select[name="year"]').selectOption("2022");
+  await page.locator('input[name="mileageKm"]').fill("45000");
+  await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+  await page.locator('input[name="pricePkr"]').fill("3500000");
+
+  const photo = await sharp({ create: { width: 32, height: 32, channels: 3, background: "#9c2626" } }).png().toBuffer();
+  await page.locator('input[type="file"]').setInputFiles({ name: "acceptance.png", mimeType: "image/png", buffer: photo });
+  await expect(page.getByText("1 photo added")).toBeVisible();
+  const imageKey = await page.locator('input[name="imageKeys"]').inputValue();
+  const image = await page.request.get(`/uploads/${imageKey}`);
+  expect(image.ok()).toBe(true);
+  expect(image.headers()["content-type"]).toContain("image/webp");
+  await page.getByRole("button", { name: "Post ad — free" }).click();
+  await expect(page).toHaveURL(/\/used-cars\/.+\?posted=1/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("seller publishes a bike with a photo", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  await page.goto("/login?next=/sell/bike");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(`acceptance-seller-${device}@example.invalid`);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  const bike = page.locator("section").filter({ has: page.getByRole("heading", { name: "Which bike?" }) });
+  const make = bike.locator("select").nth(0);
+  const model = bike.locator("select").nth(1);
+  const variant = bike.locator('select[name="variantId"]');
+  await make.selectOption({ index: 1 });
+  await expect.poll(() => model.locator("option").count()).toBeGreaterThan(1);
+  await model.selectOption({ index: 1 });
+  await expect.poll(() => variant.locator("option").count()).toBeGreaterThan(1);
+  await variant.selectOption({ index: 1 });
+  await page.locator('select[name="year"]').selectOption("2022");
+  await page.locator('input[name="mileageKm"]').fill("12000");
+  await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+  await page.locator('input[name="pricePkr"]').fill("250000");
+  const photo = await sharp({ create: { width: 32, height: 32, channels: 3, background: "#26269c" } }).png().toBuffer();
+  await page.locator('input[type="file"]').setInputFiles({ name: "bike.png", mimeType: "image/png", buffer: photo });
+  await expect(page.getByText("1 photo added")).toBeVisible();
+  await page.getByRole("button", { name: "Post Bike Ad — Free" }).click();
+  await expect(page).toHaveURL(/\/used-bikes\/.+\?posted=1/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("seller publishes an auto part with a photo", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  await page.goto("/login?next=/sell/part");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(`acceptance-seller-${device}@example.invalid`);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.locator('select[name="categoryId"]').selectOption({ index: 1 });
+  await page.locator('input[name="brand"]').fill("Bosch");
+  await page.locator('input[name="pricePkr"]').fill("2500");
+  await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+  const photo = await sharp({ create: { width: 32, height: 32, channels: 3, background: "#269c26" } }).png().toBuffer();
+  await page.locator('input[type="file"]').setInputFiles({ name: "part.png", mimeType: "image/png", buffer: photo });
+  await expect(page.getByText("1 photo added")).toBeVisible();
+  await page.getByRole("button", { name: "Post Auto Part Ad — Free" }).click();
+  await expect(page).toHaveURL(/\/auto-parts\/.+\?posted=1/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("anonymous buyer reveals a seller number and records a lead", async ({ page, isMobile }) => {
+  const rows = await sql`
+    SELECT id, slug, lead_count FROM listings
+    WHERE vertical = 'car'
+      AND seller_id IN (SELECT id FROM users WHERE phone IN ('+923001234567', '+923219876543', '+923334455667', '+923455667788'))
+    ORDER BY id LIMIT 1 OFFSET ${isMobile ? 2 : 3}
+  `;
+  expect(rows).toHaveLength(1);
+  const listing = rows[0];
+  await page.goto(`/used-cars/${listing.slug}-${listing.id}`);
+  await page.getByRole("button", { name: /Show number/ }).click();
+  await expect(page.locator('a[href^="tel:+92"]')).toBeVisible();
+  await expect.poll(async () => {
+    const [updated] = await sql`SELECT lead_count FROM listings WHERE id = ${listing.id}`;
+    return updated.lead_count;
+  }).toBeGreaterThan(listing.lead_count);
+});
+
+test("admin approves a queued car and writes an audit entry", async ({ page, isMobile }) => {
+  const rows = await sql`
+    SELECT id, title FROM listings
+    WHERE vertical = 'car'
+      AND seller_id IN (SELECT id FROM users WHERE phone IN ('+923001234567', '+923219876543', '+923334455667', '+923455667788'))
+    ORDER BY id LIMIT 1 OFFSET ${isMobile ? 0 : 1}
+  `;
+  expect(rows).toHaveLength(1);
+  const listing = rows[0];
+  await page.goto("/login?next=/admin/moderation");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-admin@example.invalid");
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  const row = page.locator("li").filter({ has: page.locator(`a[href$="-${listing.id}"]`) });
+  await expect(row.getByText(listing.title)).toBeVisible();
+  await row.getByRole("button", { name: "Approve" }).click();
+  await expect.poll(async () => {
+    const [approved] = await sql`SELECT status FROM listings WHERE id = ${listing.id}`;
+    return approved.status;
+  }).toBe("active");
+  const [audit] = await sql`SELECT count(*)::int AS count FROM moderation_log WHERE listing_id = ${listing.id} AND action = 'approve'`;
+  expect(audit.count).toBeGreaterThan(0);
 });
 
 test("mobile viewport does not overflow horizontally", async ({ page, isMobile }) => {

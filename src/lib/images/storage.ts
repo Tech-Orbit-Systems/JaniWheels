@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
@@ -129,6 +129,20 @@ export async function removeStoredImage(key: string): Promise<boolean> {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
     console.error("Local image cleanup failed", error);
     return false;
+  }
+}
+
+/** Local uploads can be written after Next's public-file manifest is built. */
+export async function readLocalStoredImage(key: string): Promise<Buffer | null> {
+  if (!STORAGE_KEY.test(key) || key.includes("\\")) return null;
+  const root = path.resolve(localUploadDir());
+  const target = path.resolve(root, key);
+  if (!target.startsWith(`${root}${path.sep}`)) return null;
+  try {
+    return await readFile(target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
   }
 }
 
