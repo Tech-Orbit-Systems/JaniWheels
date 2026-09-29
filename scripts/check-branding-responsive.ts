@@ -33,6 +33,13 @@ for (const formPath of ["src/app/sell/SellForm.tsx", "src/app/sell/bike/BikeSell
 const partForm = await read("src/app/sell/part/PartSellForm.tsx");
 assert.ok(partForm.includes('name="categoryId"'), "The parts form must retain its taxonomy-backed category dropdown");
 
+const homeSearch = await read("src/components/HomeSearch.tsx");
+for (const bodyType of ["hatchback", "sedan", "suv", "crossover", "pickup", "van", "coupe", "wagon"]) {
+  const image = await read(`public/home/body-types/${bodyType}.webp`);
+  assert.ok(image.length > 1_000, `The ${bodyType} browse card must retain its own raster vehicle image`);
+}
+assert.ok(homeSearch.includes("/home/body-types/"), "Body-type cards must use raster images rather than inline SVG artwork");
+
 const home = await read("src/app/page.tsx");
 assert.ok(home.includes("CityLinkCollection"), "The home page must render visual city browse cards");
 assert.ok(home.includes("MakeLinkCollection"), "The home page must render visual make browse cards");

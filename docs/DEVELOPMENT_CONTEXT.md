@@ -127,6 +127,18 @@ public, seller, account, and dashboard routes without runtime errors or
 horizontal overflow. Comprehensive final acceptance remains deferred until
 this phase is complete.
 
+The homepage popular-search cards now use current vehicle imagery, recognizable
+city landmarks, and logo-visible manufacturer buildings. The car search also
+uses lightweight, optimized transparent raster vehicle images for Hatchback,
+Sedan, SUV, Crossover, Pickup, Van, Coupe, and Wagon, with each body type retaining a
+distinct profile.
+
+The homepage hero now uses a lightweight three-frame sedan, SUV, and motorcycle
+cross-fade showcase. The sell call-to-action uses a separate dark sedan with a
+subtle animated amber spotlight. Both treatments use optimized raster assets,
+remain decorative for assistive technology, and become static when the visitor
+prefers reduced motion. Final visual approval remains part of branding QA.
+
 The following launch work remains after the functional package:
 
 - CI and a real automated unit/integration/E2E framework
@@ -141,10 +153,6 @@ The following launch work remains after the functional package:
 These ideas were recorded as planned/TODO items and must not be silently marked
 complete:
 
-- Add relevant visuals to Explore Popular Searches: model images, recognizable
-  city landmarks, and manufacturer logos while retaining text labels.
-- Replace generic body-type artwork with professional, clearly distinct
-  Hatchback, Sedan, SUV, Crossover, Pickup, Van, Coupe, and Wagon visuals.
 - Add a future blog/automotive-content platform with SEO and homepage
   integration.
 - Continue refining the Sell Your Car journey around the implemented Sell My
