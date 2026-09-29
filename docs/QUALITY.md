@@ -3,7 +3,8 @@
 Every pull request and main push runs `.github/workflows/quality.yml`. The job
 creates an isolated PostgreSQL service, applies migrations, seeds curated data
 and demo inventory, runs database assertions, checks, lint, a production build,
-the 99-route sweep, and desktop/mobile Chromium tests. A failing step fails the
+the route sweep, desktop/mobile Chromium tests, and a production dependency
+audit. A failing step fails the
 required check; repository branch protection must mark **Quality and
 acceptance / acceptance** as required before a failure can block merging.
 
