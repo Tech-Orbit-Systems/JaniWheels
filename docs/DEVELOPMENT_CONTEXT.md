@@ -1,12 +1,18 @@
 # JaniWheels consolidated development context
 
-Last reconciled: 8 September 2026
+Last reconciled: 30 September 2026
+
+Workflow decision, 30 September 2026: completed and verified development is
+committed, pushed on its feature branch, and recorded in the master tracker
+without a separate permission request each time. Review and main-branch merge
+remain separate. The homepage vehicle-visual package was approved by the owner,
+committed as `936baee`, and pushed on `codex/homepage-visuals`.
 
 Performance/content checkpoint, 9 September 2026: see
 `docs/PERFORMANCE_CONTENT_REVIEW.md`. Duplicate account queries and unnecessary
 homepage rows/counts were removed; browse reads start concurrently. Public copy
 and inaccurate structured data were corrected. Full checks, lint, build and a
-97-URL production sweep passed. Changes remain local on `codex/branding-mobile`.
+97-URL production sweep passed. These changes merged into `main` as `88b0356`.
 
 ## Authority order
 
@@ -50,7 +56,7 @@ the default, and First Load JS must remain below 150 KB.
 - Inspection and Sell My Car Assistance are request-and-follow-up services.
   They do not include payments, valuation, guarantees, workforce scheduling,
   inspector assignment, or generated inspection reports.
-- No feature branch is pushed or merged without explicit user authorization.
+- Completed feature branches may be pushed automatically after verification.
   Main is merged only after review and approval.
 
 ## Implemented development sequence
@@ -76,7 +82,7 @@ sequence through Sell My Car Assistance and Google-auth local repair:
 Most final database/browser acceptance remains deferred. Production providers
 for alerts, email, images, database, and hosting still require configuration.
 
-## Current local checkpoint
+## Google-auth checkpoint (8 September 2026)
 
 - Branch: `codex/branding-mobile`, based on remote `main` at `4e61232`.
 - Google signup has been verified end to end against the local database.
@@ -119,8 +125,8 @@ Google Maps configuration has been added locally. Billing remains unresolved
 and must be enabled before the final Google Maps browser acceptance test. Keep
 this as an explicit final-QA blocker; do not expose the configured key.
 
-Production branding, mobile responsiveness, and accessibility review are now
-active on `codex/branding-mobile`. The shared shell includes official contact
+Production branding, mobile responsiveness, and accessibility review began
+on `codex/branding-mobile`. The shared shell includes official contact
 links, narrow-screen navigation protection, visible keyboard focus, and a
 skip-to-content route. Browser checks at 320px and 1440px cover the primary
 public, seller, account, and dashboard routes without runtime errors or
@@ -137,7 +143,8 @@ The homepage hero now uses a lightweight three-frame sedan, SUV, and motorcycle
 cross-fade showcase. The sell call-to-action uses a separate dark sedan with a
 subtle animated amber spotlight. Both treatments use optimized raster assets,
 remain decorative for assistive technology, and become static when the visitor
-prefers reduced motion. Final visual approval remains part of branding QA.
+prefers reduced motion. The owner approved these homepage visuals on 30
+September 2026; comprehensive cross-route branding QA remains open.
 
 The following launch work remains after the functional package:
 
