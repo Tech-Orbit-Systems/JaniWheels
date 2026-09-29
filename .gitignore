@@ -1,6 +1,9 @@
 node_modules/
 .next/
 .next-build/
+.acceptance-uploads/
+playwright-report/
+test-results/
 dev.log
 out/
 build/

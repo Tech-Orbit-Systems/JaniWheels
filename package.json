@@ -27,6 +27,10 @@
     "check:map-location": "node --import tsx scripts/check-map-location.ts",
     "check:branding-responsive": "node --import tsx scripts/check-branding-responsive.ts",
     "sweep": "cross-env NODE_OPTIONS=--conditions=react-server node --import tsx scripts/sweep.ts",
+    "test:db": "node --import tsx --test tests/database.acceptance.test.ts",
+    "test:e2e": "playwright test",
+    "test:acceptance:prepare": "node --import tsx scripts/prepare-acceptance-db.ts",
+    "test:acceptance": "node --import tsx scripts/run-acceptance.ts",
     "check": "npm run typecheck && npm run check:seo && npm run check:visibility && npm run check:publication && npm run check:seller-flows && npm run check:uploads && npm run check:recently-viewed && npm run check:buyer-discovery && npm run check:account-management && npm run check:dealer-management && npm run check:google-auth && npm run check:admin-controls && npm run check:inspection-admin && npm run check:sell-assistance && npm run check:legal-content && npm run check:map-location && npm run check:branding-responsive",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -54,6 +58,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/google.maps": "^3.66.2",
     "@types/node": "^22.13.0",
