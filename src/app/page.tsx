@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
-  CarFront,
   ClipboardCheck,
   Flag,
   Gauge,
@@ -159,10 +158,24 @@ export default async function HomePage() {
           <div className="absolute -right-32 -top-44 size-[34rem] rounded-full bg-[#f7b500]/12 blur-3xl" />
           <div className="absolute bottom-0 left-1/2 h-px w-[80rem] -translate-x-1/2 bg-gradient-to-r from-transparent via-[#f7b500]/50 to-transparent" />
           <div className="absolute -bottom-40 left-1/2 h-64 w-[66rem] -translate-x-1/2 rounded-[50%] border-t border-white/10" />
-          <CarFront
-            className="absolute -right-10 bottom-5 size-72 text-white/[0.035] sm:right-[8%] sm:size-96"
-            strokeWidth={1}
-          />
+          <div className="hero-vehicle-showcase absolute inset-y-0 right-0 w-full sm:w-[58%]" aria-hidden>
+            {[
+              ["sedan", "showcase-sedan.webp"],
+              ["suv", "showcase-suv.webp"],
+              ["bike", "showcase-bike.webp"],
+            ].map(([name, file], index) => (
+              <Image
+                key={name}
+                src={`/home/hero/${file}`}
+                alt=""
+                fill
+                priority={index === 0}
+                sizes="(min-width: 640px) 58vw, 100vw"
+                className={`hero-vehicle hero-vehicle-${index + 1} object-cover object-center sm:object-right`}
+              />
+            ))}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#101214] via-[#101214]/75 to-transparent sm:via-[#101214]/25" />
+          </div>
         </div>
 
         <div className="relative mx-auto w-full max-w-7xl px-4">
@@ -305,15 +318,17 @@ export default async function HomePage() {
 
       <section className="mx-auto mt-20 w-full max-w-7xl px-4">
         <div className="relative overflow-hidden rounded-3xl bg-[#101214] px-7 py-10 text-white sm:px-12 sm:py-14">
-          <div
-            className="absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_center,rgba(247,181,0,0.18),transparent_62%)]"
-            aria-hidden
-          />
-          <CarFront
-            className="absolute -bottom-10 right-[5%] size-56 text-white/5 sm:size-72"
-            strokeWidth={1}
-            aria-hidden
-          />
+          <div className="absolute inset-y-0 right-0 w-full sm:w-[58%]" aria-hidden>
+            <div className="sell-vehicle-halo absolute left-1/2 top-1/2 size-64 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f7b500]/45 shadow-[0_0_80px_rgba(247,181,0,0.28)] sm:size-80" />
+            <Image
+              src="/home/hero/sell-spotlight.webp"
+              alt=""
+              fill
+              sizes="(min-width: 640px) 58vw, 100vw"
+              className="sell-vehicle-image object-cover object-center sm:object-right"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#101214] via-[#101214]/90 to-transparent sm:via-[#101214]/40" />
+          </div>
           <div className="relative max-w-2xl">
             <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-[#f7b500]">
               Sell directly

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import Image from "next/image";
 import { ChevronDown, MapPin, Search, SlidersHorizontal } from "lucide-react";
 
 type Vertical = "car" | "bike" | "part";
@@ -413,32 +414,13 @@ function PriceSelectField({
 }
 
 function BodyTypeImage({ type }: { type: string }) {
-  const silhouettes: Record<string, string> = {
-    hatchback: "M9 30 18 23 34 20 43 11 68 11 82 22 99 27 104 33 9 33Z",
-    sedan: "M8 30 19 24 34 22 46 12 73 12 86 22 101 27 105 33 8 33Z",
-    suv: "M8 30 16 22 32 20 42 10 75 10 88 21 101 26 105 33 8 33Z",
-    crossover: "M8 30 17 23 33 20 44 11 72 11 86 21 101 27 105 33 8 33Z",
-    pickup: "M8 30 18 23 37 21 46 13 68 13 77 22 101 23 105 33 8 33Z",
-    van: "M8 30 15 17 25 12 78 12 94 24 103 28 105 33 8 33Z",
-    coupe: "M8 30 19 25 38 22 50 13 70 13 84 23 101 27 105 33 8 33Z",
-    wagon: "M8 30 18 23 33 21 43 12 79 12 91 23 102 27 105 33 8 33Z",
-  };
-
   return (
-    <svg
-      viewBox="0 0 112 44"
-      className="mb-1 h-10 w-24"
-      aria-hidden
-    >
-      <ellipse cx="56" cy="38" rx="47" ry="2.5" fill="#d4d4d8" opacity=".55" />
-      <path d={silhouettes[type] ?? silhouettes.sedan} fill="#e4e4e7" stroke="#52525b" strokeWidth="1.7" strokeLinejoin="round" />
-      <path d="M36 21 46 13h23l11 9Z" fill="#a1a1aa" stroke="#71717a" strokeWidth="1.2" />
-      <path d="M56 13v9" stroke="#f7b500" strokeWidth="1.5" />
-      <path d="M13 29h88" stroke="#f7b500" strokeWidth="2" />
-      <circle cx="28" cy="33" r="6" fill="#27272a" stroke="#18181b" />
-      <circle cx="28" cy="33" r="2.5" fill="#d4d4d8" />
-      <circle cx="87" cy="33" r="6" fill="#27272a" stroke="#18181b" />
-      <circle cx="87" cy="33" r="2.5" fill="#d4d4d8" />
-    </svg>
+    <Image
+      src={`/home/body-types/${bodyTypes.some(([slug]) => slug === type) ? type : "sedan"}.webp`}
+      alt=""
+      width={96}
+      height={40}
+      className="mb-1 h-10 w-24 object-contain"
+    />
   );
 }

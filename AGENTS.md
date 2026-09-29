@@ -26,6 +26,17 @@ npm run build:safe
 Use `npm run sweep` against a running application with a seeded database after
 changing routes or interactive behaviour.
 
+## Completed development workflow
+
+- When a development package is complete and verified, commit its relevant
+  changes, push its feature branch, and update the master feature tracker
+  without asking for separate commit or push approval each time. The project
+  owner authorized this workflow on 30 September 2026.
+- Keep unrelated artifacts and local files out of commits. Record remaining
+  acceptance gaps accurately in the tracker.
+- A push is not approval to merge. Keep the PR review and main-branch merge as
+  separate steps.
+
 ## Non-negotiable rules
 
 1. Vehicle taxonomy is curated reference data: Make → Model → Generation →
