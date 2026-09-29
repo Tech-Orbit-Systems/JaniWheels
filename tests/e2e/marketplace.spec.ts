@@ -59,6 +59,22 @@ test("admin can sign in and open moderation", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Moderation" })).toBeVisible();
 });
 
+test("dealer can register and reach the new dashboard", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const businessName = `Acceptance Motors ${device}`;
+  await page.goto("/login?next=/dealers/register");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(`acceptance-dealer-${device}@example.invalid`);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dealers\/register(?:\?|$)/);
+  await page.locator('input[name="businessName"]').fill(businessName);
+  await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+  await page.getByRole("button", { name: "Create dealer account" }).click();
+  await expect(page).toHaveURL(/\/dashboard\/dealer(?:\?|$)/);
+  await expect(page.getByRole("heading", { name: businessName })).toBeVisible();
+  await expect(page.getByText("Verification pending")).toBeVisible();
+});
+
 test("mobile viewport does not overflow horizontally", async ({ page, isMobile }) => {
   test.skip(!isMobile, "mobile-only acceptance");
   await page.goto("/");
