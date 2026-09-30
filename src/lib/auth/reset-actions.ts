@@ -26,7 +26,7 @@ export interface ResetPasswordState {
   fieldErrors?: Record<string, string>;
 }
 
-const emailSchema = z.string().trim().email("Enter a valid email address.").max(254);
+const emailSchema = z.string().trim().email("Enter a valid email address.").max(254, "Email address is too long.");
 const passwordSchema = z
   .string()
   .min(10, "Use at least 10 characters.")

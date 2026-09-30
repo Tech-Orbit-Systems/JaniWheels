@@ -54,6 +54,8 @@ export function SellForm({
   const [imageKeys, setImageKeys] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isUnregistered, setIsUnregistered] = useState(false);
+  const [hasAuctionSheet, setHasAuctionSheet] = useState(false);
 
   useEffect(() => {
     if (!makeId) return setModels([]);
@@ -231,12 +233,33 @@ export function SellForm({
           <Field label="Number of owners">
             <input name="ownerCount" type="number" inputMode="numeric" min={1} max={20} className={inputClass} />
           </Field>
+          {!isUnregistered && (
+            <>
+              <Field label="Registered city" error={err("registeredCityId")}>
+                <select name="registeredCityId" className={selectClass}>
+                  <option value="">Not specified</option>
+                  {cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Last token paid year" error={err("lastTokenPaidYear")}>
+                <select name="lastTokenPaidYear" className={selectClass}>
+                  <option value="">Not specified</option>
+                  {YEARS.filter((year) => year >= 1990).map((year) => <option key={year} value={year}>{year}</option>)}
+                </select>
+              </Field>
+            </>
+          )}
+          {hasAuctionSheet && (
+            <Field label="Auction grade" error={err("auctionGrade")}>
+              <input name="auctionGrade" type="text" maxLength={10} placeholder="e.g. 4.5" className={inputClass} />
+            </Field>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-5 pt-1">
           <Check name="isNegotiable" label="Price negotiable" />
-          <Check name="isUnregistered" label="Un-registered" />
-          <Check name="hasAuctionSheet" label="Auction sheet available" />
+          <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="isUnregistered" checked={isUnregistered} onChange={(event) => setIsUnregistered(event.target.checked)} className="h-4 w-4" />Unregistered</label>
+          <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="hasAuctionSheet" checked={hasAuctionSheet} onChange={(event) => setHasAuctionSheet(event.target.checked)} className="h-4 w-4" />Auction sheet available</label>
         </div>
       </Section>
 

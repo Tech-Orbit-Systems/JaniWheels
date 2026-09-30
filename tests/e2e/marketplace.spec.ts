@@ -106,6 +106,14 @@ test("seller uploads a photo and publishes a car", async ({ page, isMobile }) =>
   await page.locator('input[name="mileageKm"]').fill("45000");
   await page.locator('select[name="cityId"]').selectOption({ index: 1 });
   await page.locator('input[name="pricePkr"]').fill("3500000");
+  await page.getByLabel("Unregistered", { exact: true }).check();
+  await expect(page.locator('select[name="registeredCityId"]')).toHaveCount(0);
+  await expect(page.locator('select[name="lastTokenPaidYear"]')).toHaveCount(0);
+  await page.getByLabel("Unregistered", { exact: true }).uncheck();
+  await page.locator('select[name="registeredCityId"]').selectOption({ index: 1 });
+  await page.locator('select[name="lastTokenPaidYear"]').selectOption("2025");
+  await page.getByLabel("Auction sheet available").check();
+  await page.locator('input[name="auctionGrade"]').fill("4.5");
 
   const photo = await sharp({ create: { width: 32, height: 32, channels: 3, background: "#9c2626" } }).png().toBuffer();
   await page.locator('input[type="file"]').setInputFiles({ name: "acceptance.png", mimeType: "image/png", buffer: photo });
@@ -117,6 +125,22 @@ test("seller uploads a photo and publishes a car", async ({ page, isMobile }) =>
   await page.getByRole("button", { name: "Post ad — free" }).click();
   await expect(page).toHaveURL(/\/used-cars\/.+\?posted=1/);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const saved = await sql`
+    SELECT cd.registered_city_id, cd.is_unregistered, cd.last_token_paid_year,
+      cd.has_auction_sheet, cd.auction_grade
+    FROM car_details cd
+    JOIN listings l ON l.id = cd.listing_id
+    JOIN users u ON u.id = l.seller_id
+    WHERE u.email = ${`acceptance-seller-${device}@example.invalid`}
+    ORDER BY l.id DESC LIMIT 1
+  `;
+  expect(saved[0]).toMatchObject({
+    is_unregistered: false,
+    last_token_paid_year: 2025,
+    has_auction_sheet: true,
+    auction_grade: "4.5",
+  });
+  expect(saved[0].registered_city_id).toBeGreaterThan(0);
 });
 
 test("seller publishes a bike with a photo", async ({ page, isMobile }) => {

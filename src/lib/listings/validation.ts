@@ -11,12 +11,12 @@ import { z } from "zod";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-const adLocalLabel = z.string().trim().min(2, "Enter at least 2 characters.").max(80).optional();
-const customFeatureNames = z.array(z.string().trim().min(2).max(80)).max(20).default([]);
+const adLocalLabel = z.string().trim().min(2, "Enter at least 2 characters.").max(80, "Keep this name under 80 characters.").optional();
+const customFeatureNames = z.array(z.string().trim().min(2, "Enter at least 2 characters for each feature.").max(80, "Keep each feature under 80 characters.")).max(20, "Add no more than 20 custom features.").default([]);
 const imageKeys = (emptyMessage: string) => z
   .array(z.string().regex(/^\d{6}\/[a-f0-9]{32}\.(?:jpg|png|webp|avif|heic)$/, "Upload the photo again."))
   .min(1, emptyMessage)
-  .max(30)
+  .max(30, "Add no more than 30 photos.")
   .refine((keys) => new Set(keys).size === keys.length, "The same photo cannot be attached twice.");
 const coordinates = {
   exactLatitude: z.number().min(-90, "Choose a valid map location.").max(90, "Choose a valid map location.").optional(),
@@ -34,39 +34,39 @@ export const carListingSchema = z.object({
   customModelName: adLocalLabel,
   customVariantName: adLocalLabel,
   cityId: z.number().int().positive("Choose a city."),
-  areaId: z.number().int().positive().optional(),
+  areaId: z.number().int("Choose a valid area.").positive("Choose a valid area.").optional(),
   customCityName: adLocalLabel,
   customAreaName: adLocalLabel,
   ...coordinates,
 
   year: z
     .number()
-    .int()
+    .int("Enter a whole model year.")
     .min(1970, "Model year looks too old.")
     .max(CURRENT_YEAR + 1, "Model year can't be in the future."),
 
   pricePkr: z
     .number()
-    .int()
+    .int("Enter a whole price in PKR.")
     .min(50_000, "Price looks too low.")
     .max(500_000_000, "Price looks too high."),
 
   mileageKm: z
     .number()
-    .int()
-    .min(0)
+    .int("Enter whole kilometres.")
+    .min(0, "Mileage cannot be negative.")
     .max(1_000_000, "Mileage looks too high."),
 
-  registeredCityId: z.number().int().positive().optional(),
+  registeredCityId: z.number().int("Choose a valid registration city.").positive("Choose a valid registration city.").optional(),
   isUnregistered: z.boolean().default(false),
 
-  assembly: z.enum(["local", "imported"]),
-  color: z.string().trim().min(2).max(40).optional(),
-  ownerCount: z.number().int().min(1).max(20).optional(),
-  lastTokenPaidYear: z.number().int().min(1990).max(CURRENT_YEAR).optional(),
+  assembly: z.enum(["local", "imported"], { message: "Choose local or imported assembly." }),
+  color: z.string().trim().min(2, "Enter at least 2 characters for the color.").max(40, "Keep the color under 40 characters.").optional(),
+  ownerCount: z.number().int("Enter a whole owner count.").min(1, "Owner count must be at least 1.").max(20, "Owner count looks too high.").optional(),
+  lastTokenPaidYear: z.number().int("Enter a whole token year.").min(1990, "Token year looks too old.").max(CURRENT_YEAR, "Token year cannot be in the future.").optional(),
 
   hasAuctionSheet: z.boolean().default(false),
-  auctionGrade: z.string().trim().max(10).optional(),
+  auctionGrade: z.string().trim().max(10, "Keep the auction grade under 10 characters.").optional(),
 
   isNegotiable: z.boolean().default(false),
 
@@ -76,7 +76,7 @@ export const carListingSchema = z.object({
     .max(5000, "Description is too long.")
     .optional(),
 
-  featureIds: z.array(z.number().int().positive()).max(60).default([]),
+  featureIds: z.array(z.number().int("Choose a valid feature.").positive("Choose a valid feature.")).max(60, "Choose no more than 60 features.").default([]),
   customFeatureNames,
 
   imageKeys: imageKeys("Add at least one photo — listings without photos barely sell."),
@@ -84,6 +84,15 @@ export const carListingSchema = z.object({
   validateCoordinatePair(data, ctx);
   if (!data.variantId && (!data.customMakeName || !data.customModelName)) {
     ctx.addIssue({ code: "custom", path: ["variantId"], message: "Choose a listed variant or enter the missing make and model." });
+  }
+  if (data.isUnregistered && data.registeredCityId) {
+    ctx.addIssue({ code: "custom", path: ["registeredCityId"], message: "Remove the registration city for an unregistered car." });
+  }
+  if (data.isUnregistered && data.lastTokenPaidYear) {
+    ctx.addIssue({ code: "custom", path: ["lastTokenPaidYear"], message: "Remove the token year for an unregistered car." });
+  }
+  if (!data.hasAuctionSheet && data.auctionGrade) {
+    ctx.addIssue({ code: "custom", path: ["auctionGrade"], message: "Select auction sheet available before entering a grade." });
   }
 });
 
@@ -106,38 +115,38 @@ export const bikeListingSchema = z
       "electric-scooter",
       "electric-bicycle",
     ]),
-    condition: z.enum(["new", "used"]),
+    condition: z.enum(["new", "used"], { message: "Choose the bike condition." }),
     isElectric: z.boolean(),
     cityId: z.number().int().positive("Choose a city."),
-    areaId: z.number().int().positive().optional(),
+    areaId: z.number().int("Choose a valid area.").positive("Choose a valid area.").optional(),
     customCityName: adLocalLabel,
     customAreaName: adLocalLabel,
     ...coordinates,
-    registeredCityId: z.number().int().positive().optional(),
+    registeredCityId: z.number().int("Choose a valid registration city.").positive("Choose a valid registration city.").optional(),
     isUnregistered: z.boolean().default(false),
-    year: z.number().int().min(1970).max(CURRENT_YEAR + 1),
-    mileageKm: z.number().int().min(0).max(500_000, "Mileage looks too high."),
-    pricePkr: z.number().int().min(10_000).max(50_000_000),
-    assembly: z.enum(["local", "imported"]),
-    color: z.string().trim().min(2).max(40).optional(),
+    year: z.number().int("Enter a whole model year.").min(1970, "Model year looks too old.").max(CURRENT_YEAR + 1, "Model year cannot be in the future."),
+    mileageKm: z.number().int("Enter whole kilometres.").min(0, "Mileage cannot be negative.").max(500_000, "Mileage looks too high."),
+    pricePkr: z.number().int("Enter a whole price in PKR.").min(10_000, "Price looks too low.").max(50_000_000, "Price looks too high."),
+    assembly: z.enum(["local", "imported"], { message: "Choose local or imported assembly." }),
+    color: z.string().trim().min(2, "Enter at least 2 characters for the color.").max(40, "Keep the color under 40 characters.").optional(),
     hasDocuments: z.boolean().default(true),
     ignitionType: z.enum(["kick", "self", "kick-and-self"]).optional(),
     engineType: z.enum(["two-stroke", "four-stroke"]).optional(),
-    numberOfGears: z.number().int().min(1).max(8).optional(),
-    motorPowerWatts: z.number().int().min(250).max(50_000).optional(),
+    numberOfGears: z.number().int("Enter a whole gear count.").min(1, "Enter at least 1 gear.").max(8, "Gear count looks too high.").optional(),
+    motorPowerWatts: z.number().int("Enter whole watts.").min(250, "Motor power looks too low.").max(50_000, "Motor power looks too high.").optional(),
     batteryType: z.enum(["lead-acid", "graphene", "lithium-ion", "lfp", "other"]).optional(),
-    batteryVoltage: z.number().int().min(24).max(120).optional(),
-    batteryCapacityAh: z.number().int().min(5).max(300).optional(),
-    claimedRangeKm: z.number().int().min(5).max(500).optional(),
-    topSpeedKph: z.number().int().min(10).max(250).optional(),
-    chargingTimeMinutes: z.number().int().min(30).max(1_440).optional(),
-    batteryHealthPercent: z.number().int().min(1).max(100).optional(),
+    batteryVoltage: z.number().int("Enter whole volts.").min(24, "Battery voltage looks too low.").max(120, "Battery voltage looks too high.").optional(),
+    batteryCapacityAh: z.number().int("Enter whole amp hours.").min(5, "Battery capacity looks too low.").max(300, "Battery capacity looks too high.").optional(),
+    claimedRangeKm: z.number().int("Enter whole kilometres.").min(5, "Range looks too low.").max(500, "Range looks too high.").optional(),
+    topSpeedKph: z.number().int("Enter a whole speed.").min(10, "Top speed looks too low.").max(250, "Top speed looks too high.").optional(),
+    chargingTimeMinutes: z.number().int("Enter whole minutes.").min(30, "Charging time looks too short.").max(1_440, "Charging time looks too long.").optional(),
+    batteryHealthPercent: z.number().int("Enter a whole percentage.").min(1, "Battery health must be at least 1%.").max(100, "Battery health cannot exceed 100%.").optional(),
     batteryRemovable: z.boolean().optional(),
     chargerIncluded: z.boolean().optional(),
-    batteryWarrantyMonths: z.number().int().min(0).max(120).optional(),
+    batteryWarrantyMonths: z.number().int("Enter whole months.").min(0, "Warranty cannot be negative.").max(120, "Warranty looks too long.").optional(),
     isNegotiable: z.boolean().default(false),
     description: z.string().trim().max(5000, "Description is too long.").optional(),
-    featureIds: z.array(z.number().int().positive()).max(40).default([]),
+    featureIds: z.array(z.number().int("Choose a valid feature.").positive("Choose a valid feature.")).max(40, "Choose no more than 40 features.").default([]),
     customFeatureNames,
     imageKeys: imageKeys("Add at least one bike photo."),
   })
@@ -173,28 +182,28 @@ export const partListingSchema = z.object({
   condition: z.enum(["new", "used", "refurbished"], {
     message: "Choose the part condition.",
   }),
-  brand: z.string().trim().min(2, "Enter the part brand.").max(80),
-  partNumber: z.string().trim().max(100).optional(),
-  oemNumber: z.string().trim().max(100).optional(),
-  partOrigin: z.enum(["genuine-oem", "aftermarket", "local", "imported-used", "not-sure"]),
-  priceUnit: z.enum(["piece", "pair", "set", "kit", "litre"]),
-  compatibleMakeId: z.number().int().positive().optional(),
-  compatibleModelId: z.number().int().positive().optional(),
+  brand: z.string().trim().min(2, "Enter the part brand.").max(80, "Keep the brand under 80 characters."),
+  partNumber: z.string().trim().max(100, "Keep the part number under 100 characters.").optional(),
+  oemNumber: z.string().trim().max(100, "Keep the OEM number under 100 characters.").optional(),
+  partOrigin: z.enum(["genuine-oem", "aftermarket", "local", "imported-used", "not-sure"], { message: "Choose the part origin." }),
+  priceUnit: z.enum(["piece", "pair", "set", "kit", "litre"], { message: "Choose how this part is priced." }),
+  compatibleMakeId: z.number().int("Choose a valid make.").positive("Choose a valid make.").optional(),
+  compatibleModelId: z.number().int("Choose a valid model.").positive("Choose a valid model.").optional(),
   customCompatibleMakeName: adLocalLabel,
   customCompatibleModelName: adLocalLabel,
-  compatibleYearFrom: z.number().int().min(1970).max(CURRENT_YEAR + 1).optional(),
-  compatibleYearTo: z.number().int().min(1970).max(CURRENT_YEAR + 1).optional(),
+  compatibleYearFrom: z.number().int("Enter a whole starting year.").min(1970, "Starting year looks too old.").max(CURRENT_YEAR + 1, "Starting year cannot be in the future.").optional(),
+  compatibleYearTo: z.number().int("Enter a whole ending year.").min(1970, "Ending year looks too old.").max(CURRENT_YEAR + 1, "Ending year cannot be in the future.").optional(),
   position: z.enum(["front", "rear", "left", "right", "front-left", "front-right", "rear-left", "rear-right", "not-applicable"]).optional(),
-  deliveryOption: z.enum(["pickup", "courier", "pickup-or-courier"]),
-  warrantyMonths: z.number().int().min(0).max(120).optional(),
-  stockQty: z.number().int().min(1).max(10_000),
+  deliveryOption: z.enum(["pickup", "courier", "pickup-or-courier"], { message: "Choose a delivery option." }),
+  warrantyMonths: z.number().int("Enter whole months.").min(0, "Warranty cannot be negative.").max(120, "Warranty looks too long.").optional(),
+  stockQty: z.number().int("Enter a whole stock quantity.").min(1, "Stock must be at least 1.").max(10_000, "Stock quantity looks too high."),
   cityId: z.number().int().positive("Choose a city."),
-  areaId: z.number().int().positive().optional(),
+  areaId: z.number().int("Choose a valid area.").positive("Choose a valid area.").optional(),
   customCityName: adLocalLabel,
   customAreaName: adLocalLabel,
   ...coordinates,
   customCategoryName: adLocalLabel,
-  pricePkr: z.number().int().min(500, "Price looks too low.").max(50_000_000),
+  pricePkr: z.number().int("Enter a whole price in PKR.").min(500, "Price looks too low.").max(50_000_000, "Price looks too high."),
   isNegotiable: z.boolean().default(false),
   description: z.string().trim().max(5000, "Description is too long.").optional(),
   imageKeys: imageKeys("Add at least one photo."),

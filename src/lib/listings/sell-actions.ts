@@ -66,7 +66,9 @@ export async function createCarListingAction(
     assembly: formData.get("assembly") ?? "local",
     color: (formData.get("color") as string) || undefined,
     ownerCount: num(formData.get("ownerCount")),
+    lastTokenPaidYear: num(formData.get("lastTokenPaidYear")),
     hasAuctionSheet: formData.get("hasAuctionSheet") === "on",
+    auctionGrade: optionalText(formData.get("auctionGrade")),
     isNegotiable: formData.get("isNegotiable") === "on",
     description: (formData.get("description") as string) || undefined,
     featureIds: formData
@@ -344,10 +346,10 @@ export async function correctRejectedListingAction(
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/dashboard");
   const parsed = z.object({
-    pricePkr: z.number().int().min(50_000),
-    mileageKm: z.number().int().min(0),
-    description: z.string().trim().max(5000).optional(),
-    color: z.string().trim().max(80).optional(),
+    pricePkr: z.number().int("Enter a whole price in PKR.").min(50_000, "Price looks too low."),
+    mileageKm: z.number().int("Enter whole kilometres.").min(0, "Mileage cannot be negative."),
+    description: z.string().trim().max(5000, "Description is too long.").optional(),
+    color: z.string().trim().max(80, "Keep the color under 80 characters.").optional(),
     isNegotiable: z.boolean(),
   }).safeParse({
     pricePkr: num(formData.get("pricePkr")),

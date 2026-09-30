@@ -31,13 +31,13 @@ const signInSchema = z.object({
     .string()
     .trim()
     .min(3, "Enter your email address or mobile number.")
-    .max(254),
-  password: z.string().min(1, "Enter your password.").max(128),
+    .max(254, "Email address or mobile number is too long."),
+  password: z.string().min(1, "Enter your password.").max(128, "Password is too long."),
 });
 
 const registerSchema = z.object({
-  name: z.string().trim().min(2, "Enter your full name.").max(100),
-  email: z.string().trim().email("Enter a valid email address.").max(254),
+  name: z.string().trim().min(2, "Enter your full name.").max(100, "Keep your name under 100 characters."),
+  email: z.string().trim().email("Enter a valid email address.").max(254, "Email address is too long."),
   password: passwordSchema,
 });
 

@@ -27,6 +27,10 @@ const validCustomCar = {
   customFeatureNames: ["Cassette changer"], imageKeys,
 };
 
+function hasIssueMessage(result: ReturnType<typeof carListingSchema.safeParse>, field: string, message: string) {
+  return !result.success && result.error.issues.some((issue) => issue.path[0] === field && issue.message === message);
+}
+
 const checks = [
   ["petrol bike accepted", bikeListingSchema.safeParse(validBike).success],
   ["electric bike accepted", bikeListingSchema.safeParse(validElectricBike).success],
@@ -41,6 +45,13 @@ const checks = [
   ["custom compatible model requires make", !partListingSchema.safeParse({ ...validPart, customCompatibleModelName: "CK" }).success],
   ["forged upload key rejected", !partListingSchema.safeParse({ ...validPart, imageKeys: ["../../secret.jpg"] }).success],
   ["duplicate upload key rejected", !partListingSchema.safeParse({ ...validPart, imageKeys: [imageKeys[0], imageKeys[0]] }).success],
+  ["car price bound explains correction", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, pricePkr: 10_000 }), "pricePkr", "Price looks too low.")],
+  ["car year requires a whole number", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, year: 2008.5 }), "year", "Enter a whole model year.")],
+  ["car photo limit explains correction", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, imageKeys: Array.from({ length: 31 }, (_, n) => `202608/${n.toString(16).padStart(32, "0")}.webp`) }), "imageKeys", "Add no more than 30 photos.")],
+  ["registered car details accepted", carListingSchema.safeParse({ ...validCustomCar, registeredCityId: 1, lastTokenPaidYear: 2025, hasAuctionSheet: true, auctionGrade: "4.5" }).success],
+  ["unregistered car rejects registration city", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, isUnregistered: true, registeredCityId: 1 }), "registeredCityId", "Remove the registration city for an unregistered car.")],
+  ["unregistered car rejects token year", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, isUnregistered: true, lastTokenPaidYear: 2025 }), "lastTokenPaidYear", "Remove the token year for an unregistered car.")],
+  ["auction grade requires sheet", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, auctionGrade: "4.5" }), "auctionGrade", "Select auction sheet available before entering a grade.")],
 ] as const;
 
 let failed = 0;
