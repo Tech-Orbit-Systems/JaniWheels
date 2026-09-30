@@ -601,7 +601,7 @@ test("administrator ban revokes sessions and restoration permits login", async (
   await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
 });
 
-test("five independent reports hide an ad until administrator review", async ({ page, isMobile }) => {
+test("five independent reports hide an ad until administrator review", async ({ page, browser, isMobile }) => {
   const device = isMobile ? "mobile" : "desktop";
   const [listing] = await sql`
     SELECT l.id, l.slug FROM listings l JOIN users u ON u.id = l.seller_id
@@ -652,6 +652,34 @@ test("five independent reports hide an ad until administrator review", async ({ 
   const [resolved] = await sql`SELECT count(*)::int AS count FROM listing_reports WHERE listing_id = ${listing.id} AND status = 'dismissed'`;
   expect(resolved.count).toBe(5);
   expect((await page.request.get(listingPath)).status()).toBe(200);
+
+  // Start a new review cycle and submit the fifth and sixth reports at once.
+  for (let reporter = 0; reporter < 4; reporter++) {
+    await page.context().clearCookies();
+    await page.goto(listingPath);
+    await page.getByRole("button", { name: "Report this ad" }).click();
+    await page.locator('select[name="reason"]').selectOption("spam");
+    await page.getByRole("button", { name: "Send report" }).click();
+    await expect(page.getByText("Thanks — we'll take a look.")).toBeVisible();
+  }
+  const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
+  try {
+    const pages = await Promise.all(contexts.map((context) => context.newPage()));
+    await Promise.all(pages.map(async (reportPage) => {
+      await reportPage.goto(listingPath);
+      await reportPage.getByRole("button", { name: "Report this ad" }).click();
+      await reportPage.locator('select[name="reason"]').selectOption("fraud");
+    }));
+    await Promise.all(pages.map((reportPage) => reportPage.getByRole("button", { name: "Send report" }).click()));
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
+  }
+  const [concurrent] = await sql`SELECT count(*)::int AS count FROM listing_reports WHERE listing_id = ${listing.id} AND status = 'open'`;
+  expect(concurrent.count).toBe(5);
+  const [queuedTwice] = await sql`SELECT count(*)::int AS count FROM moderation_log WHERE listing_id = ${listing.id} AND action = 'queue' AND is_automated = true`;
+  expect(queuedTwice.count).toBe(2);
+  const [held] = await sql`SELECT status FROM listings WHERE id = ${listing.id}`;
+  expect(held.status).toBe("pending_review");
 });
 
 test("mobile viewport does not overflow horizontally", async ({ page, isMobile }) => {
