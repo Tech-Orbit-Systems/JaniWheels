@@ -60,6 +60,44 @@ test("seller can sign in and reach listing and dealer tools", async ({ page }) =
   await expect(page).toHaveURL(/\/$/);
 });
 
+test("invalid, banned and unverified credentials cannot create a session", async ({ page }) => {
+  await page.goto("/login");
+  const identifier = page.getByRole("textbox", { name: "Email or mobile number" });
+  const password = page.getByLabel("Password");
+  await identifier.fill("absent@example.invalid");
+  await password.fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("Incorrect email, mobile number or password.")).toBeVisible();
+
+  await page.goto("/login");
+  await identifier.fill("acceptance-banned@example.invalid");
+  await password.fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("Incorrect email, mobile number or password.")).toBeVisible();
+
+  await page.goto("/login");
+  await identifier.fill("acceptance-unverified@example.invalid");
+  await password.fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText(/Verify your email before signing in/)).toBeVisible();
+  const sessions = await sql`
+    SELECT COUNT(*)::int AS count FROM sessions
+    WHERE user_id IN (SELECT id FROM users WHERE email IN ('acceptance-banned@example.invalid', 'acceptance-unverified@example.invalid'))
+  `;
+  expect(sessions[0].count).toBe(0);
+});
+
+test("duplicate email registration is rejected without creating another user", async ({ page }) => {
+  await page.goto("/login?mode=register");
+  await page.getByLabel("Full name").fill("Duplicate Seller");
+  await page.getByLabel("Email address").fill("acceptance-seller@example.invalid");
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Create account with email" }).click();
+  await expect(page.getByText("An account already exists with this email address.")).toBeVisible();
+  const users = await sql`SELECT COUNT(*)::int AS count FROM users WHERE email = 'acceptance-seller@example.invalid'`;
+  expect(users[0].count).toBe(1);
+});
+
 test("admin can sign in and open moderation", async ({ page }) => {
   await page.goto("/login?next=/admin/moderation");
   await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-admin@example.invalid");
