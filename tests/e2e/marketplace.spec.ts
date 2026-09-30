@@ -523,6 +523,84 @@ test("admin approves a queued car and writes an audit entry", async ({ page, isM
   expect(audit.count).toBeGreaterThan(0);
 });
 
+test("admin hides, reinstates and permanently removes a seller car", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const [listing] = await sql`
+    SELECT l.id, l.slug FROM listings l JOIN users u ON u.id = l.seller_id
+    WHERE u.email = ${`acceptance-seller-${device}@example.invalid`} AND l.vertical = 'car' AND l.status = 'active'
+    ORDER BY l.id DESC LIMIT 1
+  `;
+  expect(listing?.id).toBeGreaterThan(0);
+  const listingPath = `/used-cars/${listing.slug}-${listing.id}`;
+  await page.goto("/login?next=/admin/listings");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-admin@example.invalid");
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/admin\/listings(?:\?|$)/);
+  const row = () => page.locator("article").filter({ has: page.locator(`a[href="${listingPath}"]`) });
+  await row().locator("textarea").fill(`Safety review acceptance ${device}`);
+  await row().getByRole("button", { name: "Flag / hide" }).click();
+  await expect.poll(async () => (await sql`SELECT status FROM listings WHERE id = ${listing.id}`)[0].status).toBe("pending_review");
+  expect((await page.request.get(listingPath)).status()).toBe(404);
+
+  await page.reload();
+  await row().locator("textarea").fill(`Review cleared acceptance ${device}`);
+  await row().getByRole("button", { name: "Reinstate" }).click();
+  await expect.poll(async () => (await sql`SELECT status FROM listings WHERE id = ${listing.id}`)[0].status).toBe("active");
+  expect((await page.request.get(listingPath)).status()).toBe(200);
+
+  await page.reload();
+  await row().locator("textarea").fill(`Final removal acceptance ${device}`);
+  await row().getByRole("button", { name: "Remove" }).click();
+  await expect.poll(async () => (await sql`SELECT status FROM listings WHERE id = ${listing.id}`)[0].status).toBe("removed");
+  expect((await page.request.get(listingPath)).status()).toBe(404);
+  const events = await sql`
+    SELECT action, reason FROM moderation_log WHERE listing_id = ${listing.id}
+    AND action IN ('flag', 'reinstate', 'remove') ORDER BY id
+  `;
+  expect(events.map((event) => event.action)).toEqual(["flag", "reinstate", "remove"]);
+  expect(events[2].reason).toBe(`Final removal acceptance ${device}`);
+});
+
+test("administrator ban revokes sessions and restoration permits login", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const email = `acceptance-seller-${device}@example.invalid`;
+  const [seller] = await sql`SELECT id FROM users WHERE email = ${email}`;
+  await page.goto("/login?next=/dashboard");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+  const [before] = await sql`SELECT count(*)::int AS count FROM sessions WHERE user_id = ${seller.id}`;
+  expect(before.count).toBeGreaterThan(0);
+
+  await page.context().clearCookies();
+  await page.goto("/login?next=/admin/users");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-admin@example.invalid");
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/admin\/users(?:\?|$)/);
+  const row = () => page.locator("article").filter({ hasText: email });
+  await row().getByPlaceholder("Ban reason (required)").fill(`Ban acceptance ${device}`);
+  await row().getByRole("button", { name: "Ban user" }).click();
+  await expect.poll(async () => (await sql`SELECT is_banned FROM users WHERE id = ${seller.id}`)[0].is_banned).toBe(true);
+  const [revoked] = await sql`SELECT count(*)::int AS count FROM sessions WHERE user_id = ${seller.id}`;
+  expect(revoked.count).toBe(0);
+
+  await page.reload();
+  await row().getByPlaceholder("Restoration reason (required)").fill(`Restore acceptance ${device}`);
+  await row().getByRole("button", { name: "Restore access" }).click();
+  await expect.poll(async () => (await sql`SELECT is_banned FROM users WHERE id = ${seller.id}`)[0].is_banned).toBe(false);
+  const events = await sql`SELECT action FROM moderation_log WHERE user_id = ${seller.id} AND action IN ('ban', 'unban') ORDER BY id`;
+  expect(events.slice(-2).map((event) => event.action)).toEqual(["ban", "unban"]);
+  await page.context().clearCookies();
+  await page.goto("/login?next=/dashboard");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+});
+
 test("mobile viewport does not overflow horizontally", async ({ page, isMobile }) => {
   test.skip(!isMobile, "mobile-only acceptance");
   await page.goto("/");
