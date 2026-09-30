@@ -38,6 +38,7 @@ const REASONS = [
   "spam",
   "other",
 ] as const;
+const AUTO_HIDE_REPORT_THRESHOLD = 5;
 
 const reportSchema = z.object({
   listingId: z.number().int().positive(),
@@ -98,7 +99,13 @@ export async function reportListingAction(
     return { ok: true }; // idempotent; don't reveal that they already reported
   }
 
-  await db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
+    // Serialize reports for the same ad so concurrent submissions cannot skip the threshold.
+    const [listing] = await tx.select({ status: listings.status, sellerDeletedAt: listings.sellerDeletedAt })
+      .from(listings).where(eq(listings.id, parsed.data.listingId)).for("update").limit(1);
+    if (!listing || listing.sellerDeletedAt || listing.status !== "active") {
+      return { error: "This ad is no longer available for reporting." };
+    }
     const [report] = await tx.insert(listingReports).values({
       listingId: parsed.data.listingId,
       reporterUserId: user?.id ?? null,
@@ -107,10 +114,13 @@ export async function reportListingAction(
       comment: parsed.data.comment ?? null,
     }).onConflictDoNothing().returning({ id: listingReports.id });
 
-    if (!report) return;
+    if (!report) return { ok: true };
 
-    // A report is a safety hold, not a removal: immediately hide only a
-    // currently public ad and let an administrator decide the outcome.
+    const [{ count: openReports }] = await tx.select({ count: sql<number>`COUNT(*)::int` })
+      .from(listingReports).where(and(eq(listingReports.listingId, parsed.data.listingId), eq(listingReports.status, "open")));
+    if (openReports < AUTO_HIDE_REPORT_THRESHOLD) return { ok: true };
+
+    // Five independent reports trigger a temporary safety hold for an administrator to review.
     const [hidden] = await tx
       .update(listings)
       .set({ status: "pending_review", updatedAt: new Date() })
@@ -127,18 +137,22 @@ export async function reportListingAction(
         listingId: parsed.data.listingId,
         userId: hidden.sellerId,
         action: "queue",
-        reason: "Automatically queued for review after a report.",
+        reason: `Automatically queued for review after ${AUTO_HIDE_REPORT_THRESHOLD} open reports.`,
         isAutomated: true,
       });
     }
+    return { ok: true, hidden: Boolean(hidden) };
   });
+
+  if (outcome.error) return outcome;
 
   revalidatePath("/admin/moderation");
   revalidatePath("/used-cars");
   revalidatePath("/used-bikes");
   revalidatePath("/auto-parts");
 
-  return { ok: true };
+  if ("hidden" in outcome && outcome.hidden) redirect("/report-concern?submitted=1");
+  return outcome;
 }
 
 // ---------------------------------------------------------------------------

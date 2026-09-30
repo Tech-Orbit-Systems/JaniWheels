@@ -20,6 +20,7 @@ try {
     if (role.startsWith("seller-")) {
       await sql`DELETE FROM inspections WHERE requested_by_user_id IN (SELECT id FROM users WHERE email = ${email})`;
       await sql`DELETE FROM sell_assistance_requests WHERE requested_by_user_id IN (SELECT id FROM users WHERE email = ${email})`;
+      await sql`DELETE FROM moderation_log WHERE listing_id IN (SELECT id FROM listings WHERE seller_id IN (SELECT id FROM users WHERE email = ${email}))`;
       await sql`DELETE FROM listings WHERE seller_id IN (SELECT id FROM users WHERE email = ${email})`;
     }
     if (role.startsWith("dealer")) {

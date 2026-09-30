@@ -601,6 +601,59 @@ test("administrator ban revokes sessions and restoration permits login", async (
   await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
 });
 
+test("five independent reports hide an ad until administrator review", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const [listing] = await sql`
+    SELECT l.id, l.slug FROM listings l JOIN users u ON u.id = l.seller_id
+    WHERE u.email = ${`acceptance-seller-${device}@example.invalid`} AND l.vertical = 'part' AND l.status = 'active'
+    ORDER BY l.id DESC LIMIT 1
+  `;
+  expect(listing?.id).toBeGreaterThan(0);
+  const listingPath = `/auto-parts/${listing.slug}-${listing.id}`;
+  for (let reporter = 1; reporter <= 5; reporter++) {
+    await page.context().clearCookies();
+    await page.goto(listingPath);
+    await page.getByRole("button", { name: "Report this ad" }).click();
+    await page.locator('select[name="reason"]').selectOption("fraud");
+    await page.locator('textarea[name="comment"]').fill(`Independent report ${reporter} ${device}`);
+    await page.getByRole("button", { name: "Send report" }).click();
+    if (reporter < 5) await expect(page.getByText("Thanks — we'll take a look.")).toBeVisible();
+    else {
+      await expect(page).toHaveURL(/\/report-concern\?submitted=1$/);
+      await expect(page.getByRole("status")).toContainText("Report received");
+    }
+    const [reported] = await sql`SELECT count(*)::int AS count FROM listing_reports WHERE listing_id = ${listing.id} AND status = 'open'`;
+    expect(reported.count).toBe(reporter);
+    const [current] = await sql`SELECT status FROM listings WHERE id = ${listing.id}`;
+    expect(current.status).toBe(reporter === 5 ? "pending_review" : "active");
+    if (reporter === 1) {
+      await page.reload();
+      await page.getByRole("button", { name: "Report this ad" }).click();
+      await page.locator('select[name="reason"]').selectOption("spam");
+      await page.getByRole("button", { name: "Send report" }).click();
+      await expect(page.getByText("Thanks — we'll take a look.")).toBeVisible();
+      const [duplicate] = await sql`SELECT count(*)::int AS count FROM listing_reports WHERE listing_id = ${listing.id}`;
+      expect(duplicate.count).toBe(1);
+    }
+  }
+  expect((await page.request.get(listingPath)).status()).toBe(404);
+  const [queued] = await sql`SELECT count(*)::int AS count FROM moderation_log WHERE listing_id = ${listing.id} AND action = 'queue' AND is_automated = true`;
+  expect(queued.count).toBe(1);
+
+  await page.context().clearCookies();
+  await page.goto("/login?next=/admin/moderation");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-admin@example.invalid");
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/admin\/moderation(?:\?|$)/);
+  const row = page.locator("li").filter({ has: page.locator(`a[href="${listingPath}"]`) }).first();
+  await row.getByRole("button", { name: "Approve" }).click();
+  await expect.poll(async () => (await sql`SELECT status FROM listings WHERE id = ${listing.id}`)[0].status).toBe("active");
+  const [resolved] = await sql`SELECT count(*)::int AS count FROM listing_reports WHERE listing_id = ${listing.id} AND status = 'dismissed'`;
+  expect(resolved.count).toBe(5);
+  expect((await page.request.get(listingPath)).status()).toBe(200);
+});
+
 test("mobile viewport does not overflow horizontally", async ({ page, isMobile }) => {
   test.skip(!isMobile, "mobile-only acceptance");
   await page.goto("/");
