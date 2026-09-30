@@ -3,5 +3,6 @@ export function imageDeliveryUrl(key: string, width: number): string {
   if (provider === "cloudflare") {
     return `https://imagedelivery.net/${process.env.NEXT_PUBLIC_CF_IMAGES_HASH}/${key}/w=${width}`;
   }
+  if (provider !== "local") throw new Error(`Unsupported NEXT_PUBLIC_IMAGE_PROVIDER: ${provider}`);
   return `/uploads/${key}`;
 }

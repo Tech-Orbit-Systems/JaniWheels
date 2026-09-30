@@ -4,7 +4,7 @@
 
 - Node.js 20.11 or newer
 - PostgreSQL
-- Durable image storage (Cloudflare Images or another implemented provider)
+- Durable image storage (Cloudflare Images)
 - HTTPS domain for the production site
 
 ## Required environment
