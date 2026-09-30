@@ -18,6 +18,8 @@ try {
   for (const [role, admin] of [["seller", false], ["seller-desktop", false], ["seller-mobile", false], ["dealer-desktop", false], ["dealer-mobile", false], ["admin", true], ["unverified", false], ["banned", false]] as const) {
     const email = `acceptance-${role}@example.invalid`;
     if (role.startsWith("seller-")) {
+      await sql`DELETE FROM inspections WHERE requested_by_user_id IN (SELECT id FROM users WHERE email = ${email})`;
+      await sql`DELETE FROM sell_assistance_requests WHERE requested_by_user_id IN (SELECT id FROM users WHERE email = ${email})`;
       await sql`DELETE FROM listings WHERE seller_id IN (SELECT id FROM users WHERE email = ${email})`;
     }
     if (role.startsWith("dealer")) {

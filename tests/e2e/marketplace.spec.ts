@@ -347,6 +347,140 @@ test("owner edits a car and deletes a bike with its photos", async ({ page, isMo
   expect((await page.request.get(`/uploads/${photo.storage_key}`)).status()).toBe(404);
 });
 
+test("seller submits an inspection request with an initial event", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const email = `acceptance-seller-${device}@example.invalid`;
+  const address = `Acceptance inspection ${device}`;
+  await page.goto("/login?next=/inspection");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/inspection(?:\?|$)/);
+  await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+  await page.locator('input[name="address"]').fill(address);
+  await page.locator('input[name="contactPhone"]').fill(isMobile ? "0300 9998882" : "0300 9998881");
+  await page.getByRole("button", { name: "Request inspection" }).click();
+  await expect(page.getByText("Inspection requested")).toBeVisible();
+  const [request] = await sql`
+    SELECT i.id, i.status, i.contact_phone FROM inspections i JOIN users u ON u.id = i.requested_by_user_id
+    WHERE u.email = ${email} AND i.address = ${address} ORDER BY i.id DESC LIMIT 1
+  `;
+  expect(request).toMatchObject({ status: "requested", contact_phone: isMobile ? "+923009998882" : "+923009998881" });
+  const events = await sql`SELECT to_status, customer_message FROM inspection_events WHERE inspection_id = ${request.id}`;
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({ to_status: "requested", customer_message: "Your inspection request has been received." });
+});
+
+test("admin inspection update appears to customer without private note", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const email = `acceptance-seller-${device}@example.invalid`;
+  const [request] = await sql`
+    SELECT i.id FROM inspections i JOIN users u ON u.id = i.requested_by_user_id
+    WHERE u.email = ${email} AND i.address = ${`Acceptance inspection ${device}`}
+    ORDER BY i.id DESC LIMIT 1
+  `;
+  expect(request?.id).toBeGreaterThan(0);
+  await page.goto("/login?next=/admin/inspections");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-admin@example.invalid");
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/admin\/inspections(?:\?|$)/);
+  const row = page.locator("li").filter({ has: page.getByRole("heading", { name: `INS-${request.id}` }) });
+  await row.locator('select[name="status"]').selectOption("contacted");
+  await row.locator('textarea[name="customerMessage"]').fill(`We called about inspection ${device}.`);
+  await row.locator('textarea[name="internalNote"]').fill(`Private inspection note ${device}`);
+  await row.getByRole("button", { name: "Save update" }).click();
+  await expect.poll(async () => {
+    const [updated] = await sql`SELECT status FROM inspections WHERE id = ${request.id}`;
+    return updated.status;
+  }).toBe("contacted");
+  const events = await sql`SELECT from_status, to_status, customer_message, internal_note FROM inspection_events WHERE inspection_id = ${request.id} ORDER BY id`;
+  expect(events).toHaveLength(2);
+  expect(events[1]).toMatchObject({ from_status: "requested", to_status: "contacted", customer_message: `We called about inspection ${device}.`, internal_note: `Private inspection note ${device}` });
+
+  await page.context().clearCookies();
+  await page.goto("/login?next=/dashboard/inspections");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard\/inspections(?:\?|$)/);
+  await expect(page.getByText(`We called about inspection ${device}.`)).toBeVisible();
+  await expect(page.getByText(`Private inspection note ${device}`)).toHaveCount(0);
+});
+
+test("seller submits a structured Sell My Car Assistance request", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const email = `acceptance-seller-${device}@example.invalid`;
+  const address = `Acceptance assistance ${device}`;
+  await page.goto("/login?next=/sell-my-car");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/sell-my-car(?:\?|$)/);
+  await page.locator('select[name="makeId"]').selectOption({ index: 1 });
+  const model = page.locator('select[name="modelId"]');
+  await expect.poll(() => model.locator("option").count()).toBeGreaterThan(1);
+  await model.selectOption({ index: 1 });
+  await page.locator('input[name="year"]').fill("2020");
+  await page.locator('input[name="mileageKm"]').fill("65000");
+  await page.locator('input[name="registrationCity"]').fill("Lahore");
+  await page.locator('select[name="ownershipStatus"]').selectOption("own_name");
+  await page.locator('select[name="vehicleCondition"]').selectOption("good");
+  await page.locator('input[name="expectedPricePkr"]').fill("4500000");
+  await page.locator('select[name="sellingTimeline"]').selectOption("within_month");
+  await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+  await page.locator('input[name="address"]').fill(address);
+  await page.locator('input[name="contactPhone"]').fill(isMobile ? "0300 9998882" : "0300 9998881");
+  await page.getByRole("button", { name: "Request Sell My Car Assistance" }).click();
+  await expect(page.getByRole("heading", { name: "Request submitted" })).toBeVisible();
+  const [request] = await sql`
+    SELECT s.id, s.status, s.year, s.mileage_km, s.expected_price_pkr, s.contact_phone
+    FROM sell_assistance_requests s JOIN users u ON u.id = s.requested_by_user_id
+    WHERE u.email = ${email} AND s.address = ${address} ORDER BY s.id DESC LIMIT 1
+  `;
+  expect(request).toMatchObject({ status: "requested", year: 2020, mileage_km: 65000, expected_price_pkr: 4500000, contact_phone: isMobile ? "+923009998882" : "+923009998881" });
+  const events = await sql`SELECT to_status, customer_message FROM sell_assistance_events WHERE request_id = ${request.id}`;
+  expect(events).toHaveLength(1);
+  expect(events[0].to_status).toBe("requested");
+});
+
+test("admin assistance update is visible to customer without private note", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const email = `acceptance-seller-${device}@example.invalid`;
+  const [request] = await sql`
+    SELECT s.id FROM sell_assistance_requests s JOIN users u ON u.id = s.requested_by_user_id
+    WHERE u.email = ${email} AND s.address = ${`Acceptance assistance ${device}`}
+    ORDER BY s.id DESC LIMIT 1
+  `;
+  expect(request?.id).toBeGreaterThan(0);
+  await page.goto("/login?next=/admin/sell-assistance");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-admin@example.invalid");
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/admin\/sell-assistance(?:\?|$)/);
+  const row = page.locator("li").filter({ has: page.getByRole("heading", { name: new RegExp(`SMC-${request.id}\\b`) }) });
+  await row.locator('select[name="status"]').selectOption("contacted");
+  await row.locator('textarea[name="customerMessage"]').fill(`We called about your car ${device}.`);
+  await row.locator('textarea[name="internalNote"]').fill(`Private assistance note ${device}`);
+  await row.getByRole("button", { name: "Save update" }).click();
+  await expect.poll(async () => {
+    const [updated] = await sql`SELECT status FROM sell_assistance_requests WHERE id = ${request.id}`;
+    return updated.status;
+  }).toBe("contacted");
+  const events = await sql`SELECT from_status, to_status, customer_message, internal_note FROM sell_assistance_events WHERE request_id = ${request.id} ORDER BY id`;
+  expect(events).toHaveLength(2);
+  expect(events[1]).toMatchObject({ from_status: "requested", to_status: "contacted", customer_message: `We called about your car ${device}.`, internal_note: `Private assistance note ${device}` });
+
+  await page.context().clearCookies();
+  await page.goto("/login?next=/dashboard/sell-assistance");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard\/sell-assistance(?:\?|$)/);
+  await expect(page.getByText(`We called about your car ${device}.`)).toBeVisible();
+  await expect(page.getByText(`Private assistance note ${device}`)).toHaveCount(0);
+});
+
 test("anonymous buyer reveals a seller number and records a lead", async ({ page, isMobile }) => {
   const rows = await sql`
     SELECT id, slug, lead_count FROM listings
