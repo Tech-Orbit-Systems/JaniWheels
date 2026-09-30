@@ -482,6 +482,86 @@ test("owner edits a car and deletes a bike with its photos", async ({ page, isMo
   expect((await page.request.get(`/uploads/${photo.storage_key}`)).status()).toBe(404);
 });
 
+test("car detail links an inspection across sign-in and rejects a forged listing", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const [car] = await sql`
+    SELECT l.id, l.slug, l.title FROM listings l JOIN users u ON u.id = l.seller_id
+    WHERE u.email = ${`acceptance-seller-${device}@example.invalid`} AND l.vertical = 'car' AND l.status = 'active'
+    ORDER BY l.id DESC LIMIT 1
+  `;
+  expect(car?.id).toBeGreaterThan(0);
+  await page.goto(`/used-cars/${car.slug}-${car.id}`);
+  await page.getByRole("link", { name: "Book an inspection" }).click();
+  await expect(page).toHaveURL(new RegExp(`/inspection\\?listingId=${car.id}$`));
+  await expect(page.getByText(`For: ${car.title}`)).toBeVisible();
+  await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+  await page.locator('input[name="address"]').fill(`Linked inspection ${device}`);
+  await page.locator('input[name="contactPhone"]').fill("0300 9998877");
+  await page.getByRole("button", { name: "Request inspection" }).click();
+  await expect(page).toHaveURL(/\/login\?next=/);
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-seller@example.invalid");
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(new RegExp(`/inspection\\?listingId=${car.id}$`));
+
+  await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+  await page.locator('input[name="address"]').fill(`Forged inspection ${device}`);
+  await page.locator('input[name="contactPhone"]').fill("0300 9998877");
+  await page.locator('input[name="listingId"]').evaluate((input: HTMLInputElement) => { input.value = "999999999"; });
+  await page.getByRole("button", { name: "Request inspection" }).click();
+  await expect(page.getByText("This car listing is no longer available for inspection.")).toBeVisible();
+  const [forged] = await sql`SELECT count(*)::int AS count FROM inspections WHERE address = ${`Forged inspection ${device}`}`;
+  expect(forged.count).toBe(0);
+
+  await page.locator('input[name="listingId"]').evaluate((input: HTMLInputElement, id: number) => { input.value = String(id); }, car.id);
+  await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+  await page.locator('input[name="address"]').fill(`Linked inspection ${device}`);
+  await page.locator('input[name="contactPhone"]').fill("0300 9998877");
+  await page.getByRole("button", { name: "Request inspection" }).click();
+  await expect(page.getByText("Inspection requested")).toBeVisible();
+  const [linked] = await sql`
+    SELECT i.id, i.listing_id, i.requested_by_user_id FROM inspections i JOIN users u ON u.id = i.requested_by_user_id
+    WHERE u.email = 'acceptance-seller@example.invalid' AND i.address = ${`Linked inspection ${device}`}
+    ORDER BY i.id DESC LIMIT 1
+  `;
+  expect(linked.listing_id).toBe(car.id);
+  const [event] = await sql`SELECT to_status FROM inspection_events WHERE inspection_id = ${linked.id}`;
+  expect(event.to_status).toBe("requested");
+  expect((await page.request.get("/inspection?listingId=999999999")).status()).toBe(404);
+});
+
+test("signed-in report stays tied to the account across sessions", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const [car] = await sql`
+    SELECT l.id, l.slug FROM listings l JOIN users u ON u.id = l.seller_id
+    WHERE u.email = ${`acceptance-seller-${device}@example.invalid`} AND l.vertical = 'car' AND l.status = 'active'
+    ORDER BY l.id DESC LIMIT 1
+  `;
+  const path = `/used-cars/${car.slug}-${car.id}`;
+  const email = "acceptance-seller@example.invalid";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.context().clearCookies();
+    await page.goto("/login");
+    await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+    await page.getByLabel("Password").fill("AcceptanceOnly123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect.poll(async () => (await page.context().cookies()).some((cookie) => cookie.name === "jw_session")).toBe(true);
+    await page.goto(path);
+    await page.getByRole("button", { name: "Report this ad" }).click();
+    await page.locator('select[name="reason"]').selectOption("fraud");
+    await page.getByRole("button", { name: "Send report" }).click();
+    await expect(page.getByText("Thanks — we'll take a look.")).toBeVisible();
+  }
+  const [report] = await sql`
+    SELECT count(*)::int AS count, max(r.reporter_anon_id) AS anon_id
+    FROM listing_reports r JOIN users u ON u.id = r.reporter_user_id
+    WHERE r.listing_id = ${car.id} AND u.email = ${email}
+  `;
+  expect(report).toMatchObject({ count: 1, anon_id: null });
+  const [listing] = await sql`SELECT status FROM listings WHERE id = ${car.id}`;
+  expect(listing.status).toBe("active");
+});
+
 test("seller submits an inspection request with an initial event", async ({ page, isMobile }) => {
   const device = isMobile ? "mobile" : "desktop";
   const email = `acceptance-seller-${device}@example.invalid`;
@@ -806,6 +886,10 @@ test("five independent reports hide an ad until administrator review", async ({ 
       await reportPage.locator('select[name="reason"]').selectOption("fraud");
     }));
     await Promise.all(pages.map((reportPage) => reportPage.getByRole("button", { name: "Send report" }).click()));
+    await expect.poll(async () => {
+      const [row] = await sql`SELECT count(*)::int AS count FROM listing_reports WHERE listing_id = ${listing.id} AND status = 'open'`;
+      return row.count;
+    }).toBe(5);
   } finally {
     await Promise.all(contexts.map((context) => context.close()));
   }

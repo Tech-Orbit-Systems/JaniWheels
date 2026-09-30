@@ -3,11 +3,15 @@ import "dotenv/config";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import postgres from "postgres";
 
 const source = process.env.DATABASE_URL;
 if (!source) throw new Error("DATABASE_URL is required");
 const target = new URL(source);
 target.pathname = "/janiwheels_acceptance_test";
+if (new URL(source).pathname === target.pathname) {
+  throw new Error("Run acceptance from the normal local database URL, not the acceptance database");
+}
 const base = "http://127.0.0.1:3101";
 const env = {
   ...process.env,
@@ -36,6 +40,16 @@ function command(args: string[]): Promise<void> {
 let server: ChildProcess | undefined;
 try {
   if (!process.argv.includes("--browser-only")) {
+    // Every full run starts clean so old report and audit references cannot block demo reseeding.
+    const adminUrl = new URL(source);
+    adminUrl.pathname = "/postgres";
+    const admin = postgres(adminUrl.toString(), { max: 1 });
+    try {
+      await admin.unsafe('DROP DATABASE IF EXISTS "janiwheels_acceptance_test" WITH (FORCE)');
+      await admin.unsafe('CREATE DATABASE "janiwheels_acceptance_test"');
+    } finally {
+      await admin.end();
+    }
     await command(["run", "db:migrate"]);
     await command(["run", "db:seed"]);
     await new Promise<void>((done, reject) => {

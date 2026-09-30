@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { inspectionEvents, listingReports, inspections, moderationLog } from "@/db/schema/trust";
@@ -169,7 +169,7 @@ const inspectionSchema = z.object({
     .string()
     .min(10, "Enter your mobile number, e.g. 0300 1234567.")
     .max(20, "That number is too long."),
-  listingId: z.number().int().positive().optional(),
+  listingId: z.number().int("Choose a valid car listing.").positive("Choose a valid car listing.").optional(),
 });
 
 export interface InspectionState {
@@ -183,16 +183,18 @@ export async function bookInspectionAction(
   _prev: InspectionState,
   formData: FormData,
 ): Promise<InspectionState> {
+  const listingIdRaw = formData.get("listingId");
   const user = await getCurrentUser();
-  if (!user) redirect("/login?next=/inspection");
-
-  const listingIdRaw = Number(formData.get("listingId"));
+  if (!user) {
+    const next = listingIdRaw === null ? "/inspection" : `/inspection?listingId=${encodeURIComponent(String(listingIdRaw))}`;
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
 
   const parsed = inspectionSchema.safeParse({
     cityId: Number(formData.get("cityId")),
     address: formData.get("address"),
     contactPhone: formData.get("contactPhone"),
-    listingId: Number.isSafeInteger(listingIdRaw) && listingIdRaw > 0 ? listingIdRaw : undefined,
+    listingId: listingIdRaw === null ? undefined : Number(listingIdRaw),
   });
 
   if (!parsed.success) {
@@ -212,6 +214,12 @@ export async function bookInspectionAction(
   }
 
   const row = await db.transaction(async (tx) => {
+    if (parsed.data.listingId) {
+      const [listing] = await tx.select({ id: listings.id }).from(listings)
+        .where(and(eq(listings.id, parsed.data.listingId), eq(listings.vertical, "car"), eq(listings.status, "active"), isNull(listings.sellerDeletedAt)))
+        .limit(1);
+      if (!listing) return null;
+    }
     const [created] = await tx.insert(inspections).values({
       listingId: parsed.data.listingId ?? null,
       requestedByUserId: user.id,
@@ -230,6 +238,7 @@ export async function bookInspectionAction(
     return created;
   });
 
+  if (!row) return { error: "This car listing is no longer available for inspection." };
   return { ok: true, reference: `INS-${row.id}` };
 }
 

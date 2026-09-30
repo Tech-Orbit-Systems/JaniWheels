@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { asc, desc } from "drizzle-orm";
+import { notFound } from "next/navigation";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { cities } from "@/db/schema/geo";
+import { listings } from "@/db/schema/listings";
 import { abs } from "@/lib/seo/jsonld";
 import { InspectionForm } from "./InspectionForm";
 
@@ -12,7 +14,22 @@ export const metadata: Metadata = {
   alternates: { canonical: abs("/inspection") },
 };
 
-export default async function InspectionPage() {
+export default async function InspectionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ listingId?: string }>;
+}) {
+  const { listingId: rawListingId } = await searchParams;
+  let linkedListing: { id: number; title: string } | undefined;
+  if (rawListingId !== undefined) {
+    const listingId = Number(rawListingId);
+    if (!/^\d+$/.test(rawListingId) || !Number.isSafeInteger(listingId) || listingId < 1) notFound();
+    const [listing] = await db.select({ id: listings.id, title: listings.title }).from(listings)
+      .where(and(eq(listings.id, listingId), eq(listings.vertical, "car"), eq(listings.status, "active"), isNull(listings.sellerDeletedAt)))
+      .limit(1);
+    if (!listing) notFound();
+    linkedListing = listing;
+  }
   const cityRows = await db
     .select({ id: cities.id, name: cities.name })
     .from(cities)
@@ -42,6 +59,7 @@ export default async function InspectionPage() {
         team will review your request and contact you to confirm availability,
         service details and next steps.
       </p>
+      {linkedListing && <p className="mt-3 text-sm font-medium text-blue-800">For: {linkedListing.title}</p>}
 
       <section className="mt-8 rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-semibold text-slate-900">
@@ -51,7 +69,7 @@ export default async function InspectionPage() {
           Submitting this form is a request only. It does not schedule an
           inspector or collect payment.
         </p>
-        <InspectionForm cities={cityRows} />
+        <InspectionForm cities={cityRows} listingId={linkedListing?.id} />
       </section>
     </main>
   );
