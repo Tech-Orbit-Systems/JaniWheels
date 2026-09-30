@@ -123,6 +123,58 @@ test("dealer can register and reach the new dashboard", async ({ page, isMobile 
   await expect(page.getByText("Verification pending")).toBeVisible();
 });
 
+test("admin verification changes the public dealer badge and writes audit history", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const businessName = `Acceptance Motors ${device}`;
+  const [dealer] = await sql`
+    SELECT d.id, d.slug, d.user_id FROM dealers d JOIN users u ON u.id = d.user_id
+    WHERE u.email = ${`acceptance-dealer-${device}@example.invalid`}
+  `;
+  expect(dealer?.id).toBeGreaterThan(0);
+  const [beforeVerify] = await sql`
+    SELECT COUNT(*)::int AS count FROM moderation_log
+    WHERE user_id = ${dealer.user_id} AND action = 'dealer_verify'
+  `;
+  await page.goto("/login?next=/admin/dealers");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-admin@example.invalid");
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/admin\/dealers(?:\?|$)/);
+  const row = page.locator("li").filter({ has: page.getByRole("link", { name: businessName }) });
+  await row.getByRole("button", { name: "Verify dealer" }).click();
+  await expect.poll(async () => {
+    const [updated] = await sql`SELECT verified_at FROM dealers WHERE id = ${dealer.id}`;
+    return Boolean(updated.verified_at);
+  }).toBe(true);
+  const [verifiedAudit] = await sql`
+    SELECT COUNT(*)::int AS count FROM moderation_log
+    WHERE user_id = ${dealer.user_id} AND action = 'dealer_verify'
+  `;
+  expect(verifiedAudit.count).toBeGreaterThan(beforeVerify.count);
+  await page.goto(`/dealers/${dealer.slug}`);
+  await expect(page.getByText("Verified dealer", { exact: true })).toBeVisible();
+
+  await page.goto("/admin/dealers");
+  const verifiedRow = page.locator("li").filter({ has: page.getByRole("link", { name: businessName }) });
+  const [beforeRevoke] = await sql`
+    SELECT COUNT(*)::int AS count FROM moderation_log
+    WHERE user_id = ${dealer.user_id} AND action = 'dealer_revoke'
+  `;
+  await verifiedRow.getByPlaceholder("Revocation reason (required)").fill("Acceptance review reset");
+  await verifiedRow.getByRole("button", { name: "Revoke verification" }).click();
+  await expect.poll(async () => {
+    const [updated] = await sql`SELECT verified_at FROM dealers WHERE id = ${dealer.id}`;
+    return updated.verified_at;
+  }).toBeNull();
+  const [revokedAudit] = await sql`
+    SELECT COUNT(*)::int AS count FROM moderation_log
+    WHERE user_id = ${dealer.user_id} AND action = 'dealer_revoke'
+  `;
+  expect(revokedAudit.count).toBeGreaterThan(beforeRevoke.count);
+  await page.goto(`/dealers/${dealer.slug}`);
+  await expect(page.getByText("Verified dealer", { exact: true })).toHaveCount(0);
+});
+
 test("seller uploads a photo and publishes a car", async ({ page, isMobile }) => {
   const device = isMobile ? "mobile" : "desktop";
   await page.goto("/login?next=/sell");
