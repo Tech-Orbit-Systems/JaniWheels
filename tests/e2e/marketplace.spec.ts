@@ -92,6 +92,17 @@ test("seller uploads a photo and publishes a car", async ({ page, isMobile }) =>
   await page.getByLabel("Password").fill("AcceptanceOnly123!");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/sell(?:\?|$)/);
+  await expect.poll(async () => (await page.context().cookies()).some((cookie) => cookie.name === "jw_session")).toBe(true);
+
+  const cookies = await page.context().cookies();
+  const foreignUpload = await page.request.post("/api/upload", {
+    headers: {
+      origin: "https://foreign.example.invalid",
+      cookie: cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; "),
+    },
+    multipart: { files: { name: "foreign.png", mimeType: "image/png", buffer: Buffer.from("not an image") } },
+  });
+  expect(foreignUpload.status()).toBe(403);
 
   const car = page.locator("section").filter({ has: page.getByRole("heading", { name: "Which car?" }) });
   const make = car.locator("select").nth(0);

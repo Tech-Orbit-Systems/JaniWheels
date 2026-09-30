@@ -26,6 +26,15 @@ export async function POST(request: Request) {
   if (request.headers.get("sec-fetch-site") === "cross-site") {
     return NextResponse.json({ error: "Cross-site uploads are not allowed." }, { status: 403 });
   }
+  const origin = request.headers.get("origin");
+  const requestHost = request.headers.get("host") ?? new URL(request.url).host;
+  let originHost: string | null = null;
+  try {
+    if (origin) originHost = new URL(origin).host;
+  } catch { /* Invalid origins are rejected below. */ }
+  if (origin && originHost !== requestHost) {
+    return NextResponse.json({ error: "Cross-site uploads are not allowed." }, { status: 403 });
+  }
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > MAX_REQUEST_BYTES) {
     return NextResponse.json({ error: "Upload request is too large." }, { status: 413 });
