@@ -491,7 +491,7 @@ test("car detail links an inspection across sign-in and rejects a forged listing
   `;
   expect(car?.id).toBeGreaterThan(0);
   await page.goto(`/used-cars/${car.slug}-${car.id}`);
-  await page.getByRole("link", { name: "Book an inspection" }).click();
+  await page.getByRole("link", { name: "Request an inspection" }).click();
   await expect(page).toHaveURL(new RegExp(`/inspection\\?listingId=${car.id}$`));
   await expect(page.getByText(`For: ${car.title}`)).toBeVisible();
   await page.locator('select[name="cityId"]').selectOption({ index: 1 });

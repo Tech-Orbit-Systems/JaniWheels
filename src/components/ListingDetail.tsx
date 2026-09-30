@@ -336,14 +336,14 @@ export async function ListingDetail({
               Not sure about this one?
             </p>
             <p className="mt-1 text-xs text-blue-900">
-              Get an independent engineer to check it on 200+ points before you
-              hand over any money.
+              Ask about inspection availability and next steps before you
+              decide.
             </p>
             <Link
               href={`/inspection?listingId=${listing.id}`}
               className="mt-2 inline-block rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
             >
-              Book an inspection
+              Request an inspection
             </Link>
           </div>
         )}
