@@ -1,5 +1,7 @@
 import "server-only";
 
+import { captureAcceptanceEmailLink } from "./acceptance-sink";
+
 interface ResetEmail {
   to: string;
   name: string | null;
@@ -23,6 +25,7 @@ function escapeHtml(value: string): string {
  * a production email credential on a developer laptop.
  */
 export async function sendPasswordResetEmail(message: ResetEmail): Promise<void> {
+  if (await captureAcceptanceEmailLink("reset", message.to, message.resetUrl)) return;
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
 

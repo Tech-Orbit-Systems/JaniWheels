@@ -2,6 +2,7 @@ node_modules/
 .next/
 .next-build/
 .acceptance-uploads/
+.acceptance-mail/
 playwright-report/
 test-results/
 dev.log

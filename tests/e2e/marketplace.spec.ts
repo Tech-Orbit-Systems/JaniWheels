@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 import "dotenv/config";
+import { createHash } from "node:crypto";
+import { readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
 import postgres from "postgres";
 import sharp from "sharp";
 
@@ -9,6 +12,27 @@ if (!databaseUrl || !/(?:_test|_acceptance)$/.test(new URL(databaseUrl).pathname
 }
 const sql = postgres(databaseUrl, { max: 1 });
 test.afterAll(async () => { await sql.end(); });
+
+function capturedEmailPath(kind: "verification" | "reset", email: string): string {
+  const directory = process.env.ACCEPTANCE_EMAIL_DIR;
+  if (!directory) throw new Error("Acceptance browser tests require a local email capture directory");
+  const key = createHash("sha256").update(`${kind}:${email.toLowerCase()}`).digest("hex");
+  return join(directory, `${kind}-${key}.url`);
+}
+
+async function capturedEmailLink(kind: "verification" | "reset", email: string): Promise<string> {
+  const path = capturedEmailPath(kind, email);
+  await expect.poll(async () => {
+    try { return (await readFile(path, "utf8")).trim(); }
+    catch { return ""; }
+  }).toMatch(/^https?:\/\//);
+  return (await readFile(path, "utf8")).trim();
+}
+
+function localAcceptancePath(link: string): string {
+  const url = new URL(link);
+  return `${url.pathname}${url.search}`;
+}
 
 test("homepage search switches between all three marketplaces", async ({ page }) => {
   await page.goto("/");
@@ -87,7 +111,7 @@ test("invalid, banned and unverified credentials cannot create a session", async
   expect(sessions[0].count).toBe(0);
 });
 
-test("duplicate email registration is rejected without creating another user", async ({ page }) => {
+test("duplicate and invalid registrations do not create users", async ({ page, isMobile }) => {
   await page.goto("/login?mode=register");
   await page.getByLabel("Full name").fill("Duplicate Seller");
   await page.getByLabel("Email address").fill("acceptance-seller@example.invalid");
@@ -96,6 +120,117 @@ test("duplicate email registration is rejected without creating another user", a
   await expect(page.getByText("An account already exists with this email address.")).toBeVisible();
   const users = await sql`SELECT COUNT(*)::int AS count FROM users WHERE email = 'acceptance-seller@example.invalid'`;
   expect(users[0].count).toBe(1);
+
+  const invalidEmail = `acceptance-invalid-${isMobile ? "mobile" : "desktop"}@example.invalid`;
+  await page.goto("/login?mode=register");
+  await page.getByLabel("Full name").fill("A");
+  await page.getByLabel("Email address").fill(invalidEmail);
+  await page.getByLabel("Password").fill("short");
+  await page.getByRole("button", { name: "Create account with email" }).click();
+  await expect(page.getByText("Enter your full name.")).toBeVisible();
+  await expect(page.getByText("Use at least 10 characters.")).toBeVisible();
+  const [invalid] = await sql`SELECT count(*)::int AS count FROM users WHERE email = ${invalidEmail}`;
+  expect(invalid.count).toBe(0);
+});
+
+test("new email account verifies once before it can sign in", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const email = `acceptance-new-${device}@example.invalid`;
+  const password = "RegistrationOnly123!";
+  await rm(capturedEmailPath("verification", email), { force: true });
+  await page.goto("/login?mode=register&next=/dashboard");
+  await page.getByLabel("Full name").fill(`New buyer ${device}`);
+  await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Create account with email" }).click();
+  await expect(page.getByText("Check your email")).toBeVisible();
+  const [created] = await sql`SELECT id, email_verified_at, phone FROM users WHERE email = ${email}`;
+  expect(created).toMatchObject({ email_verified_at: null, phone: null });
+  const [before] = await sql`SELECT count(*)::int AS count FROM sessions WHERE user_id = ${created.id}`;
+  expect(before.count).toBe(0);
+  const link = await capturedEmailLink("verification", email);
+  expect(new URL(link).pathname).toBe("/verify-email");
+  const [token] = await sql`SELECT token_hash, used_at FROM email_verification_tokens WHERE user_id = ${created.id} ORDER BY id DESC LIMIT 1`;
+  expect(token.token_hash).toMatch(/^[a-f0-9]{64}$/);
+  expect(token.used_at).toBeNull();
+
+  await page.goto("/login");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText(/Verify your email before signing in/)).toBeVisible();
+  await page.goto(localAcceptancePath(link));
+  await page.getByRole("button", { name: "Verify email and continue" }).click();
+  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+  const [verified] = await sql`SELECT email_verified_at FROM users WHERE id = ${created.id}`;
+  expect(verified.email_verified_at).not.toBeNull();
+  const [used] = await sql`SELECT used_at FROM email_verification_tokens WHERE user_id = ${created.id} ORDER BY id DESC LIMIT 1`;
+  expect(used.used_at).not.toBeNull();
+
+  await page.context().clearCookies();
+  await page.goto(localAcceptancePath(link));
+  await page.getByRole("button", { name: "Verify email and continue" }).click();
+  await expect(page.getByText("This verification link is invalid or has expired.")).toBeVisible();
+  await sql`UPDATE email_verification_tokens SET used_at = NULL, expires_at = NOW() - INTERVAL '1 minute' WHERE token_hash = ${token.token_hash}`;
+  await page.goto(localAcceptancePath(link));
+  await page.getByRole("button", { name: "Verify email and continue" }).click();
+  await expect(page.getByText("This verification link is invalid or has expired.")).toBeVisible();
+});
+
+test("password reset link is single use and revokes existing sessions", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const email = `acceptance-reset-${device}@example.invalid`;
+  const oldPassword = "AcceptanceOnly123!";
+  const newPassword = "ResetAcceptanceOnly123!";
+  await rm(capturedEmailPath("reset", email), { force: true });
+  const [account] = await sql`SELECT id FROM users WHERE email = ${email}`;
+  await page.goto("/login?next=/dashboard");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill(oldPassword);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+  await page.goto("/forgot-password");
+  await page.getByLabel("Account email").fill(email);
+  await page.getByRole("button", { name: "Send reset link" }).click();
+  await expect(page.getByText("Check your email")).toBeVisible();
+  const link = await capturedEmailLink("reset", email);
+  expect(new URL(link).pathname).toBe("/reset-password");
+  const [token] = await sql`SELECT token_hash, used_at FROM password_reset_tokens WHERE user_id = ${account.id} ORDER BY id DESC LIMIT 1`;
+  expect(token.token_hash).toMatch(/^[a-f0-9]{64}$/);
+  expect(token.used_at).toBeNull();
+  const [before] = await sql`SELECT count(*)::int AS count FROM sessions WHERE user_id = ${account.id}`;
+  expect(before.count).toBeGreaterThan(0);
+
+  await page.goto(localAcceptancePath(link));
+  await page.getByLabel("New password", { exact: true }).fill(newPassword);
+  await page.getByLabel("Confirm new password").fill(newPassword);
+  await page.getByRole("button", { name: "Set new password" }).click();
+  await expect(page).toHaveURL(/\/login\?reset=success$/);
+  const [revoked] = await sql`SELECT count(*)::int AS count FROM sessions WHERE user_id = ${account.id}`;
+  expect(revoked.count).toBe(0);
+  const [used] = await sql`SELECT used_at FROM password_reset_tokens WHERE user_id = ${account.id} ORDER BY id DESC LIMIT 1`;
+  expect(used.used_at).not.toBeNull();
+
+  await page.goto(localAcceptancePath(link));
+  await page.getByLabel("New password", { exact: true }).fill(newPassword);
+  await page.getByLabel("Confirm new password").fill(newPassword);
+  await page.getByRole("button", { name: "Set new password" }).click();
+  await expect(page.getByText("This reset link is invalid or has expired.")).toBeVisible();
+  await sql`UPDATE password_reset_tokens SET used_at = NULL, expires_at = NOW() - INTERVAL '1 minute' WHERE token_hash = ${token.token_hash}`;
+  await page.goto(localAcceptancePath(link));
+  await page.getByLabel("New password", { exact: true }).fill(newPassword);
+  await page.getByLabel("Confirm new password").fill(newPassword);
+  await page.getByRole("button", { name: "Set new password" }).click();
+  await expect(page.getByText("This reset link is invalid or has expired.")).toBeVisible();
+  await page.goto("/login");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill(oldPassword);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("Incorrect email, mobile number or password.")).toBeVisible();
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill(newPassword);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("admin can sign in and open moderation", async ({ page }) => {

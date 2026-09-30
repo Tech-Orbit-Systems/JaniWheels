@@ -15,8 +15,15 @@ const key = await scrypt("AcceptanceOnly123!", salt, 64) as Buffer;
 const passwordHash = `scrypt:${salt}:${key.toString("base64url")}`;
 const sql = postgres(url, { max: 1 });
 try {
-  for (const [role, admin] of [["seller", false], ["seller-desktop", false], ["seller-mobile", false], ["dealer-desktop", false], ["dealer-mobile", false], ["admin", true], ["unverified", false], ["banned", false]] as const) {
+  for (const device of ["desktop", "mobile"] as const) {
+    await sql`DELETE FROM users WHERE email = ${`acceptance-new-${device}@example.invalid`}`;
+  }
+  for (const [role, admin] of [["seller", false], ["seller-desktop", false], ["seller-mobile", false], ["reset-desktop", false], ["reset-mobile", false], ["dealer-desktop", false], ["dealer-mobile", false], ["admin", true], ["unverified", false], ["banned", false]] as const) {
     const email = `acceptance-${role}@example.invalid`;
+    if (role.startsWith("reset-")) {
+      await sql`DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE email = ${email})`;
+      await sql`DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email = ${email})`;
+    }
     if (role.startsWith("seller-")) {
       await sql`DELETE FROM inspections WHERE requested_by_user_id IN (SELECT id FROM users WHERE email = ${email})`;
       await sql`DELETE FROM sell_assistance_requests WHERE requested_by_user_id IN (SELECT id FROM users WHERE email = ${email})`;

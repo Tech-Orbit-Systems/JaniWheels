@@ -16,6 +16,7 @@ const env = {
   NEXT_DIST_DIR: ".next-build",
   IMAGE_PROVIDER: "local",
   UPLOAD_DIR: resolve(".acceptance-uploads"),
+  ACCEPTANCE_EMAIL_DIR: resolve(".acceptance-mail"),
   ACCEPTANCE_BASE_URL: base,
   SWEEP_BASE: base,
 };
