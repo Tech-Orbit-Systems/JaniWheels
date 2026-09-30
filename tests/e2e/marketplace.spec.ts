@@ -237,6 +237,64 @@ test("seller publishes an auto part with a photo", async ({ page, isMobile }) =>
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });
 
+test("another seller cannot open a private listing edit page", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const [car] = await sql`
+    SELECT l.id FROM listings l JOIN users u ON u.id = l.seller_id
+    WHERE u.email = ${`acceptance-seller-${device}@example.invalid`} AND l.vertical = 'car'
+    ORDER BY l.id DESC LIMIT 1
+  `;
+  expect(car?.id).toBeGreaterThan(0);
+  await page.goto("/login?next=/dashboard");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-seller@example.invalid");
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+  await expect.poll(async () => (await page.context().cookies()).some((cookie) => cookie.name === "jw_session")).toBe(true);
+  await page.goto(`/dashboard/listings/${car.id}/edit`);
+  await expect(page.getByText("This page could not be found.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save advertisement changes" })).toHaveCount(0);
+});
+
+test("owner edits a car and deletes a bike with its photos", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const email = `acceptance-seller-${device}@example.invalid`;
+  const own = await sql`
+    SELECT l.id, l.vertical, l.slug FROM listings l JOIN users u ON u.id = l.seller_id
+    WHERE u.email = ${email} AND l.vertical IN ('car', 'bike')
+    ORDER BY l.id DESC
+  `;
+  const car = own.find((row) => row.vertical === "car");
+  const bike = own.find((row) => row.vertical === "bike");
+  expect(car?.id).toBeGreaterThan(0);
+  expect(bike?.id).toBeGreaterThan(0);
+  const [photo] = await sql`SELECT storage_key FROM listing_images WHERE listing_id = ${bike!.id} ORDER BY position LIMIT 1`;
+  expect(photo?.storage_key).toBeTruthy();
+
+  await page.goto(`/login?next=/dashboard/listings/${car!.id}/edit`);
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(new RegExp(`/dashboard/listings/${car!.id}/edit`));
+  await page.locator('input[name="pricePkr"]').fill("3650000");
+  await page.getByRole("button", { name: "Save advertisement changes" }).click();
+  await expect(page).toHaveURL(/\/dashboard\?updated=1/);
+  const [edited] = await sql`SELECT price_pkr, status FROM listings WHERE id = ${car!.id}`;
+  expect(edited).toMatchObject({ price_pkr: 3650000, status: "active" });
+
+  const bikeRow = page.locator("li").filter({ has: page.locator(`a[href="/dashboard/listings/${bike!.id}/edit"]`) });
+  await bikeRow.getByRole("button", { name: "Delete ad" }).click();
+  await bikeRow.getByRole("button", { name: "Yes, delete" }).click();
+  await expect.poll(async () => {
+    const [row] = await sql`SELECT status, seller_deleted_at FROM listings WHERE id = ${bike!.id}`;
+    return row?.status === "removed" && Boolean(row.seller_deleted_at);
+  }).toBe(true);
+  const images = await sql`SELECT id FROM listing_images WHERE listing_id = ${bike!.id}`;
+  expect(images).toHaveLength(0);
+  expect((await page.request.get(`/used-bikes/${bike!.slug}-${bike!.id}`)).status()).toBe(404);
+  expect((await page.request.get(`/uploads/${photo.storage_key}`)).status()).toBe(404);
+});
+
 test("anonymous buyer reveals a seller number and records a lead", async ({ page, isMobile }) => {
   const rows = await sql`
     SELECT id, slug, lead_count FROM listings
