@@ -148,7 +148,7 @@ export async function ListingDetail({
                 className="object-cover"
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-slate-400">
+              <div className="flex h-full items-center justify-center text-slate-600">
                 No photos
               </div>
             )}
@@ -253,7 +253,7 @@ export async function ListingDetail({
                       <p className="mt-0.5 text-sm font-semibold text-slate-900">
                         {formatPkrExact(s.pricePkr)}
                       </p>
-                      <p className="text-xs text-slate-400">{s.cityName}</p>
+                      <p className="text-xs text-slate-600">{s.cityName}</p>
                     </div>
                   </Link>
                 </li>
@@ -313,7 +313,7 @@ export async function ListingDetail({
             </p>
           </div>
 
-          <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
+          <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-600">
             Ad ref #{listing.id} · updated {relativeTime(listing.updatedAt)}
           </p>
 

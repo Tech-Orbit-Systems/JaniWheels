@@ -4,6 +4,7 @@ import axe from "axe-core";
 const PUBLIC_ROUTES = [
   "/", "/used-cars", "/used-bikes", "/auto-parts", "/dealers",
   "/inspection", "/sell-my-car", "/login", "/contact", "/privacy",
+  "/about", "/safety", "/terms", "/compare",
 ];
 
 async function scanPage(page: Page) {
@@ -50,7 +51,7 @@ test("seller pages pass automated accessibility checks", async ({ page, context,
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
 
-  for (const route of ["/dashboard", "/dashboard/profile", "/dashboard/saved", "/sell", "/sell/bike", "/sell/part", "/dealers/register"]) {
+  for (const route of ["/dashboard", "/dashboard/profile", "/dashboard/saved", "/dashboard/saved-searches", "/dashboard/inspections", "/dashboard/sell-assistance", "/sell", "/sell/bike", "/sell/part", "/dealers/register"]) {
     const protectedPage = await context.newPage();
     try {
       const response = await protectedPage.goto(route, { waitUntil: "load" });
@@ -59,6 +60,26 @@ test("seller pages pass automated accessibility checks", async ({ page, context,
       expect(await scanPage(protectedPage), route).toEqual([]);
     } finally {
       await protectedPage.close();
+    }
+  }
+});
+
+test("vehicle-detail pages pass automated accessibility checks", async ({ context }) => {
+  test.setTimeout(180_000);
+  await context.addInitScript({ content: axe.source });
+  for (const route of ["/used-cars", "/used-bikes", "/auto-parts"]) {
+    const page = await context.newPage();
+    try {
+      await page.goto(route, { waitUntil: "domcontentloaded" });
+      const detailPath = await page.locator("li.group > a").first().getAttribute("href");
+      expect(detailPath, route).toBeTruthy();
+      const response = await page.goto(detailPath!, { waitUntil: "domcontentloaded" });
+      expect(response?.status(), detailPath!).toBe(200);
+      await expect(page.getByRole("main")).toBeVisible();
+      await expect(page.locator("h1").first()).toBeVisible();
+      expect(await scanPage(page), detailPath!).toEqual([]);
+    } finally {
+      await page.close();
     }
   }
 });
