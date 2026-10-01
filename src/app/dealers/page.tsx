@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { dealers } from "@/db/schema/users";
 import { cities } from "@/db/schema/geo";
 import { listings } from "@/db/schema/listings";
-import { abs, breadcrumbJsonLd } from "@/lib/seo/jsonld";
+import { abs, breadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 export const revalidate = 3600;
@@ -60,7 +60,7 @@ export default async function DealersIndexPage() {
     <main className="mx-auto w-full max-w-7xl px-4 py-6">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd(crumbs)) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd(crumbs)) }}
       />
 
       <Breadcrumbs crumbs={crumbs} />

@@ -191,6 +191,26 @@ test("public browse pages and unknown facet policy", async ({ page, request }) =
   expect(unknown.status()).toBe(404);
 });
 
+test("active parts detail exposes classified Product markup", async ({ page }) => {
+  const [part] = await sql`
+    SELECT l.id, l.slug, l.title, l.price_pkr, p.condition
+    FROM listings l JOIN part_details p ON p.listing_id = l.id
+    WHERE l.vertical = 'part' AND l.status = 'active'
+    ORDER BY l.id LIMIT 1
+  `;
+  expect(part?.id).toBeGreaterThan(0);
+  await page.goto(`/auto-parts/${part.slug}-${part.id}`);
+  const schemas = await page.locator('script[type="application/ld+json"]').allTextContents();
+  const product = schemas.map((json) => JSON.parse(json)).find((schema) => schema["@type"] === "Product");
+  expect(product).toMatchObject({
+    "@id": page.url(),
+    name: part.title,
+    offers: { "@type": "Offer", price: part.price_pkr, priceCurrency: "PKR" },
+  });
+  expect(product.offers.itemCondition).toBe(`https://schema.org/${{ new: "NewCondition", used: "UsedCondition", refurbished: "RefurbishedCondition" }[part.condition as "new" | "used" | "refurbished"]}`);
+  expect(product.offers).not.toHaveProperty("shippingDetails");
+});
+
 test("seller and admin areas require sign-in", async ({ page }) => {
   for (const path of ["/sell", "/dashboard", "/dealers/register", "/admin/moderation"]) {
     await page.goto(path);

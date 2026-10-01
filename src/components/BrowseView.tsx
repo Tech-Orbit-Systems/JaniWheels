@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { buildPath, type FacetState } from "@/lib/seo/facets";
 import { decideIndexation } from "@/lib/seo/indexation";
-import { breadcrumbJsonLd, facetPageTitle, itemListJsonLd } from "@/lib/seo/jsonld";
+import { breadcrumbJsonLd, facetPageTitle, itemListJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { searchListings } from "@/lib/listings/search";
 import { buildListingPath } from "@/lib/listings/slug";
 import { ListingCard } from "./ListingCard";
@@ -77,12 +77,12 @@ export async function BrowseView({
     <main className="mx-auto w-full max-w-7xl px-4 py-6">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd(crumbs)) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd(crumbs)) }}
       />
       {decision.inSitemap && listingUrls.length > 0 && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd(listingUrls)) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(itemListJsonLd(listingUrls)) }}
         />
       )}
 

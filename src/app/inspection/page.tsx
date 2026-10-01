@@ -4,7 +4,7 @@ import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { cities } from "@/db/schema/geo";
 import { listings } from "@/db/schema/listings";
-import { abs } from "@/lib/seo/jsonld";
+import { abs, serializeJsonLd } from "@/lib/seo/jsonld";
 import { InspectionForm } from "./InspectionForm";
 
 export const metadata: Metadata = {
@@ -41,7 +41,7 @@ export default async function InspectionPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
+          __html: serializeJsonLd({
             "@context": "https://schema.org",
             "@type": "Service",
             name: "Vehicle Inspection Request",

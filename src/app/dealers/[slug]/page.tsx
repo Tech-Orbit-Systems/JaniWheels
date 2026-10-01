@@ -8,7 +8,7 @@ import { listings, listingImages } from "@/db/schema/listings";
 import { cities } from "@/db/schema/geo";
 import { makes, models } from "@/db/schema/taxonomy";
 import { ListingCard } from "@/components/ListingCard";
-import { abs, breadcrumbJsonLd } from "@/lib/seo/jsonld";
+import { abs, breadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { PAGE_SIZE } from "@/lib/listings/search";
 import { displayPkPhone } from "@/lib/format";
 import { imageDeliveryUrl } from "@/lib/images/url";
@@ -120,7 +120,7 @@ export default async function DealerPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
+          __html: serializeJsonLd({
             "@context": "https://schema.org",
             "@type": "AutoDealer",
             name: dealer.businessName,
@@ -137,7 +137,7 @@ export default async function DealerPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbJsonLd(crumbs)),
+          __html: serializeJsonLd(breadcrumbJsonLd(crumbs)),
         }}
       />
 
