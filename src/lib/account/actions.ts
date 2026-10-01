@@ -20,14 +20,14 @@ export interface AccountFormState {
 
 const profileSchema = z.object({
   name: z.string().trim().min(2, "Enter your full name.").max(100, "Name is too long."),
-  phone: z.string().trim().max(20),
-  currentPassword: z.string().max(128).optional(),
+  phone: z.string().trim().max(20, "Phone number is too long."),
+  currentPassword: z.string().max(128, "Password is too long.").optional(),
 });
 
 const passwordSchema = z.object({
-  currentPassword: z.string().min(1, "Enter your current password.").max(128),
+  currentPassword: z.string().min(1, "Enter your current password.").max(128, "Password is too long."),
   newPassword: z.string().min(10, "Use at least 10 characters.").max(128, "Password is too long."),
-  confirmPassword: z.string().max(128),
+  confirmPassword: z.string().max(128, "Password is too long."),
 });
 
 function fieldIssues(error: z.ZodError): Record<string, string> {

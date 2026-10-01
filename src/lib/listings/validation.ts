@@ -27,13 +27,13 @@ function validateCoordinatePair(data: { exactLatitude?: number; exactLongitude?:
 }
 
 export const carListingSchema = z.object({
-  variantId: z.number().int().positive({
+  variantId: z.number().int("Choose the exact variant.").positive({
     message: "Choose the exact variant — it's what powers price comparisons.",
   }).optional(),
   customMakeName: adLocalLabel,
   customModelName: adLocalLabel,
   customVariantName: adLocalLabel,
-  cityId: z.number().int().positive("Choose a city."),
+  cityId: z.number().int("Choose a city.").positive("Choose a city."),
   areaId: z.number().int("Choose a valid area.").positive("Choose a valid area.").optional(),
   customCityName: adLocalLabel,
   customAreaName: adLocalLabel,
@@ -100,7 +100,7 @@ export type CarListingInput = z.infer<typeof carListingSchema>;
 
 export const bikeListingSchema = z
   .object({
-    variantId: z.number().int().positive("Choose the exact bike variant.").optional(),
+    variantId: z.number().int("Choose the exact bike variant.").positive("Choose the exact bike variant.").optional(),
     customMakeName: adLocalLabel,
     customModelName: adLocalLabel,
     customVariantName: adLocalLabel,
@@ -117,7 +117,7 @@ export const bikeListingSchema = z
     ]),
     condition: z.enum(["new", "used"], { message: "Choose the bike condition." }),
     isElectric: z.boolean(),
-    cityId: z.number().int().positive("Choose a city."),
+    cityId: z.number().int("Choose a city.").positive("Choose a city."),
     areaId: z.number().int("Choose a valid area.").positive("Choose a valid area.").optional(),
     customCityName: adLocalLabel,
     customAreaName: adLocalLabel,
@@ -130,11 +130,11 @@ export const bikeListingSchema = z
     assembly: z.enum(["local", "imported"], { message: "Choose local or imported assembly." }),
     color: z.string().trim().min(2, "Enter at least 2 characters for the color.").max(40, "Keep the color under 40 characters.").optional(),
     hasDocuments: z.boolean().default(true),
-    ignitionType: z.enum(["kick", "self", "kick-and-self"]).optional(),
-    engineType: z.enum(["two-stroke", "four-stroke"]).optional(),
+    ignitionType: z.enum(["kick", "self", "kick-and-self"], { message: "Choose a valid ignition type." }).optional(),
+    engineType: z.enum(["two-stroke", "four-stroke"], { message: "Choose a valid engine type." }).optional(),
     numberOfGears: z.number().int("Enter a whole gear count.").min(1, "Enter at least 1 gear.").max(8, "Gear count looks too high.").optional(),
     motorPowerWatts: z.number().int("Enter whole watts.").min(250, "Motor power looks too low.").max(50_000, "Motor power looks too high.").optional(),
-    batteryType: z.enum(["lead-acid", "graphene", "lithium-ion", "lfp", "other"]).optional(),
+    batteryType: z.enum(["lead-acid", "graphene", "lithium-ion", "lfp", "other"], { message: "Choose a valid battery type." }).optional(),
     batteryVoltage: z.number().int("Enter whole volts.").min(24, "Battery voltage looks too low.").max(120, "Battery voltage looks too high.").optional(),
     batteryCapacityAh: z.number().int("Enter whole amp hours.").min(5, "Battery capacity looks too low.").max(300, "Battery capacity looks too high.").optional(),
     claimedRangeKm: z.number().int("Enter whole kilometres.").min(5, "Range looks too low.").max(500, "Range looks too high.").optional(),
@@ -178,7 +178,7 @@ export type BikeListingInput = z.infer<typeof bikeListingSchema>;
 /** Validation for an Auto Parts advertisement. Categories and compatible
  * vehicles are controlled records, so buyers can reliably filter later. */
 export const partListingSchema = z.object({
-  categoryId: z.number().int().positive("Choose the most specific part category."),
+  categoryId: z.number().int("Choose the most specific part category.").positive("Choose the most specific part category."),
   condition: z.enum(["new", "used", "refurbished"], {
     message: "Choose the part condition.",
   }),
@@ -193,11 +193,11 @@ export const partListingSchema = z.object({
   customCompatibleModelName: adLocalLabel,
   compatibleYearFrom: z.number().int("Enter a whole starting year.").min(1970, "Starting year looks too old.").max(CURRENT_YEAR + 1, "Starting year cannot be in the future.").optional(),
   compatibleYearTo: z.number().int("Enter a whole ending year.").min(1970, "Ending year looks too old.").max(CURRENT_YEAR + 1, "Ending year cannot be in the future.").optional(),
-  position: z.enum(["front", "rear", "left", "right", "front-left", "front-right", "rear-left", "rear-right", "not-applicable"]).optional(),
+  position: z.enum(["front", "rear", "left", "right", "front-left", "front-right", "rear-left", "rear-right", "not-applicable"], { message: "Choose a valid part position." }).optional(),
   deliveryOption: z.enum(["pickup", "courier", "pickup-or-courier"], { message: "Choose a delivery option." }),
   warrantyMonths: z.number().int("Enter whole months.").min(0, "Warranty cannot be negative.").max(120, "Warranty looks too long.").optional(),
   stockQty: z.number().int("Enter a whole stock quantity.").min(1, "Stock must be at least 1.").max(10_000, "Stock quantity looks too high."),
-  cityId: z.number().int().positive("Choose a city."),
+  cityId: z.number().int("Choose a city.").positive("Choose a city."),
   areaId: z.number().int("Choose a valid area.").positive("Choose a valid area.").optional(),
   customCityName: adLocalLabel,
   customAreaName: adLocalLabel,

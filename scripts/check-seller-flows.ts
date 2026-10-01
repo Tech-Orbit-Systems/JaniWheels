@@ -47,6 +47,8 @@ const checks = [
   ["duplicate upload key rejected", !partListingSchema.safeParse({ ...validPart, imageKeys: [imageKeys[0], imageKeys[0]] }).success],
   ["car price bound explains correction", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, pricePkr: 10_000 }), "pricePkr", "Price looks too low.")],
   ["car year requires a whole number", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, year: 2008.5 }), "year", "Enter a whole model year.")],
+  ["car city requires a whole ID", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, cityId: 1.5 }), "cityId", "Choose a city.")],
+  ["car variant requires a whole ID", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, variantId: 1.5 }), "variantId", "Choose the exact variant.")],
   ["car photo limit explains correction", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, imageKeys: Array.from({ length: 31 }, (_, n) => `202608/${n.toString(16).padStart(32, "0")}.webp`) }), "imageKeys", "Add no more than 30 photos.")],
   ["registered car details accepted", carListingSchema.safeParse({ ...validCustomCar, registeredCityId: 1, lastTokenPaidYear: 2025, hasAuctionSheet: true, auctionGrade: "4.5" }).success],
   ["unregistered car rejects registration city", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, isUnregistered: true, registeredCityId: 1 }), "registeredCityId", "Remove the registration city for an unregistered car.")],

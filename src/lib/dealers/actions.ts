@@ -22,7 +22,7 @@ export interface DealerFormState {
 
 const registerSchema = z.object({
   businessName: z.string().trim().min(3, "Business name is too short.").max(120, "Business name is too long."),
-  cityId: z.number().int().positive("Choose a city."),
+  cityId: z.number().int("Choose a city.").positive("Choose a city."),
   address: z.string().trim().max(240, "Address is too long.").optional(),
   landline: z.string().trim().max(30, "Landline is too long.").optional(),
   whatsapp: z.string().trim().max(30, "WhatsApp number is too long.").optional(),

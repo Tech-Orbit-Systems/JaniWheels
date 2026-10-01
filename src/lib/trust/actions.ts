@@ -170,8 +170,8 @@ export async function reportListingAction(
 // ---------------------------------------------------------------------------
 
 const inspectionSchema = z.object({
-  cityId: z.number().int().positive("Choose a city."),
-  address: z.string().trim().min(5, "Where should the inspector go?").max(240),
+  cityId: z.number().int("Choose a city.").positive("Choose a city."),
+  address: z.string().trim().min(5, "Where should the inspector go?").max(240, "Address is too long."),
   // Every constraint needs its own message. Without one Zod emits its raw
   // internal text ("String must contain at least 10 character(s)") straight
   // into the UI, which reads like a crash rather than a correction.
