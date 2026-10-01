@@ -61,7 +61,7 @@ export function VehicleFilters({ state, makes, cities, features }: {
   return <aside className="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
     <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between gap-3 p-4 text-left sm:p-5" aria-expanded={open}>
       <span className="flex items-center gap-2"><span className="flex size-9 items-center justify-center rounded-lg bg-amber-100 text-[#a97700]"><SlidersHorizontal size={18} /></span><span><strong className="block text-slate-950">Find the right {bike ? "bike" : "car"}</strong><span className="text-xs text-slate-500">Make, model, location, price and specifications</span></span></span>
-      <span className="text-sm font-bold text-[#a97700]">{open ? "Hide" : "Show filters"}</span>
+      <span className="text-sm font-bold text-[#805a00]">{open ? "Hide" : "Show filters"}</span>
     </button>
     {open && <form onSubmit={submit} className="space-y-4 border-t border-slate-100 p-4 sm:p-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

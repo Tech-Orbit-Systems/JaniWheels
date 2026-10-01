@@ -264,13 +264,15 @@ export function SellForm({
       </Section>
 
       <Section title="Photos" hint="Listings without photos barely sell. Six or more is ideal.">
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={(e) => upload(e.target.files)}
-          className="block w-full text-sm text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-medium"
-        />
+        <label className="block text-sm font-medium text-slate-700">Choose car photos
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => upload(e.target.files)}
+            className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-medium"
+          />
+        </label>
         {uploading && <p className="mt-2 text-sm text-slate-500">Uploading…</p>}
         {uploadError && <p role="alert" className="mt-2 text-sm text-red-600">{uploadError}</p>}
         {err("imageKeys") && <p role="alert" className="mt-2 text-sm text-red-600">{err("imageKeys")}</p>}
@@ -351,8 +353,10 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700">{label}</label>
-      <div className="mt-1">{children}</div>
+      <label className="block">
+        <span className="block text-sm font-medium text-slate-700">{label}</span>
+        <span className="mt-1 block">{children}</span>
+      </label>
       {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
       {error && <p role="alert" className="mt-1 text-xs text-red-600">{error}</p>}
     </div>

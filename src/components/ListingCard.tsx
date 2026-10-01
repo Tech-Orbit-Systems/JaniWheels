@@ -80,7 +80,7 @@ export function ListingCard({
             {specs.join(" · ")}
           </p>
 
-          <p className="mt-2 flex items-center justify-between text-xs text-slate-400">
+          <p className="mt-2 flex items-center justify-between text-xs text-slate-600">
             <span>{row.cityName}</span>
             {row.publishedAt && <span>{relativeTime(row.publishedAt)}</span>}
           </p>

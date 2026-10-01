@@ -104,8 +104,10 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700">{label}</label>
-      <div className="mt-1">{children}</div>
+      <label className="block">
+        <span className="block text-sm font-medium text-slate-700">{label}</span>
+        <span className="mt-1 block">{children}</span>
+      </label>
       {error && <p role="alert" className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

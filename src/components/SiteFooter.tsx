@@ -70,7 +70,7 @@ export function SiteFooter({ siteName }: { siteName: string }) {
       </div>
 
       <div className="border-t border-white/10">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-zinc-300 sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} {siteName}. All rights reserved.</p>
           <p>
             Developed by{" "}
