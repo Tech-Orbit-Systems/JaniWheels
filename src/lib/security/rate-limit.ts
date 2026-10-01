@@ -5,6 +5,8 @@ import { db } from "@/db";
 import { rateLimitBuckets } from "@/db/schema/security";
 
 const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
 
 export const AUTH_LIMITS = {
   signIn: { max: 10, windowMs: 15 * MINUTE },
@@ -12,6 +14,15 @@ export const AUTH_LIMITS = {
   register: { max: 5, windowMs: 60 * MINUTE },
   emailRequest: { max: 5, windowMs: 60 * MINUTE },
   tokenAction: { max: 20, windowMs: 15 * MINUTE },
+} as const;
+
+export const ACCOUNT_LIMITS = {
+  profile: { max: 30, windowMs: HOUR },
+  password: { max: 10, windowMs: HOUR },
+  avatar: { max: 10, windowMs: DAY },
+  dealerRegistration: { max: 5, windowMs: DAY },
+  dealerProfile: { max: 30, windowMs: HOUR },
+  dealerLogo: { max: 10, windowMs: DAY },
 } as const;
 
 function secret(): string {
@@ -101,4 +112,12 @@ export async function allowPublicAction(
     max: limit.sourceMax, windowMs: limit.windowMs,
   });
   return identityAllowed && sourceAllowed;
+}
+
+export async function allowAccountAction(
+  scope: string,
+  accountId: number,
+  limit: { max: number; windowMs: number },
+): Promise<boolean> {
+  return consumeRateLimit({ scope: `account:${scope}`, subject: `user:${accountId}`, ...limit });
 }

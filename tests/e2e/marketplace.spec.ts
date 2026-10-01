@@ -47,6 +47,88 @@ async function fillRateBucket(scope: string, subject: string, hits: number, wind
     ON CONFLICT (key) DO UPDATE SET hits = EXCLUDED.hits`;
 }
 
+test("account-settings limits reject profile, password and photo writes", async ({ page, isMobile }) => {
+  const email = `acceptance-seller-${isMobile ? "mobile" : "desktop"}@example.invalid`;
+  const [before] = await sql`SELECT id, name, password_hash, avatar_url FROM users WHERE email = ${email}`;
+  expect(before?.id).toBeGreaterThan(0);
+  const limits = [
+    ["account:profile", 30, 60 * 60_000],
+    ["account:password", 10, 60 * 60_000],
+    ["account:avatar", 10, 24 * 60 * 60_000],
+  ] as const;
+  for (const [scope, hits, windowMs] of limits) {
+    await fillRateBucket(scope, `user:${before.id}`, hits, windowMs);
+  }
+  try {
+    await page.goto("/login?next=/dashboard/profile");
+    await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+    await page.getByLabel("Password").fill("AcceptanceOnly123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL(/\/dashboard\/profile(?:\?|$)/);
+
+    await page.getByLabel("Full name").fill("Rejected profile update");
+    await page.getByRole("button", { name: "Save profile" }).click();
+    await expect(page.getByText("Too many profile changes. Try again later.")).toBeVisible();
+
+    await page.locator('input[name="currentPassword"]').last().fill("AcceptanceOnly123!");
+    await page.getByLabel("New password", { exact: true }).fill("RejectedPassword123!");
+    await page.getByLabel("Confirm new password").fill("RejectedPassword123!");
+    await page.getByRole("button", { name: "Change password" }).click();
+    await expect(page.getByText("Too many password attempts. Try again later.")).toBeVisible();
+
+    const image = await sharp({ create: { width: 24, height: 24, channels: 3, background: "#557799" } }).png().toBuffer();
+    await page.getByLabel("Choose profile photo").setInputFiles({ name: "profile.png", mimeType: "image/png", buffer: image });
+    await page.getByRole("button", { name: "Upload photo" }).click();
+    await expect(page.getByText("Too many photo uploads. Try again later.")).toBeVisible();
+
+    const [after] = await sql`SELECT name, password_hash, avatar_url FROM users WHERE id = ${before.id}`;
+    expect(after).toMatchObject({ name: before.name, password_hash: before.password_hash, avatar_url: before.avatar_url });
+  } finally {
+    for (const [scope, , windowMs] of limits) {
+      await sql`DELETE FROM rate_limit_buckets WHERE key = ${rateKey(scope, `user:${before.id}`, windowMs)}`;
+    }
+  }
+});
+
+test("dealer setting limits reject profile and logo writes", async ({ page, isMobile }) => {
+  const email = `acceptance-a11y-dealer-${isMobile ? "mobile" : "desktop"}@example.invalid`;
+  const [before] = await sql`
+    SELECT d.id, d.business_name, d.logo_url, u.id AS user_id
+    FROM dealers d JOIN users u ON u.id = d.user_id WHERE u.email = ${email}
+  `;
+  expect(before?.id).toBeGreaterThan(0);
+  const limits = [
+    ["account:dealer-profile", 30, 60 * 60_000],
+    ["account:dealer-logo", 10, 24 * 60 * 60_000],
+  ] as const;
+  for (const [scope, hits, windowMs] of limits) {
+    await fillRateBucket(scope, `user:${before.user_id}`, hits, windowMs);
+  }
+  try {
+    await page.goto("/login?next=/dashboard/dealer/settings");
+    await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+    await page.getByLabel("Password").fill("AcceptanceOnly123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL(/\/dashboard\/dealer\/settings(?:\?|$)/);
+
+    await page.getByLabel("Business name").fill("Rejected dealer profile");
+    await page.getByRole("button", { name: "Save dealer profile" }).click();
+    await expect(page.getByText("Too many dealer profile changes. Try again later.")).toBeVisible();
+
+    const image = await sharp({ create: { width: 24, height: 24, channels: 3, background: "#557799" } }).png().toBuffer();
+    await page.getByLabel("Choose dealer logo").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: image });
+    await page.getByRole("button", { name: "Upload logo" }).click();
+    await expect(page.getByText("Too many logo uploads. Try again later.")).toBeVisible();
+
+    const [after] = await sql`SELECT business_name, logo_url FROM dealers WHERE id = ${before.id}`;
+    expect(after).toMatchObject({ business_name: before.business_name, logo_url: before.logo_url });
+  } finally {
+    for (const [scope, , windowMs] of limits) {
+      await sql`DELETE FROM rate_limit_buckets WHERE key = ${rateKey(scope, `user:${before.user_id}`, windowMs)}`;
+    }
+  }
+});
+
 test("homepage search switches between all three marketplaces", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();

@@ -11,6 +11,7 @@ import { normalizePkPhone } from "@/lib/format";
 import { removeStoredImage, storeImage } from "@/lib/images/storage";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createSession, getCurrentUser } from "@/lib/auth/session";
+import { ACCOUNT_LIMITS, allowAccountAction } from "@/lib/security/rate-limit";
 
 export interface AccountFormState {
   success?: string;
@@ -60,6 +61,9 @@ export async function updateProfileAction(
   formData: FormData,
 ): Promise<AccountFormState> {
   const account = await requireAccount();
+  if (!(await allowAccountAction("profile", account.id, ACCOUNT_LIMITS.profile))) {
+    return { error: "Too many profile changes. Try again later." };
+  }
   const parsed = profileSchema.safeParse({
     name: formData.get("name"),
     phone: formData.get("phone"),
@@ -106,6 +110,9 @@ export async function changePasswordAction(
   formData: FormData,
 ): Promise<AccountFormState> {
   const account = await requireAccount();
+  if (!(await allowAccountAction("password", account.id, ACCOUNT_LIMITS.password))) {
+    return { error: "Too many password attempts. Try again later." };
+  }
   const parsed = passwordSchema.safeParse({
     currentPassword: formData.get("currentPassword"),
     newPassword: formData.get("newPassword"),
@@ -138,6 +145,9 @@ export async function updateAvatarAction(
   formData: FormData,
 ): Promise<AccountFormState> {
   const account = await requireAccount();
+  if (!(await allowAccountAction("avatar", account.id, ACCOUNT_LIMITS.avatar))) {
+    return { error: "Too many photo uploads. Try again later." };
+  }
   const file = formData.get("avatar");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose an image to upload." };
   if (file.size > 5 * 1024 * 1024) return { error: "Profile images must be 5 MB or smaller." };

@@ -12,6 +12,7 @@ import { moderationLog } from "@/db/schema/trust";
 import { getCurrentUser } from "@/lib/auth/session";
 import { normalizePkPhone } from "@/lib/format";
 import { removeStoredImage, storeImage } from "@/lib/images/storage";
+import { ACCOUNT_LIMITS, allowAccountAction } from "@/lib/security/rate-limit";
 import { getDealerForUser } from "./queries";
 
 export interface DealerFormState {
@@ -63,6 +64,9 @@ export async function registerDealerAction(
 
   const existing = await getDealerForUser(user.id);
   if (existing) redirect("/dashboard/dealer");
+  if (!(await allowAccountAction("dealer-registration", user.id, ACCOUNT_LIMITS.dealerRegistration))) {
+    return { error: "Too many dealer registration attempts. Try again later." };
+  }
 
   const parsed = registerSchema.safeParse({
     businessName: formData.get("businessName"),
@@ -146,6 +150,9 @@ export async function updateDealerProfileAction(
   formData: FormData,
 ): Promise<DealerFormState> {
   const dealer = await requireDealerOwner();
+  if (!(await allowAccountAction("dealer-profile", dealer.userId, ACCOUNT_LIMITS.dealerProfile))) {
+    return { error: "Too many dealer profile changes. Try again later." };
+  }
   const parsed = registerSchema.safeParse({
     businessName: formData.get("businessName"),
     cityId: Number(formData.get("cityId")),
@@ -236,6 +243,9 @@ export async function updateDealerLogoAction(
   formData: FormData,
 ): Promise<DealerFormState> {
   const dealer = await requireDealerOwner();
+  if (!(await allowAccountAction("dealer-logo", dealer.userId, ACCOUNT_LIMITS.dealerLogo))) {
+    return { error: "Too many logo uploads. Try again later." };
+  }
   const file = formData.get("logo");
   if (!(file instanceof File) || file.size === 0) {
     return { error: "Choose a logo to upload." };
