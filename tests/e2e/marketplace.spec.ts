@@ -402,6 +402,35 @@ test("seller uploads a photo and publishes a car", async ({ page, isMobile }) =>
   const image = await page.request.get(`/uploads/${imageKey}`);
   expect(image.ok()).toBe(true);
   expect(image.headers()["content-type"]).toContain("image/webp");
+
+  const email = `acceptance-seller-${device}@example.invalid`;
+  const [seller] = await sql`SELECT id FROM users WHERE email = ${email}`;
+  const limitKey = rateKey("listing-publication", `identity:user:${seller.id}`, 24 * 60 * 60_000);
+  const [beforeLimit] = await sql`SELECT count(*)::int AS count FROM listings WHERE seller_id = ${seller.id}`;
+  await fillRateBucket("listing-publication", `identity:user:${seller.id}`, 20, 24 * 60 * 60_000);
+  try {
+    await page.getByRole("button", { name: "Post ad — free" }).click();
+    await expect(page.getByText("Too many ads posted today. Please try again tomorrow.")).toBeVisible();
+    const [afterLimit] = await sql`SELECT count(*)::int AS count FROM listings WHERE seller_id = ${seller.id}`;
+    expect(afterLimit.count).toBe(beforeLimit.count);
+  } finally {
+    await sql`DELETE FROM rate_limit_buckets WHERE key = ${limitKey}`;
+  }
+  // The form clears field selections after a server-action error; refill them to verify recovery.
+  await make.selectOption({ index: 1 });
+  await expect.poll(() => model.locator("option").count()).toBeGreaterThan(1);
+  await model.selectOption({ index: 1 });
+  await expect.poll(() => variant.locator("option").count()).toBeGreaterThan(1);
+  await variant.selectOption({ index: 1 });
+  await page.locator('select[name="year"]').selectOption("2022");
+  await page.locator('input[name="mileageKm"]').fill("45000");
+  await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+  await page.locator('input[name="pricePkr"]').fill("3500000");
+  await page.locator('select[name="registeredCityId"]').selectOption({ index: 1 });
+  await page.locator('select[name="lastTokenPaidYear"]').selectOption("2025");
+  await page.getByLabel("Auction sheet available").check();
+  await page.locator('input[name="auctionGrade"]').fill("4.5");
+  await expect(page.getByText("1 photo added")).toBeVisible();
   await page.getByRole("button", { name: "Post ad — free" }).click();
   await expect(page).toHaveURL(/\/used-cars\/.+\?posted=1/);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();

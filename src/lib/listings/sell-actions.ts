@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
@@ -13,6 +14,7 @@ import { bikeListingSchema, carListingSchema, partListingSchema, sanitizeDescrip
 import { publishBikeListing, publishCarListing, publishPartListing } from "./publish";
 import { buildListingPath } from "./slug";
 import { UploadOwnershipError } from "@/lib/images/ownership";
+import { allowPublicAction } from "@/lib/security/rate-limit";
 
 export interface SellState {
   error?: string;
@@ -22,6 +24,13 @@ export interface SellState {
 
 /** Free listings a private seller may have live at once. */
 const FREE_ACTIVE_LIMIT = 3;
+
+async function allowListingPublication(userId: number): Promise<boolean> {
+  return allowPublicAction(
+    "listing-publication", `user:${userId}`, await headers(),
+    { max: 20, sourceMax: 200, windowMs: 24 * 60 * 60_000 },
+  );
+}
 
 function num(v: FormDataEntryValue | null): number | undefined {
   if (v === null || v === "") return undefined;
@@ -110,6 +119,9 @@ export async function createCarListingAction(
     }
   }
 
+  if (!await allowListingPublication(user.id)) {
+    return { error: "Too many ads posted today. Please try again tomorrow." };
+  }
   let result;
   try {
     result = await publishCarListing(user.id, parsed.data, {
@@ -189,6 +201,9 @@ export async function createPartListingAction(
     if (active >= FREE_ACTIVE_LIMIT) {
       return { error: `You already have ${FREE_ACTIVE_LIMIT} live ads. Mark one as sold, or upgrade to a dealer account.` };
     }
+  }
+  if (!await allowListingPublication(user.id)) {
+    return { error: "Too many ads posted today. Please try again tomorrow." };
   }
   let result;
   try {
@@ -278,6 +293,9 @@ export async function createBikeListingAction(
     }
   }
 
+  if (!await allowListingPublication(user.id)) {
+    return { error: "Too many ads posted today. Please try again tomorrow." };
+  }
   let result;
   try {
     result = await publishBikeListing(user.id, parsed.data, {
