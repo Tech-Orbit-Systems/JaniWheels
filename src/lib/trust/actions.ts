@@ -223,6 +223,13 @@ export async function bookInspectionAction(
     };
   }
 
+  if (!await allowPublicAction(
+    "inspection-request", `user:${user.id}`, await headers(),
+    { max: 5, sourceMax: 100, windowMs: 24 * 60 * 60_000 },
+  )) {
+    return { error: "Too many inspection requests. Please try again tomorrow." };
+  }
+
   const row = await db.transaction(async (tx) => {
     if (parsed.data.listingId) {
       const [listing] = await tx.select({ id: listings.id }).from(listings)

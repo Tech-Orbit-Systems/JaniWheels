@@ -693,6 +693,22 @@ test("seller submits an inspection request with an initial event", async ({ page
   const events = await sql`SELECT to_status, customer_message FROM inspection_events WHERE inspection_id = ${request.id}`;
   expect(events).toHaveLength(1);
   expect(events[0]).toMatchObject({ to_status: "requested", customer_message: "Your inspection request has been received." });
+
+  const [account] = await sql`SELECT id FROM users WHERE email = ${email}`;
+  const limitKey = rateKey("inspection-request", `identity:user:${account.id}`, 24 * 60 * 60_000);
+  await fillRateBucket("inspection-request", `identity:user:${account.id}`, 5, 24 * 60 * 60_000);
+  try {
+    await page.goto("/inspection");
+    await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+    await page.locator('input[name="address"]').fill(`${address} blocked`);
+    await page.locator('input[name="contactPhone"]').fill("0300 9998881");
+    await page.getByRole("button", { name: "Request inspection" }).click();
+    await expect(page.getByText("Too many inspection requests. Please try again tomorrow.")).toBeVisible();
+    const [blocked] = await sql`SELECT count(*)::int AS count FROM inspections WHERE address = ${`${address} blocked`}`;
+    expect(blocked.count).toBe(0);
+  } finally {
+    await sql`DELETE FROM rate_limit_buckets WHERE key = ${limitKey}`;
+  }
 });
 
 test("admin inspection update appears to customer without private note", async ({ page, isMobile }) => {
@@ -766,6 +782,33 @@ test("seller submits a structured Sell My Car Assistance request", async ({ page
   const events = await sql`SELECT to_status, customer_message FROM sell_assistance_events WHERE request_id = ${request.id}`;
   expect(events).toHaveLength(1);
   expect(events[0].to_status).toBe("requested");
+
+  const [account] = await sql`SELECT id FROM users WHERE email = ${email}`;
+  const limitKey = rateKey("sell-assistance-request", `identity:user:${account.id}`, 24 * 60 * 60_000);
+  await fillRateBucket("sell-assistance-request", `identity:user:${account.id}`, 3, 24 * 60 * 60_000);
+  try {
+    await page.goto("/sell-my-car");
+    await page.locator('select[name="makeId"]').selectOption({ index: 1 });
+    const modelAgain = page.locator('select[name="modelId"]');
+    await expect.poll(() => modelAgain.locator("option").count()).toBeGreaterThan(1);
+    await modelAgain.selectOption({ index: 1 });
+    await page.locator('input[name="year"]').fill("2020");
+    await page.locator('input[name="mileageKm"]').fill("65000");
+    await page.locator('input[name="registrationCity"]').fill("Lahore");
+    await page.locator('select[name="ownershipStatus"]').selectOption("own_name");
+    await page.locator('select[name="vehicleCondition"]').selectOption("good");
+    await page.locator('input[name="expectedPricePkr"]').fill("4500000");
+    await page.locator('select[name="sellingTimeline"]').selectOption("within_month");
+    await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+    await page.locator('input[name="address"]').fill(`${address} blocked`);
+    await page.locator('input[name="contactPhone"]').fill("0300 9998881");
+    await page.getByRole("button", { name: "Request Sell My Car Assistance" }).click();
+    await expect(page.getByText("Too many assistance requests. Please try again tomorrow.")).toBeVisible();
+    const [blocked] = await sql`SELECT count(*)::int AS count FROM sell_assistance_requests WHERE address = ${`${address} blocked`}`;
+    expect(blocked.count).toBe(0);
+  } finally {
+    await sql`DELETE FROM rate_limit_buckets WHERE key = ${limitKey}`;
+  }
 });
 
 test("admin assistance update is visible to customer without private note", async ({ page, isMobile }) => {

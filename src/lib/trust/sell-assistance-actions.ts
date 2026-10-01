@@ -2,6 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
@@ -11,6 +12,7 @@ import { sellAssistanceEvents, sellAssistanceRequests } from "@/db/schema/trust"
 import { users } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { normalizePkPhone } from "@/lib/format";
+import { allowPublicAction } from "@/lib/security/rate-limit";
 import {
   isSellAssistanceStatus,
   validateSellAssistanceUpdate,
@@ -88,6 +90,13 @@ export async function requestSellAssistanceAction(
     const [owned] = await db.select({ id: listings.id }).from(listings)
       .where(and(eq(listings.id, parsed.data.listingId), eq(listings.sellerId, user.id), eq(listings.vertical, "car"))).limit(1);
     if (!owned) return { error: "The selected ad is not available for assistance." };
+  }
+
+  if (!await allowPublicAction(
+    "sell-assistance-request", `user:${user.id}`, await headers(),
+    { max: 3, sourceMax: 60, windowMs: 24 * 60 * 60_000 },
+  )) {
+    return { error: "Too many assistance requests. Please try again tomorrow." };
   }
 
   const created = await db.transaction(async (tx) => {
