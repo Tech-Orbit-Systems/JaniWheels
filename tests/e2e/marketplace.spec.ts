@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 import "dotenv/config";
-import { createHash } from "node:crypto";
-import { readFile, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import postgres from "postgres";
 import sharp from "sharp";
 
@@ -377,6 +377,48 @@ test("seller uploads a photo and publishes a car", async ({ page, isMobile }) =>
     auction_grade: "4.5",
   });
   expect(saved[0].registered_city_id).toBeGreaterThan(0);
+});
+
+test("expired upload cleanup removes orphan files and retains claimed or failed rows", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const directory = process.env.UPLOAD_DIR;
+  const secret = process.env.CRON_SECRET;
+  if (!directory || !secret) throw new Error("Acceptance upload directory and cron secret are required");
+  const [owner] = await sql`SELECT id FROM users WHERE email = ${`acceptance-seller-${device}@example.invalid`}`;
+  const [claimed] = await sql`
+    SELECT p.storage_key FROM pending_uploads p JOIN listings l ON l.id = p.listing_id
+    WHERE p.user_id = ${owner.id} AND l.vertical = 'car' AND p.claimed_at IS NOT NULL
+    ORDER BY p.created_at DESC LIMIT 1
+  `;
+  expect(claimed?.storage_key).toBeTruthy();
+  await sql`UPDATE pending_uploads SET created_at = NOW() - INTERVAL '25 hours' WHERE storage_key = ${claimed.storage_key}`;
+
+  const key = `202610/${randomBytes(16).toString("hex")}.webp`;
+  const file = join(directory, key);
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(file, "orphan image");
+  await sql`INSERT INTO pending_uploads (storage_key, user_id, bytes, created_at)
+    VALUES (${key}, ${owner.id}, 12, NOW() - INTERVAL '25 hours')`;
+  const invalidKey = `invalid-cleanup-${device}`;
+  await sql`INSERT INTO pending_uploads (storage_key, user_id, bytes, created_at)
+    VALUES (${invalidKey}, ${owner.id}, 12, NOW() - INTERVAL '25 hours')`;
+
+  expect((await page.request.post("/api/cron/purge-expired")).status()).toBe(401);
+  const [before] = await sql`SELECT count(*)::int AS count FROM pending_uploads WHERE storage_key = ${key}`;
+  expect(before.count).toBe(1);
+  const response = await page.request.post("/api/cron/purge-expired", {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  expect(response.status()).toBe(200);
+  await expect.poll(async () => {
+    const [row] = await sql`SELECT count(*)::int AS count FROM pending_uploads WHERE storage_key = ${key}`;
+    return row.count;
+  }).toBe(0);
+  await expect(readFile(file)).rejects.toMatchObject({ code: "ENOENT" });
+  const [retained] = await sql`SELECT count(*)::int AS count FROM pending_uploads WHERE storage_key IN (${claimed.storage_key}, ${invalidKey})`;
+  expect(retained.count).toBe(2);
+  expect((await page.request.get(`/uploads/${claimed.storage_key}`)).status()).toBe(200);
+  await sql`DELETE FROM pending_uploads WHERE storage_key = ${invalidKey}`;
 });
 
 test("seller publishes a bike with a photo", async ({ page, isMobile }) => {

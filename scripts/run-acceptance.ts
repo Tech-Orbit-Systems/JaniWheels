@@ -21,6 +21,7 @@ const env = {
   IMAGE_PROVIDER: "local",
   UPLOAD_DIR: resolve(".acceptance-uploads"),
   ACCEPTANCE_EMAIL_DIR: resolve(".acceptance-mail"),
+  CRON_SECRET: "local-acceptance-cron-only",
   ACCEPTANCE_BASE_URL: base,
   SWEEP_BASE: base,
 };

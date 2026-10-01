@@ -32,6 +32,7 @@ jobs:
       IMAGE_PROVIDER: local
       UPLOAD_DIR: /tmp/janiwheels-acceptance-uploads
       ACCEPTANCE_EMAIL_DIR: /tmp/janiwheels-acceptance-mail
+      CRON_SECRET: ci-acceptance-cron-only
       ACCEPTANCE_BASE_URL: http://127.0.0.1:3100
       SWEEP_BASE: http://127.0.0.1:3100
     steps:

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { listings, pendingUploads } from "@/db/schema/listings";
 import { emailVerificationTokens, passwordResetTokens, sessions } from "@/db/schema/users";
@@ -71,22 +71,40 @@ const JOBS = {
       .where(sql`${emailVerificationTokens.expiresAt} < NOW() - INTERVAL '24 hours' OR ${emailVerificationTokens.usedAt} IS NOT NULL`)
       .returning({ id: emailVerificationTokens.id });
 
-    const abandoned = await db
-      .delete(pendingUploads)
-      .where(sql`${pendingUploads.claimedAt} IS NULL AND ${pendingUploads.createdAt} < NOW() - INTERVAL '24 hours'`)
-      .returning({ key: pendingUploads.storageKey });
-
-    let imagesRemoved = 0;
-    for (const upload of abandoned) {
-      if (await removeStoredImage(upload.key)) imagesRemoved++;
-    }
+    // Lock each old upload before touching storage so a concurrent publish
+    // cannot claim an image while cleanup is deleting it.
+    const uploads = await db.transaction(async (tx) => {
+      const abandoned = await tx.select({ key: pendingUploads.storageKey })
+        .from(pendingUploads)
+        .where(sql`${pendingUploads.claimedAt} IS NULL AND ${pendingUploads.createdAt} < NOW() - INTERVAL '24 hours'`)
+        .orderBy(asc(pendingUploads.createdAt))
+        .limit(25)
+        .for("update", { skipLocked: true });
+      let removed = 0;
+      let failed = 0;
+      for (const upload of abandoned) {
+        try {
+          if (await removeStoredImage(upload.key)) {
+            await tx.delete(pendingUploads).where(eq(pendingUploads.storageKey, upload.key));
+            removed++;
+          } else {
+            failed++;
+          }
+        } catch (error) {
+          console.error("Abandoned upload cleanup failed", error);
+          failed++;
+        }
+      }
+      return { checked: abandoned.length, removed, failed };
+    });
 
     return {
       sessions: dead.length,
       passwordResetTokens: resetTokens.length,
       emailVerificationTokens: verificationTokens.length,
-      abandonedUploads: abandoned.length,
-      imagesRemoved,
+      abandonedUploadsChecked: uploads.checked,
+      abandonedUploadsRemoved: uploads.removed,
+      imageCleanupFailures: uploads.failed,
     };
   },
 
