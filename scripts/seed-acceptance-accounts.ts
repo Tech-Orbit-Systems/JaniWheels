@@ -18,7 +18,7 @@ try {
   for (const device of ["desktop", "mobile"] as const) {
     await sql`DELETE FROM users WHERE email = ${`acceptance-new-${device}@example.invalid`}`;
   }
-  for (const [role, admin] of [["seller", false], ["seller-desktop", false], ["seller-mobile", false], ["reset-desktop", false], ["reset-mobile", false], ["dealer-desktop", false], ["dealer-mobile", false], ["admin", true], ["unverified", false], ["banned", false]] as const) {
+  for (const [role, admin] of [["seller", false], ["seller-desktop", false], ["seller-mobile", false], ["reset-desktop", false], ["reset-mobile", false], ["dealer-desktop", false], ["dealer-mobile", false], ["a11y-dealer-desktop", false], ["a11y-dealer-mobile", false], ["admin", true], ["unverified", false], ["banned", false]] as const) {
     const email = `acceptance-${role}@example.invalid`;
     if (role.startsWith("reset-")) {
       await sql`DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE email = ${email})`;
@@ -48,6 +48,19 @@ try {
     if (role === "unverified" || role === "banned") {
       await sql`DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email = ${email})`;
     }
+  }
+  for (const device of ["desktop", "mobile"] as const) {
+    const email = `acceptance-a11y-dealer-${device}@example.invalid`;
+    await sql`
+      INSERT INTO dealers (user_id, business_name, slug, city_id)
+      SELECT u.id, ${`Accessibility Dealer ${device}`}, ${`acceptance-a11y-dealer-${device}`}, c.id
+      FROM users u CROSS JOIN (SELECT id FROM cities ORDER BY id LIMIT 1) c
+      WHERE u.email = ${email}
+      ON CONFLICT (user_id) DO UPDATE SET
+        business_name = EXCLUDED.business_name,
+        slug = EXCLUDED.slug,
+        city_id = EXCLUDED.city_id
+    `;
   }
   const reviewListings = await sql`
     SELECT id FROM listings
