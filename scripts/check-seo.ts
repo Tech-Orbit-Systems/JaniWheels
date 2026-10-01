@@ -12,6 +12,7 @@
 import { buildPath, parseRange, type FacetState } from "../src/lib/seo/facets";
 import { decideIndexation } from "../src/lib/seo/indexation";
 import { facetPageTitle } from "../src/lib/seo/jsonld";
+import { isProductionDeployment } from "../src/app/robots";
 
 let passed = 0;
 const failures: string[] = [];
@@ -25,6 +26,12 @@ function check(name: string, actual: unknown, expected: unknown) {
     failures.push(`${name}\n    expected: ${e}\n    actual:   ${a}`);
   }
 }
+
+check("production deployment is crawlable", isProductionDeployment("production", "production"), true);
+check("preview production build is blocked", isProductionDeployment("preview", "production"), false);
+check("development production build is blocked", isProductionDeployment("development", "production"), false);
+check("self-hosted production is crawlable", isProductionDeployment(undefined, "production"), true);
+check("local development is blocked", isProductionDeployment(undefined, "development"), false);
 
 const corolla = { id: 1, slug: "corolla", name: "Corolla", makeSlug: "toyota" };
 const toyota = { id: 2, slug: "toyota", name: "Toyota" };
