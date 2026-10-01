@@ -9,6 +9,7 @@ import { savedSearchNotifications, savedSearches } from "@/db/schema/analytics";
 import { searchListings } from "@/lib/listings/search";
 import type { FacetState } from "@/lib/seo/facets";
 import { removeStoredImage } from "@/lib/images/storage";
+import { rateLimitBuckets } from "@/db/schema/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,6 +72,10 @@ const JOBS = {
       .where(sql`${emailVerificationTokens.expiresAt} < NOW() - INTERVAL '24 hours' OR ${emailVerificationTokens.usedAt} IS NOT NULL`)
       .returning({ id: emailVerificationTokens.id });
 
+    const oldRateLimits = await db.delete(rateLimitBuckets)
+      .where(sql`${rateLimitBuckets.expiresAt} < NOW() - INTERVAL '24 hours'`)
+      .returning({ key: rateLimitBuckets.key });
+
     // Lock each old upload before touching storage so a concurrent publish
     // cannot claim an image while cleanup is deleting it.
     const uploads = await db.transaction(async (tx) => {
@@ -102,6 +107,7 @@ const JOBS = {
       sessions: dead.length,
       passwordResetTokens: resetTokens.length,
       emailVerificationTokens: verificationTokens.length,
+      rateLimitBuckets: oldRateLimits.length,
       abandonedUploadsChecked: uploads.checked,
       abandonedUploadsRemoved: uploads.removed,
       imageCleanupFailures: uploads.failed,

@@ -2,6 +2,8 @@ import "dotenv/config";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import postgres from "postgres";
+import { randomUUID } from "node:crypto";
+import { consumeRateLimit } from "@/lib/security/rate-limit";
 
 const databaseUrl = process.env.DATABASE_URL;
 assert.ok(databaseUrl, "DATABASE_URL is required");
@@ -46,6 +48,16 @@ test("vehicle facets agree with curated taxonomy", async () => {
       AND (l.model_id <> m.id OR l.make_id <> k.id OR l.vertical <> k.vertical)
   `;
   assert.equal(result.mismatches, 0);
+});
+
+test("distributed rate limit counts simultaneous attempts atomically", async () => {
+  const subject = randomUUID();
+  const attempts = await Promise.all(Array.from({ length: 12 }, () =>
+    consumeRateLimit({ scope: "acceptance", subject, max: 5, windowMs: 60_000 }),
+  ));
+  assert.equal(attempts.filter(Boolean).length, 5);
+  assert.equal(attempts.filter((allowed) => !allowed).length, 7);
+  assert.equal(await consumeRateLimit({ scope: "acceptance-other", subject, max: 1, windowMs: 60_000 }), true);
 });
 
 test.after(async () => { await sql.end(); });

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import "dotenv/config";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import postgres from "postgres";
@@ -111,6 +111,38 @@ test("invalid, banned and unverified credentials cannot create a session", async
   expect(sessions[0].count).toBe(0);
 });
 
+test("repeated sign-in failures show a retry limit", async ({ page, isMobile }) => {
+  const email = `rate-limit-${isMobile ? "mobile" : "desktop"}-${randomBytes(4).toString("hex")}@example.invalid`;
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error("Acceptance rate-limit test requires SESSION_SECRET");
+  await page.goto("/login");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  const submit = page.getByRole("button", { name: "Sign in" });
+  await submit.click();
+  await expect(page.getByText("Incorrect email, mobile number or password.")).toBeVisible();
+  const period = Math.floor(Date.now() / (15 * 60_000));
+  const keys = [period, period - 1].map((window) => createHmac("sha256", secret)
+    .update(`sign-in\0identity:${email}\0${window}`).digest("hex"));
+  await expect.poll(async () => {
+    const [bucket] = await sql`SELECT hits FROM rate_limit_buckets WHERE key IN ${sql(keys)}`;
+    return bucket?.hits ?? 0;
+  }).toBe(1);
+  await sql`UPDATE rate_limit_buckets SET hits = 10 WHERE key IN ${sql(keys)}`;
+  await page.goto("/login");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await submit.click();
+  await expect.poll(async () => {
+    const [bucket] = await sql`SELECT hits FROM rate_limit_buckets WHERE key IN ${sql(keys)}`;
+    return bucket?.hits ?? 0;
+  }).toBe(11);
+  await expect(page.getByText("Too many attempts. Please try again in 15 minutes.")).toBeVisible();
+  const [session] = await sql`SELECT count(*)::int AS count FROM sessions WHERE user_id IN
+    (SELECT id FROM users WHERE email = ${email})`;
+  expect(session.count).toBe(0);
+});
+
 test("duplicate and invalid registrations do not create users", async ({ page, isMobile }) => {
   await page.goto("/login?mode=register");
   await page.getByLabel("Full name").fill("Duplicate Seller");
@@ -198,8 +230,10 @@ test("password reset link is single use and revokes existing sessions", async ({
   const [token] = await sql`SELECT token_hash, used_at FROM password_reset_tokens WHERE user_id = ${account.id} ORDER BY id DESC LIMIT 1`;
   expect(token.token_hash).toMatch(/^[a-f0-9]{64}$/);
   expect(token.used_at).toBeNull();
-  const [before] = await sql`SELECT count(*)::int AS count FROM sessions WHERE user_id = ${account.id}`;
-  expect(before.count).toBeGreaterThan(0);
+  await expect.poll(async () => {
+    const [before] = await sql`SELECT count(*)::int AS count FROM sessions WHERE user_id = ${account.id}`;
+    return before.count;
+  }).toBeGreaterThan(0);
 
   await page.goto(localAcceptancePath(link));
   await page.getByLabel("New password", { exact: true }).fill(newPassword);

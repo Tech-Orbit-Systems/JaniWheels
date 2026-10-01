@@ -10,6 +10,7 @@ import { normalizePkPhone } from "@/lib/format";
 import { issueEmailVerification } from "./email-verification";
 import { hashPassword, verifyPassword } from "./password";
 import { createSession, destroySession } from "./session";
+import { allowAuthAttempt, AUTH_LIMITS, clearRateLimit } from "@/lib/security/rate-limit";
 
 export type AuthMode = "sign_in" | "register";
 
@@ -92,6 +93,9 @@ export async function authenticateAction(
     }
 
     const email = parsed.data.email.toLowerCase();
+    if (!await allowAuthAttempt("register", email, await headers(), AUTH_LIMITS.register)) {
+      return { mode, next, error: "Too many attempts. Please try again later." };
+    }
     const [existing] = await db
       .select({ id: users.id })
       .from(users)
@@ -167,6 +171,10 @@ export async function authenticateAction(
   const asEmail = parsed.data.identifier.includes("@");
   const email = asEmail ? parsed.data.identifier.toLowerCase() : null;
   const phone = asEmail ? null : normalizePkPhone(parsed.data.identifier);
+  const identity = email ?? phone ?? parsed.data.identifier.toLowerCase();
+  if (!await allowAuthAttempt("sign-in", identity, await headers(), AUTH_LIMITS.signIn)) {
+    return { mode, next, error: "Too many attempts. Please try again in 15 minutes." };
+  }
   const [account] = email || phone
     ? await db
         .select({
@@ -195,6 +203,7 @@ export async function authenticateAction(
     };
   }
 
+  await clearRateLimit("sign-in", `identity:${identity}`, AUTH_LIMITS.signIn.windowMs);
   await db
     .update(users)
     .set({ lastSeenAt: new Date() })

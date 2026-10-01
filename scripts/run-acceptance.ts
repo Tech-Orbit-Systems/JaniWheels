@@ -1,6 +1,6 @@
 /** Run DB and browser acceptance against a dedicated local PostgreSQL database. */
 import "dotenv/config";
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import postgres from "postgres";
@@ -61,11 +61,13 @@ try {
     await command(["run", "test:db"]);
     await command(["run", "build:safe"]);
   }
-  await new Promise<void>((done, reject) => {
-    const child = spawn(process.execPath, ["--import", "tsx", "scripts/seed-acceptance-accounts.ts"], { env, stdio: "inherit" });
-    child.once("exit", (code) => code === 0 ? done() : reject(new Error(`account seed failed (${code})`)));
-    child.once("error", reject);
-  });
+  if (!process.argv.includes("--browser-only")) {
+    await new Promise<void>((done, reject) => {
+      const child = spawn(process.execPath, ["--import", "tsx", "scripts/seed-acceptance-accounts.ts"], { env, stdio: "inherit" });
+      child.once("exit", (code) => code === 0 ? done() : reject(new Error(`account seed failed (${code})`)));
+      child.once("error", reject);
+    });
+  }
   server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--port", "3101"], {
     env, stdio: "inherit",
   });
@@ -80,11 +82,9 @@ try {
   }
   if (!ready) throw new Error("Acceptance server did not become ready");
   await command(["run", "sweep"]);
-  await command(["run", "test:e2e"]);
+  const grepIndex = process.argv.indexOf("--grep");
+  const grep = grepIndex >= 0 ? process.argv[grepIndex + 1] : undefined;
+  await command(grep ? ["run", "test:e2e", "--", "--grep", grep] : ["run", "test:e2e"]);
 } finally {
-  if (server?.pid && process.platform === "win32") {
-    spawnSync("taskkill", ["/PID", String(server.pid), "/T", "/F"], { stdio: "ignore" });
-  } else {
-    server?.kill();
-  }
+  server?.kill();
 }
