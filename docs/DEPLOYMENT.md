@@ -44,7 +44,9 @@ npm run build:safe
 After deploying against a seeded staging database, start the application and
 run `npm run sweep`. Manually verify account registration, login, seller
 contact, listing submission, moderation, dealer registration and inspection
-request submission.
+request submission. Use the [V1 regression checklist](./REGRESSION_CHECKLIST.md)
+to record module-level results, evidence, blockers and retests for each release
+candidate.
 
 ## Scheduled maintenance
 
