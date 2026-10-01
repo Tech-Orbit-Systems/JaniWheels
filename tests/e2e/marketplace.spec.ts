@@ -90,6 +90,41 @@ test("account-settings limits reject profile, password and photo writes", async 
   }
 });
 
+test("seller can upload, replace and remove their profile photo", async ({ page, isMobile }) => {
+  const email = `acceptance-seller-${isMobile ? "mobile" : "desktop"}@example.invalid`;
+  const [account] = await sql`SELECT id, avatar_url FROM users WHERE email = ${email}`;
+  expect(account?.id).toBeGreaterThan(0);
+  expect(account.avatar_url).toBeNull();
+
+  await page.goto("/login?next=/dashboard/profile");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard\/profile(?:\?|$)/);
+
+  const uploadedKeys: string[] = [];
+  try {
+    for (const color of ["#557799", "#996644"]) {
+      const image = await sharp({ create: { width: 24, height: 24, channels: 3, background: color } }).png().toBuffer();
+      await page.getByLabel("Choose profile photo").setInputFiles({ name: "profile.png", mimeType: "image/png", buffer: image });
+      await page.getByRole("button", { name: "Upload photo" }).click();
+      await expect(page.getByText("Profile photo updated.")).toBeVisible();
+      const [updated] = await sql`SELECT avatar_url FROM users WHERE id = ${account.id}`;
+      expect(updated?.avatar_url).toBeTruthy();
+      uploadedKeys.push(updated.avatar_url);
+      await expect(page.getByRole("img", { name: /profile$/ })).toBeVisible();
+    }
+    expect(uploadedKeys[1]).not.toBe(uploadedKeys[0]);
+    await page.getByRole("button", { name: "Remove photo" }).click();
+    await expect.poll(async () => {
+      const [updated] = await sql`SELECT avatar_url FROM users WHERE id = ${account.id}`;
+      return updated?.avatar_url;
+    }).toBeNull();
+  } finally {
+    await sql`UPDATE users SET avatar_url = NULL WHERE id = ${account.id}`;
+  }
+});
+
 test("dealer setting limits reject profile and logo writes", async ({ page, isMobile }) => {
   const email = `acceptance-a11y-dealer-${isMobile ? "mobile" : "desktop"}@example.invalid`;
   const [before] = await sql`
