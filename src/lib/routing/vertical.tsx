@@ -23,6 +23,8 @@ import { RecentlyViewed } from "@/components/RecentlyViewed";
 import { db } from "@/db";
 import { savedListings } from "@/db/schema/analytics";
 import { and, eq } from "drizzle-orm";
+import { Suspense } from "react";
+import { BrowseLoading } from "@/components/BrowseLoading";
 
 /**
  * Shared implementation for /used-cars, /used-bikes and /auto-parts.
@@ -200,8 +202,11 @@ export async function VerticalPage({
   if (!resolved) notFound();
 
   if (resolved.kind === "browse") {
+    if (resolved.needsReorder) permanentRedirect(buildPath(resolved.state));
     return (
-      <BrowseView state={resolved.state} needsReorder={resolved.needsReorder} />
+      <Suspense fallback={<BrowseLoading label={NOUN[vertical]} />}>
+        <BrowseView state={resolved.state} />
+      </Suspense>
     );
   }
 

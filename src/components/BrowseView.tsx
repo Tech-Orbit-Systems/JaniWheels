@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { permanentRedirect } from "next/navigation";
 import { buildPath, type FacetState } from "@/lib/seo/facets";
 import { decideIndexation } from "@/lib/seo/indexation";
 import { breadcrumbJsonLd, facetPageTitle, itemListJsonLd } from "@/lib/seo/jsonld";
@@ -36,13 +35,9 @@ const VERTICAL_LABEL = {
 
 export async function BrowseView({
   state,
-  needsReorder,
 }: {
   state: FacetState;
-  needsReorder: boolean;
 }) {
-  if (needsReorder) permanentRedirect(buildPath(state));
-
   const decision = decideIndexation(state);
   const [results, partFilterOptions, vehicleFilterOptions, user] = await Promise.all([
     searchListings(state),
