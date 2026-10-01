@@ -5,6 +5,7 @@ import { removeStoredImage, MAX_UPLOAD_BYTES } from "@/lib/images/storage";
 import { db } from "@/db";
 import { pendingUploads } from "@/db/schema/listings";
 import { and, eq, gt, sql } from "drizzle-orm";
+import { allowPublicAction } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -34,6 +35,12 @@ export async function POST(request: Request) {
   } catch { /* Invalid origins are rejected below. */ }
   if (origin && originHost !== requestHost) {
     return NextResponse.json({ error: "Cross-site uploads are not allowed." }, { status: 403 });
+  }
+  if (!await allowPublicAction(
+    "image-upload", `user:${user.id}`, request.headers,
+    { max: 30, sourceMax: 300, windowMs: 60 * 60_000 },
+  )) {
+    return NextResponse.json({ error: "Hourly upload request limit reached. Please try again later." }, { status: 429 });
   }
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > MAX_REQUEST_BYTES) {

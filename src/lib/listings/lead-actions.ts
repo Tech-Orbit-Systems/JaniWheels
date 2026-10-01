@@ -10,6 +10,7 @@ import { users } from "@/db/schema/users";
 import { leadEvents } from "@/db/schema/analytics";
 import { getCurrentUser } from "@/lib/auth/session";
 import { displayPkPhone } from "@/lib/format";
+import { allowPublicAction } from "@/lib/security/rate-limit";
 
 /**
  * PHONE REVEAL
@@ -72,6 +73,12 @@ export async function revealPhoneAction(
   const user = await getCurrentUser();
   const anon = user ? null : await anonId();
   const h = await headers();
+  if (!await allowPublicAction(
+    "seller-contact", user ? `user:${user.id}` : `anon:${anon}`,
+    h, { max: 60, sourceMax: 300, windowMs: 60 * 60_000 },
+  )) {
+    return { ok: false, error: "Too many contact requests. Please try again later." };
+  }
 
   // Logging must never break the reveal. A buyer who clicks and gets an error
   // because the analytics insert failed is a lead you actually lost.
@@ -107,6 +114,10 @@ export async function logLeadAction(
   const anon = user ? null : await anonId();
 
   try {
+    if (!await allowPublicAction(
+      "seller-contact", user ? `user:${user.id}` : `anon:${anon}`,
+      await headers(), { max: 60, sourceMax: 300, windowMs: 60 * 60_000 },
+    )) return;
     await db.insert(leadEvents).values({
       listingId,
       userId: user?.id ?? null,

@@ -84,3 +84,21 @@ export async function allowAuthAttempt(
   });
   return identityAllowed && sourceAllowed;
 }
+
+export async function allowPublicAction(
+  scope: string,
+  identity: string,
+  headers: Headers,
+  limit: { max: number; sourceMax: number; windowMs: number },
+): Promise<boolean> {
+  const identityAllowed = await consumeRateLimit({
+    scope, subject: `identity:${identity}`, max: limit.max, windowMs: limit.windowMs,
+  });
+  const ip = clientIp(headers);
+  if (!ip) return identityAllowed;
+  const sourceAllowed = await consumeRateLimit({
+    scope: `${scope}:source`, subject: `ip:${ip}`,
+    max: limit.sourceMax, windowMs: limit.windowMs,
+  });
+  return identityAllowed && sourceAllowed;
+}

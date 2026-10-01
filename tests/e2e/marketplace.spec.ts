@@ -34,6 +34,19 @@ function localAcceptancePath(link: string): string {
   return `${url.pathname}${url.search}`;
 }
 
+function rateKey(scope: string, subject: string, windowMs: number, period = Math.floor(Date.now() / windowMs)): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error("Acceptance rate-limit tests require SESSION_SECRET");
+  return createHmac("sha256", secret).update(`${scope}\0${subject}\0${period}`).digest("hex");
+}
+
+async function fillRateBucket(scope: string, subject: string, hits: number, windowMs: number): Promise<void> {
+  const key = rateKey(scope, subject, windowMs);
+  await sql`INSERT INTO rate_limit_buckets (key, hits, expires_at)
+    VALUES (${key}, ${hits}, ${new Date(Date.now() + windowMs)})
+    ON CONFLICT (key) DO UPDATE SET hits = EXCLUDED.hits`;
+}
+
 test("homepage search switches between all three marketplaces", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -113,8 +126,6 @@ test("invalid, banned and unverified credentials cannot create a session", async
 
 test("repeated sign-in failures show a retry limit", async ({ page, isMobile }) => {
   const email = `rate-limit-${isMobile ? "mobile" : "desktop"}-${randomBytes(4).toString("hex")}@example.invalid`;
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("Acceptance rate-limit test requires SESSION_SECRET");
   await page.goto("/login");
   await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
   await page.getByLabel("Password").fill("AcceptanceOnly123!");
@@ -122,8 +133,7 @@ test("repeated sign-in failures show a retry limit", async ({ page, isMobile }) 
   await submit.click();
   await expect(page.getByText("Incorrect email, mobile number or password.")).toBeVisible();
   const period = Math.floor(Date.now() / (15 * 60_000));
-  const keys = [period, period - 1].map((window) => createHmac("sha256", secret)
-    .update(`sign-in\0identity:${email}\0${window}`).digest("hex"));
+  const keys = [period, period - 1].map((window) => rateKey("sign-in", `identity:${email}`, 15 * 60_000, window));
   await expect.poll(async () => {
     const [bucket] = await sql`SELECT hits FROM rate_limit_buckets WHERE key IN ${sql(keys)}`;
     return bucket?.hits ?? 0;
@@ -411,6 +421,29 @@ test("seller uploads a photo and publishes a car", async ({ page, isMobile }) =>
     auction_grade: "4.5",
   });
   expect(saved[0].registered_city_id).toBeGreaterThan(0);
+});
+
+test("upload request limit rejects excess requests before reading files", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const email = `acceptance-seller-${device}@example.invalid`;
+  const [seller] = await sql`SELECT id FROM users WHERE email = ${email}`;
+  await page.goto("/login");
+  await page.getByRole("textbox", { name: "Email or mobile number" }).fill(email);
+  await page.getByLabel("Password").fill("AcceptanceOnly123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  const key = rateKey("image-upload", `identity:user:${seller.id}`, 60 * 60_000);
+  await fillRateBucket("image-upload", `identity:user:${seller.id}`, 30, 60 * 60_000);
+  try {
+    const response = await page.evaluate(async () => {
+      const response = await fetch("/api/upload", { method: "POST" });
+      return { status: response.status, body: await response.json() };
+    });
+    expect(response.status).toBe(429);
+    expect(response.body.error).toMatch(/Hourly upload request limit/);
+  } finally {
+    await sql`DELETE FROM rate_limit_buckets WHERE key = ${key}`;
+  }
 });
 
 test("expired upload cleanup removes orphan files and retains claimed or failed rows", async ({ page, isMobile }) => {
@@ -790,6 +823,32 @@ test("anonymous buyer reveals a seller number and records a lead", async ({ page
   }).toBeGreaterThan(listing.lead_count);
 });
 
+test("public contact and report limits prevent excess writes", async ({ page, isMobile }) => {
+  const anon = randomBytes(16).toString("hex");
+  const base = process.env.ACCEPTANCE_BASE_URL;
+  if (!base) throw new Error("Acceptance base URL is required");
+  await page.context().addCookies([{ name: "jw_anon", value: anon, url: base, httpOnly: true }]);
+  const [listing] = await sql`
+    SELECT id, slug, lead_count FROM listings WHERE vertical = 'car' AND status = 'active'
+    ORDER BY id LIMIT 1 OFFSET ${isMobile ? 11 : 12}
+  `;
+  expect(listing?.id).toBeGreaterThan(0);
+  await fillRateBucket("seller-contact", `identity:anon:${anon}`, 60, 60 * 60_000);
+  await page.goto(`/used-cars/${listing.slug}-${listing.id}`);
+  await page.getByRole("button", { name: /Show number/ }).click();
+  await expect(page.getByText("Too many contact requests. Please try again later.")).toBeVisible();
+  const [afterReveal] = await sql`SELECT lead_count FROM listings WHERE id = ${listing.id}`;
+  expect(afterReveal.lead_count).toBe(listing.lead_count);
+
+  await fillRateBucket("listing-report", `identity:anon:${anon}`, 5, 60 * 60_000);
+  await page.getByRole("button", { name: "Report this ad" }).click();
+  await page.locator('select[name="reason"]').selectOption("spam");
+  await page.getByRole("button", { name: "Send report" }).click();
+  await expect(page.getByText("Too many reports. Please try again later.")).toBeVisible();
+  const [reports] = await sql`SELECT count(*)::int AS count FROM listing_reports WHERE listing_id = ${listing.id}`;
+  expect(reports.count).toBe(0);
+});
+
 test("admin approves a queued car and writes an audit entry", async ({ page, isMobile }) => {
   const rows = await sql`
     SELECT id, title FROM listings
@@ -865,8 +924,12 @@ test("administrator ban revokes sessions and restoration permits login", async (
   const [before] = await sql`SELECT count(*)::int AS count FROM sessions WHERE user_id = ${seller.id}`;
   expect(before.count).toBeGreaterThan(0);
 
-  await page.context().clearCookies();
-  await page.goto("/login?next=/admin/users");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.context().clearCookies();
+    await page.goto("/login?next=/admin/users");
+    if (new URL(page.url()).pathname === "/login") break;
+  }
+  await expect(page).toHaveURL(/\/login\?next=/);
   await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-admin@example.invalid");
   await page.getByLabel("Password").fill("AcceptanceOnly123!");
   await page.getByRole("button", { name: "Sign in" }).click();

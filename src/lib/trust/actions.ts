@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { randomBytes } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -17,6 +17,7 @@ import {
   shouldBanAfterFinalRemoval,
 } from "./moderation-policy";
 import { isInspectionStatus, validateInspectionUpdate } from "./inspection-policy";
+import { allowPublicAction } from "@/lib/security/rate-limit";
 
 /**
  * Trust actions: reporting bad listings, booking an inspection, and the
@@ -41,9 +42,9 @@ const REASONS = [
 const AUTO_HIDE_REPORT_THRESHOLD = 5;
 
 const reportSchema = z.object({
-  listingId: z.number().int().positive(),
-  reason: z.enum(REASONS),
-  comment: z.string().trim().max(1000).optional(),
+  listingId: z.number({ invalid_type_error: "Choose a valid ad." }).int("Choose a valid ad.").positive("Choose a valid ad."),
+  reason: z.enum(REASONS, { errorMap: () => ({ message: "Choose a reason." }) }),
+  comment: z.string().trim().max(1000, "Keep your comment under 1,000 characters.").optional(),
 });
 
 export interface ReportState {
@@ -76,6 +77,15 @@ export async function reportListingAction(
       path: "/",
       maxAge: 60 * 60 * 24 * 365,
     });
+  }
+
+  if (!await allowPublicAction(
+    "listing-report",
+    user ? `user:${user.id}` : `anon:${anonId}`,
+    await headers(),
+    { max: 5, sourceMax: 100, windowMs: 60 * 60_000 },
+  )) {
+    return { error: "Too many reports. Please try again later." };
   }
 
   // One report per person per listing. Without this, a competitor can file
