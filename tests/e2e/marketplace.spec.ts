@@ -773,7 +773,6 @@ test("another seller cannot replay direct sold or delete actions", async ({ page
     RETURNING id
   `;
   await sql`INSERT INTO car_details (listing_id) VALUES (${car.id})`;
-  const [beforeImages] = await sql`SELECT COUNT(*)::int AS count FROM listing_images WHERE listing_id = ${car.id}`;
 
   try {
     await page.goto("/login?next=/dashboard");
@@ -783,14 +782,19 @@ test("another seller cannot replay direct sold or delete actions", async ({ page
     await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
     await expect.poll(async () => (await page.context().cookies()).some((cookie) => cookie.name === "jw_session")).toBe(true);
 
+    const ownerSession = (await page.context().cookies()).find((cookie) => cookie.name === "jw_session")!;
+    let actionAborted: () => void;
     await page.route("**/*", async (route) => {
-      if (route.request().method() === "POST" && route.request().headers()["next-action"]) await route.abort();
-      else await route.continue();
+      if (route.request().method() === "POST" && route.request().headers()["next-action"]) {
+        await route.abort();
+        actionAborted();
+      } else await route.continue();
     });
     const captured: { url: string; body: Buffer; headers: Record<string, string> }[] = [];
     for (const action of ["sold", "delete"] as const) {
       await page.goto("/dashboard");
       const row = page.locator("li").filter({ has: page.locator(`a[href="/dashboard/listings/${car.id}/edit"]`) });
+      const aborted = new Promise<void>((resolve) => { actionAborted = resolve; });
       const actionRequest = page.waitForRequest((request) => request.method() === "POST" && Boolean(request.headers()["next-action"]));
       if (action === "sold") {
         await row.getByRole("button", { name: "Mark as sold" }).click();
@@ -800,6 +804,7 @@ test("another seller cannot replay direct sold or delete actions", async ({ page
         await row.getByRole("button", { name: "Yes, delete" }).click();
       }
       const request = await actionRequest;
+      await aborted;
       const body = request.postDataBuffer();
       expect(body).toBeTruthy();
       const headers = { ...request.headers() };
@@ -818,12 +823,23 @@ test("another seller cannot replay direct sold or delete actions", async ({ page
     await expect.poll(async () => (await page.context().cookies()).some((cookie) => cookie.name === "jw_session")).toBe(true);
 
     for (const action of captured) {
-      const response = await page.request.post(action.url, { data: action.body, headers: action.headers, maxRedirects: 0 });
-      expect([200, 303]).toContain(response.status());
+      const session = (await page.context().cookies()).find((cookie) => cookie.name === "jw_session");
+      expect(session).toBeTruthy();
+      const response = await page.request.post(action.url, {
+        data: action.body, headers: { ...action.headers, cookie: `jw_session=${session!.value}` }, maxRedirects: 0,
+      });
+      expect(response.status()).toBe(200);
       const [after] = await sql`SELECT status, seller_deleted_at FROM listings WHERE id = ${car.id}`;
       expect(after).toMatchObject({ status: "active", seller_deleted_at: null });
-      const [afterImages] = await sql`SELECT COUNT(*)::int AS count FROM listing_images WHERE listing_id = ${car.id}`;
-      expect(afterImages.count).toBe(beforeImages.count);
+    }
+    for (const [index, action] of captured.entries()) {
+      const response = await page.request.post(action.url, {
+        data: action.body, headers: { ...action.headers, cookie: `jw_session=${ownerSession.value}` }, maxRedirects: 0,
+      });
+      expect(response.status()).toBe(200);
+      const [after] = await sql`SELECT status, seller_deleted_at FROM listings WHERE id = ${car.id}`;
+      expect(after.status).toBe(index === 0 ? "sold" : "removed");
+      if (index === 1) expect(after.seller_deleted_at).toBeTruthy();
     }
   } finally {
     await sql`DELETE FROM listings WHERE id = ${car.id}`;

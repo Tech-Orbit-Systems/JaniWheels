@@ -1,12 +1,34 @@
 # JaniWheels consolidated development context
 
-Last reconciled: 30 September 2026
+Last reconciled: 2 October 2026
 
 Workflow decision, 30 September 2026: completed and verified development is
 committed, pushed on its feature branch, and recorded in the master tracker
 without a separate permission request each time. Review and main-branch merge
 remain separate. The homepage vehicle-visual package was approved by the owner,
 committed as `936baee`, and pushed on `codex/homepage-visuals`.
+
+The homepage package was subsequently reviewed and merged through PR #5
+(`c1ef18d`). Stage 6.2 continues on `codex/launch-quality-system`, PR #6.
+GitHub run 35 passed for `a739bcf`; always inspect the current PR commit's
+checks before review or merge. The repository workbook under `docs/` is the
+current master tracker; older exported copies are historical snapshots.
+
+The acceptance suite now includes direct listing edit/sold/delete replay,
+administrator hide/remove/ban denial, matching owner/admin success controls,
+and upload-claim transaction rollback. Direct API replay on local HTTP must
+explicitly carry the current actor's session: the browser can accept a Secure
+cookie on loopback while its request client omits it. Request capture must
+wait until interception has actually aborted the request before removing the
+handler. Neither test accommodation changes production cookie behavior.
+
+Latest local acceptance: 91 browser passes and one planned desktop skip,
+five database checks, and a 101-route sweep with no issues. Static checks,
+lint and production build pass; maximum First Load JS remains 128 KB.
+The final local run used one Playwright worker after competing browser runs
+timed out on this machine. CI retains two workers. Remaining work includes
+private-media and HTTP upload-attachment negatives, dealer/service action
+denial, controlled failure recovery, performance/load checks and live staging.
 
 Performance/content checkpoint, 9 September 2026: see
 `docs/PERFORMANCE_CONTENT_REVIEW.md`. Duplicate account queries and unnecessary
@@ -148,7 +170,8 @@ September 2026; comprehensive cross-route branding QA remains open.
 
 The following launch work remains after the functional package:
 
-- CI and a real automated unit/integration/E2E framework
+- Required CI branch protection and remaining authorization, rollback and
+  controlled-failure coverage in the existing DB/browser test framework
 - Staging environment and production-like smoke tests
 - Production PostgreSQL, durable image storage, email and alert delivery
 - Cron scheduling, backups, logs/error monitoring, and uptime monitoring
@@ -168,13 +191,13 @@ complete:
 - Complete the Google Maps browser acceptance test after billing is enabled;
   do not expose the configured key.
 
-## Tracker reconciliation issue
+## Historical tracker reconciliation
 
-The synced workbook named
-`JaniWheels_Complete_Feature_Development_Tracker.xlsx` is structurally intact
-but its data is stale. Its audit date is 16 August 2026, its Dashboard still
-names the homepage review as active, and its Roadmap marks packages that now
-exist in the repository as not started.
+The earlier synced workbook named
+`JaniWheels_Complete_Feature_Development_Tracker.xlsx` was structurally intact
+but had stale data from 16 August 2026. Its Dashboard still named the homepage
+review as active and its Roadmap marked implemented packages as not started.
+This was reconciled; use the maintained repository workbook for current status.
 
 The `Dev 2` history references tracker versions 18 through 34, with version 34
 created after the Google-auth startup repair. Those generated versions were not

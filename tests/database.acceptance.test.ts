@@ -4,6 +4,8 @@ import { test } from "node:test";
 import postgres from "postgres";
 import { randomUUID } from "node:crypto";
 import { consumeRateLimit } from "@/lib/security/rate-limit";
+import { db } from "@/db";
+import { claimUploadedImages, UploadOwnershipError } from "@/lib/images/ownership";
 
 const databaseUrl = process.env.DATABASE_URL;
 assert.ok(databaseUrl, "DATABASE_URL is required");
@@ -58,6 +60,49 @@ test("distributed rate limit counts simultaneous attempts atomically", async () 
   assert.equal(attempts.filter(Boolean).length, 5);
   assert.equal(attempts.filter((allowed) => !allowed).length, 7);
   assert.equal(await consumeRateLimit({ scope: "acceptance-other", subject, max: 1, windowMs: 60_000 }), true);
+});
+
+test("upload claims enforce ownership and roll back a partially matched batch", async () => {
+  const fixture = randomUUID();
+  const owners = await sql`INSERT INTO users (email) VALUES
+    (${`upload-owner-${fixture}@example.invalid`}), (${`upload-other-${fixture}@example.invalid`}) RETURNING id`;
+  const [city] = await sql`SELECT id FROM cities ORDER BY id LIMIT 1`;
+  const [listing] = await sql`INSERT INTO listings (vertical, seller_id, slug, title, price_pkr, city_id, status)
+    VALUES ('part', ${owners[0].id}, 'upload-claim-fixture', 'Upload claim fixture', 2500, ${city.id}, 'draft') RETURNING id`;
+  const ownKey = `own-${fixture}.webp`;
+  const otherKey = `other-${fixture}.webp`;
+
+  try {
+    await sql`INSERT INTO pending_uploads (storage_key, user_id, bytes) VALUES
+      (${ownKey}, ${owners[0].id}, 100), (${otherKey}, ${owners[1].id}, 100)`;
+    await assert.rejects(
+      db.transaction((tx) => claimUploadedImages(tx, owners[0].id, listing.id, [ownKey, otherKey])),
+      UploadOwnershipError,
+    );
+    const unchanged = await sql`SELECT listing_id, claimed_at FROM pending_uploads WHERE storage_key IN (${ownKey}, ${otherKey})`;
+    assert.equal(unchanged.length, 2);
+    assert.ok(unchanged.every((row) => row.listing_id === null && row.claimed_at === null), "The valid key must also roll back when the other key belongs to another user");
+    await assert.rejects(
+      db.transaction((tx) => claimUploadedImages(tx, owners[0].id, listing.id, [ownKey, ownKey])),
+      UploadOwnershipError,
+    );
+
+    await db.transaction((tx) => claimUploadedImages(tx, owners[0].id, listing.id, [ownKey]));
+    const [claimed] = await sql`SELECT listing_id, claimed_at FROM pending_uploads WHERE storage_key = ${ownKey}`;
+    assert.equal(claimed.listing_id, listing.id);
+    assert.ok(claimed.claimed_at);
+    await assert.rejects(
+      db.transaction((tx) => claimUploadedImages(tx, owners[0].id, listing.id, [ownKey])),
+      UploadOwnershipError,
+    );
+    const [foreign] = await sql`SELECT listing_id, claimed_at FROM pending_uploads WHERE storage_key = ${otherKey}`;
+    assert.equal(foreign.listing_id, null);
+    assert.equal(foreign.claimed_at, null);
+  } finally {
+    await sql`DELETE FROM pending_uploads WHERE storage_key IN (${ownKey}, ${otherKey})`;
+    await sql`DELETE FROM listings WHERE id = ${listing.id}`;
+    await sql`DELETE FROM users WHERE id IN (${owners[0].id}, ${owners[1].id})`;
+  }
 });
 
 test.after(async () => { await sql.end(); });

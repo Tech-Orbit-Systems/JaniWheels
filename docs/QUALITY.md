@@ -23,6 +23,12 @@ It starts the production build on port 3101, runs the sweep and browser tests,
 then stops its server. `--browser-only` skips migrations, reseeding and build
 when only the browser tests need another run.
 
+On a busy local machine, use
+`npx cross-env PLAYWRIGHT_WORKERS=1 npm run test:acceptance`
+to run browser tests one at a time. This preserves every case
+and assertion while reducing competing browser processes. The default CI job
+continues to use two workers.
+
 CI is an ephemeral staging environment. A persistent online preview, durable
 staging media storage, external uptime monitor, and branch protection still
 need hosting and repository configuration before Stage 6.2 can be signed off.
