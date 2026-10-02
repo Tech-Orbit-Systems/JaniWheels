@@ -43,7 +43,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=moderate
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run db:migrate
       - run: npm run db:seed
       - run: npx tsx src/db/seed/demo.ts

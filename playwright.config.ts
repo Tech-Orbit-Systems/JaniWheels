@@ -12,7 +12,8 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile-chromium", use: { ...devices["Pixel 7"] } },
+    { name: "desktop-chromium", testIgnore: "**/webkit-smoke.spec.ts", use: { ...devices["Desktop Chrome"] } },
+    { name: "mobile-chromium", testIgnore: "**/webkit-smoke.spec.ts", use: { ...devices["Pixel 7"] } },
+    { name: "mobile-webkit", testMatch: "**/webkit-smoke.spec.ts", use: { ...devices["iPhone 13"] } },
   ],
 });

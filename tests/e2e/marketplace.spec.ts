@@ -105,10 +105,15 @@ test("seller can upload, replace and remove their profile photo", async ({ page,
   const uploadedKeys: string[] = [];
   try {
     for (const color of ["#557799", "#996644"]) {
+      const previousKey = uploadedKeys.at(-1) ?? null;
       const image = await sharp({ create: { width: 24, height: 24, channels: 3, background: color } }).png().toBuffer();
       await page.getByLabel("Choose profile photo").setInputFiles({ name: "profile.png", mimeType: "image/png", buffer: image });
       await page.getByRole("button", { name: "Upload photo" }).click();
       await expect(page.getByText("Profile photo updated.")).toBeVisible();
+      await expect.poll(async () => {
+        const [updated] = await sql`SELECT avatar_url FROM users WHERE id = ${account.id}`;
+        return Boolean(updated?.avatar_url && updated.avatar_url !== previousKey);
+      }).toBe(true);
       const [updated] = await sql`SELECT avatar_url FROM users WHERE id = ${account.id}`;
       expect(updated?.avatar_url).toBeTruthy();
       uploadedKeys.push(updated.avatar_url);
