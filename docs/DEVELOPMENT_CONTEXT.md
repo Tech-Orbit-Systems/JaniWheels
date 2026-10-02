@@ -55,8 +55,15 @@ lint and production build pass; maximum First Load JS remains 128 KB.
 Eight new desktop/mobile cases cover dealer verify/revoke replay, service-admin
 role denial, invalid/terminal transitions, missing customer updates, customer
 privacy and expiry/reactivation. Full isolated acceptance used one worker;
-CI retains two workers. Remaining work includes Cloudflare private delivery,
-controlled failure recovery, alert delivery, retention/configuration,
+CI retains two workers. Three additional targeted browse-recovery tests now
+pass against the final build (104 browser passes in aggregate, not a single
+combined run). Cars, bikes and parts recover after a forced database-read
+failure; the targeted run also swept 103 URLs with zero issues. The test caught
+and fixed a stale error-boundary retry: the button now
+refreshes server data before reset. The recovery project runs after ordinary
+browser acceptance and restores its isolated table in cleanup.
+Remaining work includes Cloudflare private delivery,
+provider/slow-network recovery, alert delivery, retention/configuration,
 performance/load checks and live staging.
 
 The initial-admin operator tool is implemented in `scripts/bootstrap-admin.ts`

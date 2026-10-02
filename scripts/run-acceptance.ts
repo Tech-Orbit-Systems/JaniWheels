@@ -84,7 +84,9 @@ try {
   await command(["run", "sweep"]);
   const grepIndex = process.argv.indexOf("--grep");
   const grep = grepIndex >= 0 ? process.argv[grepIndex + 1] : undefined;
-  await command(grep ? ["run", "test:e2e", "--", "--grep", grep] : ["run", "test:e2e"]);
+  await command(process.argv.includes("--recovery-only")
+    ? ["run", "test:e2e", "--", "--project=recovery-chromium", "--no-deps"]
+    : grep ? ["run", "test:e2e", "--", "--grep", grep] : ["run", "test:e2e"]);
 } finally {
   server?.kill();
 }

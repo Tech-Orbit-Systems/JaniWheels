@@ -68,3 +68,24 @@ Expiry acceptance checks unauthenticated cron denial, due versus future active
 listings, foreign/anonymous reactivation denial, the owner's fresh 30-day
 window, and unchanged active/rejected/removed listings on replay. These tests
 do not establish production cron scheduling or the full live crawler lifecycle.
+
+## Controlled browse recovery
+
+The `recovery-chromium` project runs after the ordinary desktop/mobile and
+WebKit projects. In the isolated acceptance database only, it temporarily
+renames the listings table, checks the friendly error and clear-filter link,
+restores the table, and verifies that **Try again** loads results for cars,
+bikes and parts. Cleanup restores the table even when an assertion fails.
+The button refreshes server data before resetting the error boundary; resetting
+alone had left visitors stuck on the failed server response.
+
+To repeat only these three cases against the existing acceptance build/data:
+
+```bash
+npm run test:acceptance -- --browser-only --recovery-only
+```
+
+Do not run another acceptance job against the same database during fault
+injection. The runner restricts the database name and tests require a loopback
+application URL. This verifies local database-read recovery, not provider
+outages, slow networks or live infrastructure resilience.
