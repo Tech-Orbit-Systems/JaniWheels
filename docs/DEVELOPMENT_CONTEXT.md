@@ -1,6 +1,6 @@
 # JaniWheels consolidated development context
 
-Last reconciled: 2 October 2026
+Last reconciled: 3 October 2026
 
 Workflow decision, 30 September 2026: completed and verified development is
 committed, pushed on its feature branch, and recorded in the master tracker
@@ -10,9 +10,27 @@ committed as `936baee`, and pushed on `codex/homepage-visuals`.
 
 The homepage package was subsequently reviewed and merged through PR #5
 (`c1ef18d`). Stage 6.2 continues on `codex/launch-quality-system`, PR #6.
-GitHub run 36 passed for `b32d457`; always inspect the current PR commit's
+GitHub run 37 passed for `a96704b`; always inspect the current PR commit's
 checks before review or merge. The repository workbook under `docs/` is the
 current master tracker; older exported copies are historical snapshots.
+
+Tracker reconciliation on 3 October corrected stale dashboard/roadmap/test
+entries and the excluded S3 provider's scope classification. Overall completion
+is an equal-weight average of feature estimates, not elapsed engineering effort
+or production launch approval. The 200 in-scope rows average 90.585% (displayed
+as 90.6%): 154 completed, one verified feature-branch item awaiting review,
+34 partial/configuration items and 11 pending. Eleven excluded rows do not
+contribute. Reviewed estimates and their remaining acceptance gaps are recorded
+on the affected rows. The browser framework is complete awaiting PR review;
+broader coverage and live-device acceptance retain their own open gates.
+
+Saved-search delivery is not complete: preferences, matching and a deduplicated
+outbox exist, but the delivery worker and matching/overflow/retry acceptance
+remain. Cleanup covers more than sessions, but account/report/service retention
+and deletion remain incomplete. Listing reactivation already exists; its
+remaining work is lifecycle acceptance and production scheduling. Preserve these
+distinctions in future tracker updates, including numeric completion/status
+changes when supported, and keep dashboard/roadmap summaries synchronized.
 
 The acceptance suite now includes direct listing edit/sold/delete replay,
 administrator hide/remove/ban denial, matching owner/admin success controls,
