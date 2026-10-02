@@ -64,7 +64,7 @@ curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" \
 
 - Apply the approved JaniWheels logo and brand palette
 - Configure production image delivery and validate image URLs
-- Create the first administrator securely
+- Create the first administrator using the [preview-first bootstrap runbook](./ADMIN_BOOTSTRAP.md)
 - Confirm moderation and dealer-verification operations
 - Add privacy policy, terms and contact information
 - Run database query-plan and load tests for the selected infrastructure

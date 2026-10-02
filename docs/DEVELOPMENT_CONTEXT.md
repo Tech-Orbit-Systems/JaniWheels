@@ -49,7 +49,8 @@ Cloudflare direct delivery privacy is not covered by this local fix and remains
 a production launch gate; see `docs/QUALITY.md` for migration and limitations.
 
 Latest local acceptance: 101 browser passes and one planned desktop skip,
-five database checks, and a 101-route sweep with no issues. Static checks,
+six database checks (five baseline plus admin-bootstrap acceptance), and a
+101-route sweep with no issues. Static checks,
 lint and production build pass; maximum First Load JS remains 128 KB.
 Eight new desktop/mobile cases cover dealer verify/revoke replay, service-admin
 role denial, invalid/terminal transitions, missing customer updates, customer
@@ -57,6 +58,12 @@ privacy and expiry/reactivation. Full isolated acceptance used one worker;
 CI retains two workers. Remaining work includes Cloudflare private delivery,
 controlled failure recovery, alert delivery, retention/configuration,
 performance/load checks and live staging.
+
+The initial-admin operator tool is implemented in `scripts/bootstrap-admin.ts`
+with `docs/ADMIN_BOOTSTRAP.md`. Default dry run and explicit target database,
+verified/unbanned account checks, serialized first-admin grant, atomic audit,
+session revocation, failure rollback and idempotency have database acceptance.
+No production administrator was created. Deployment execution remains JW-049.
 
 Performance/content checkpoint, 9 September 2026: see
 `docs/PERFORMANCE_CONTENT_REVIEW.md`. Duplicate account queries and unnecessary
