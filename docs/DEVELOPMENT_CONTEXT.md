@@ -17,8 +17,8 @@ current master tracker; older exported copies are historical snapshots.
 Tracker reconciliation on 3 October corrected stale dashboard/roadmap/test
 entries and the excluded S3 provider's scope classification. Overall completion
 is an equal-weight average of feature estimates, not elapsed engineering effort
-or production launch approval. The 200 in-scope rows average 90.585% (displayed
-as 90.6%): 154 completed, one verified feature-branch item awaiting review,
+or production launch approval. The workbook recalculates the 200 in-scope rows
+after each verified milestone: 154 completed, one feature-branch item awaiting review,
 34 partial/configuration items and 11 pending. Eleven excluded rows do not
 contribute. Reviewed estimates and their remaining acceptance gaps are recorded
 on the affected rows. The browser framework is complete awaiting PR review;
@@ -28,7 +28,7 @@ Saved-search delivery is not complete: preferences, matching and a deduplicated
 outbox exist, but the delivery worker and matching/overflow/retry acceptance
 remain. Cleanup covers more than sessions, but account/report/service retention
 and deletion remain incomplete. Listing reactivation already exists; its
-remaining work is lifecycle acceptance and production scheduling. Preserve these
+local ownership/expiry acceptance now passes; production scheduling and full live lifecycle remain. Preserve these
 distinctions in future tracker updates, including numeric completion/status
 changes when supported, and keep dashboard/roadmap summaries synchronized.
 
@@ -48,15 +48,15 @@ development files were moved to `.uploads` and the private `.env` path updated.
 Cloudflare direct delivery privacy is not covered by this local fix and remains
 a production launch gate; see `docs/QUALITY.md` for migration and limitations.
 
-Latest local acceptance: 93 browser passes and one planned desktop skip,
+Latest local acceptance: 101 browser passes and one planned desktop skip,
 five database checks, and a 101-route sweep with no issues. Static checks,
 lint and production build pass; maximum First Load JS remains 128 KB.
-After the legacy-image compatibility adjustment, a final production rebuild,
-both focused media browser cases and a 103-route follow-up sweep also passed.
-The final local run used one Playwright worker after competing browser runs
-timed out on this machine. CI retains two workers. Remaining work includes
-Cloudflare private delivery, dealer/service action
-denial, controlled failure recovery, performance/load checks and live staging.
+Eight new desktop/mobile cases cover dealer verify/revoke replay, service-admin
+role denial, invalid/terminal transitions, missing customer updates, customer
+privacy and expiry/reactivation. Full isolated acceptance used one worker;
+CI retains two workers. Remaining work includes Cloudflare private delivery,
+controlled failure recovery, alert delivery, retention/configuration,
+performance/load checks and live staging.
 
 Performance/content checkpoint, 9 September 2026: see
 `docs/PERFORMANCE_CONTENT_REVIEW.md`. Duplicate account queries and unnecessary

@@ -13,6 +13,165 @@ if (!databaseUrl || !/(?:_test|_acceptance)$/.test(new URL(databaseUrl).pathname
 const sql = postgres(databaseUrl, { max: 1 });
 test.afterAll(async () => { await sql.end(); });
 
+for (const service of ["inspection", "assistance"] as const) {
+  test(`${service} administration replay enforces roles, transitions and customer privacy`, async ({ page, isMobile }) => {
+    const email = `acceptance-seller-${isMobile ? "mobile" : "desktop"}@example.invalid`;
+    const [owner] = await sql`SELECT id FROM users WHERE email = ${email}`;
+    const [city] = await sql`SELECT id FROM cities ORDER BY id LIMIT 1`;
+    const table = service === "inspection" ? "inspections" : "sell_assistance_requests";
+    const eventTable = service === "inspection" ? "inspection_events" : "sell_assistance_events";
+    const eventKey = service === "inspection" ? "inspection_id" : "request_id";
+    const inputName = service === "inspection" ? "inspectionId" : "requestId";
+    const route = service === "inspection" ? "inspections" : "sell-assistance";
+    const fixture = `Authorization ${randomBytes(6).toString("hex")}`;
+    let id: number;
+    if (service === "inspection") {
+      const [row] = await sql`INSERT INTO inspections (requested_by_user_id,city_id,address,contact_phone) VALUES (${owner.id},${city.id},${fixture},'+923009998881') RETURNING id`;
+      id = Number(row.id);
+    } else {
+      const [model] = await sql`SELECT id,make_id FROM models ORDER BY id LIMIT 1`;
+      const [row] = await sql`INSERT INTO sell_assistance_requests (requested_by_user_id,city_id,make_id,model_id,year,mileage_km,registration_city,ownership_status,vehicle_condition,selling_timeline,address,contact_phone) VALUES (${owner.id},${city.id},${model.make_id},${model.id},2020,10000,'Lahore','own_name','good','within_month',${fixture},'+923009998881') RETURNING id`;
+      id = Number(row.id);
+    }
+    const snapshot = async () => ({
+      rows: await sql`SELECT status,updated_at FROM ${sql(table)} WHERE id=${id}`,
+      events: await sql`SELECT * FROM ${sql(eventTable)} WHERE ${sql(eventKey)}=${id} ORDER BY id`,
+    });
+    const message = `Customer-visible ${fixture}`;
+    const note = `Private ${fixture}`;
+    try {
+      await signIn(page, "acceptance-admin@example.invalid", `/admin/${route}`);
+      const form = page.locator("form").filter({ has: page.locator(`input[name="${inputName}"][value="${id}"]`) });
+      await form.locator('select[name="status"]').selectOption("contacted");
+      await form.locator('textarea[name="customerMessage"]').fill(message);
+      await form.locator('textarea[name="internalNote"]').fill(note);
+      const request = await captureAction(page, () => form.getByRole("button", { name: "Save update" }).click());
+      const before = await snapshot();
+      for (const actor of [email, "acceptance-seller@example.invalid", null]) {
+        if (actor) await signIn(page, actor); else await page.context().clearCookies();
+        const response = await replay(page, request);
+        expect(response.status()).toBe(303);
+        expect(response.headers()["x-action-redirect"]).toContain(actor ? "/;" : "/login");
+        expect(await snapshot()).toEqual(before);
+      }
+      await signIn(page, "acceptance-admin@example.invalid");
+      const payload = request.data.toString();
+      expect(payload).toContain("contacted");
+      expect(payload).toContain(message);
+      for (const [data, error] of [
+        [payload.replaceAll("contacted", service === "inspection" ? "completed" : "sold"), "cannot move"],
+        [payload.replaceAll(message, ""), service === "inspection" ? "customer update" : "customer-visible update"],
+      ]) {
+        const response = await replay(page, { ...request, data: Buffer.from(data) });
+        expect(response.status()).toBe(200);
+        expect(await response.text()).toContain(error);
+        expect(await snapshot()).toEqual(before);
+      }
+      expect((await replay(page, request)).status()).toBe(200);
+      const after = await snapshot();
+      expect(after.rows[0].status).toBe("contacted");
+      expect(after.events).toHaveLength(1);
+      expect(after.events[0]).toMatchObject({ from_status: "requested", to_status: "contacted", customer_message: message, internal_note: note });
+      await signIn(page, email, `/dashboard/${route}`);
+      await expect(page.getByText(message, { exact: true })).toBeVisible();
+      await expect(page.getByText(note, { exact: true })).toHaveCount(0);
+      await signIn(page, "acceptance-seller@example.invalid", `/dashboard/${route}`);
+      await expect(page.getByText(message, { exact: true })).toHaveCount(0);
+      await expect(page.getByText(fixture, { exact: true })).toHaveCount(0);
+      await sql`UPDATE ${sql(table)} SET status=${service === "inspection" ? "completed" : "sold"} WHERE id=${id}`;
+      const terminal = await snapshot();
+      await signIn(page, "acceptance-admin@example.invalid");
+      const denied = await replay(page, request);
+      expect(await denied.text()).toContain("cannot move");
+      expect(await snapshot()).toEqual(terminal);
+    } finally {
+      await sql`DELETE FROM ${sql(table)} WHERE id=${id}`;
+    }
+  });
+}
+
+test("dealer verification replay denies sellers and anonymous users with admin controls", async ({ page }) => {
+  const slug = `authorization-${randomBytes(6).toString("hex")}`;
+  const [owner] = await sql`INSERT INTO users (email,name) VALUES (${`${slug}@example.invalid`},'Dealer authorization fixture') RETURNING id`;
+  const [city] = await sql`SELECT id FROM cities ORDER BY id LIMIT 1`;
+  const [dealer] = await sql`INSERT INTO dealers (user_id,business_name,slug,city_id) VALUES (${owner.id},${slug},${slug},${city.id}) RETURNING id`;
+  const snapshot = async () => ({
+    dealer: await sql`SELECT verified_at FROM dealers WHERE id=${dealer.id}`,
+    audit: await sql`SELECT * FROM moderation_log WHERE user_id=${owner.id} ORDER BY id`,
+  });
+  try {
+    for (const button of ["Verify dealer", "Revoke verification"]) {
+      await signIn(page, "acceptance-admin@example.invalid", "/admin/dealers");
+      const row = page.locator("li").filter({ has: page.locator(`a[href="/dealers/${slug}"]`) });
+      await row.locator("textarea").fill("Authorization fixture decision");
+      const request = await captureAction(page, () => row.getByRole("button", { name: button, exact: true }).click());
+      const before = await snapshot();
+      for (const actor of ["acceptance-seller@example.invalid", null]) {
+        if (actor) await signIn(page, actor); else await page.context().clearCookies();
+        const denied = await replay(page, request);
+        expect(denied.status()).toBe(303);
+        expect(denied.headers()["x-action-redirect"]).toContain(actor ? "/;" : "/login");
+        expect(await snapshot()).toEqual(before);
+      }
+      await signIn(page, "acceptance-admin@example.invalid");
+      expect((await replay(page, request)).status()).toBe(200);
+      const after = await snapshot();
+      expect(Boolean(after.dealer[0].verified_at)).toBe(button === "Verify dealer");
+      expect(after.audit).toHaveLength(before.audit.length + 1);
+      expect(after.audit.at(-1)?.action).toBe(button === "Verify dealer" ? "dealer_verify" : "dealer_revoke");
+    }
+  } finally {
+    await sql`DELETE FROM moderation_log WHERE user_id=${owner.id}`;
+    await sql`DELETE FROM dealers WHERE id=${dealer.id}`;
+    await sql`DELETE FROM users WHERE id=${owner.id}`;
+  }
+});
+
+test("expiry cron and reactivation enforce ownership and a fresh thirty-day window", async ({ page, isMobile }) => {
+  const email = `acceptance-seller-${isMobile ? "mobile" : "desktop"}@example.invalid`;
+  const [owner] = await sql`SELECT id FROM users WHERE email=${email}`;
+  const [city] = await sql`SELECT id FROM cities ORDER BY id LIMIT 1`;
+  const fixture = `expiry-${randomBytes(6).toString("hex")}`;
+  const rows = await sql`INSERT INTO listings (vertical,seller_id,slug,title,price_pkr,city_id,status,published_at,expires_at)
+    VALUES ('part',${owner.id},${fixture},${fixture},2500,${city.id},'active',NOW()-INTERVAL '31 days',NOW()-INTERVAL '1 minute'),
+           ('part',${owner.id},${`${fixture}-future`},${fixture},2500,${city.id},'active',NOW(),NOW()+INTERVAL '1 day') RETURNING id`;
+  const id = Number(rows[0].id);
+  const snapshot = async () => (await sql`SELECT status,published_at,expires_at,sold_at FROM listings WHERE id=${id}`)[0];
+  try {
+    expect(process.env.CRON_SECRET).toBeTruthy();
+    expect((await page.request.post("/api/cron/expire-listings")).status()).toBe(401);
+    expect((await snapshot()).status).toBe("active");
+    expect((await page.request.post("/api/cron/expire-listings", { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } })).status()).toBe(200);
+    expect((await snapshot()).status).toBe("expired");
+    expect((await sql`SELECT status FROM listings WHERE id=${rows[1].id}`)[0].status).toBe("active");
+    await signIn(page, email);
+    const row = page.locator("li").filter({ has: page.locator(`a[href="/dashboard/listings/${id}/edit"]`) });
+    const request = await captureAction(page, () => row.getByRole("button", { name: "Reactivate for 30 days" }).click());
+    const before = await snapshot();
+    await signIn(page, "acceptance-seller@example.invalid");
+    expect((await replay(page, request)).status()).toBe(200);
+    expect(await snapshot()).toEqual(before);
+    await page.context().clearCookies();
+    expect((await replay(page, request)).status()).toBe(303);
+    expect(await snapshot()).toEqual(before);
+    await signIn(page, email);
+    expect((await replay(page, request)).status()).toBe(200);
+    const after = await snapshot();
+    expect(after.status).toBe("active");
+    expect(after.sold_at).toBeNull();
+    expect(new Date(after.published_at).getTime()).toBeGreaterThan(new Date(before.published_at).getTime());
+    expect(new Date(after.expires_at).getTime() - new Date(after.published_at).getTime()).toBe(30 * 86_400_000);
+    for (const state of ["active", "rejected", "removed"]) {
+      await sql`UPDATE listings SET status=${state} WHERE id=${id}`;
+      const blocked = await snapshot();
+      await replay(page, request);
+      expect(await snapshot()).toEqual(blocked);
+    }
+  } finally {
+    await sql`DELETE FROM listings WHERE id IN (${id},${rows[1].id})`;
+  }
+});
+
 test("uploaded photos enforce read visibility and reject foreign publish and edit keys", async ({ page, isMobile }) => {
   const ownerEmail = `acceptance-seller-${isMobile ? "mobile" : "desktop"}@example.invalid`;
   const keys: string[] = [];

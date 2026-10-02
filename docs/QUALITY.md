@@ -54,3 +54,17 @@ This read-access protection is currently for the local provider. Cloudflare
 still uses direct delivery URLs: private/signed delivery and live provider
 acceptance remain a production launch gate. Do not claim local acceptance
 proves Cloudflare object privacy.
+
+## Administrative and expiry acceptance
+
+Direct dealer verify/revoke replay is denied to sellers and anonymous visitors
+without changing dealer state or audit history. Inspection and assistance
+administration also denies the requesting customer, rejects invalid jumps,
+missing customer updates and reopening terminal requests. Identical admin
+payloads provide positive controls. Customer pages expose only that customer's
+updates and exclude staff notes.
+
+Expiry acceptance checks unauthenticated cron denial, due versus future active
+listings, foreign/anonymous reactivation denial, the owner's fresh 30-day
+window, and unchanged active/rejected/removed listings on replay. These tests
+do not establish production cron scheduling or the full live crawler lifecycle.
