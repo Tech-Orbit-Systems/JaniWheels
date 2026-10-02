@@ -25,3 +25,4 @@ tsconfig.tsbuildinfo
 # generated sitemaps written to disk by the nightly job
 /public/sitemaps/
 /public/uploads/
+/.uploads/

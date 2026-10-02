@@ -32,3 +32,25 @@ continues to use two workers.
 CI is an ephemeral staging environment. A persistent online preview, durable
 staging media storage, external uptime monitor, and branch protection still
 need hosting and repository configuration before Stage 6.2 can be signed off.
+
+## Media authorization acceptance
+
+The authorization suite checks local upload GET and HEAD requests as owner,
+another seller, anonymous visitor and administrator. Pending uploads and every
+inactive listing status require owner/admin access; active listing photos and
+saved profile/dealer identity photos are public. Upload responses are never
+cached, and the Next image optimizer rejects upload paths. A real browser
+checks the owner's edit preview. Foreign keys are replayed through actual
+publish/edit HTTP actions, with unchanged database state and valid-owner
+positive controls.
+
+Local `UPLOAD_DIR` must be outside `public/` (default `.uploads`). Before
+upgrading an existing local installation, stop its app, move `public/uploads`
+to an absolute private directory, set `UPLOAD_DIR` to that directory, and
+restart. Existing keys stay unchanged. Purge any previously public image caches
+when deploying this change; responses already downloaded cannot be revoked.
+
+This read-access protection is currently for the local provider. Cloudflare
+still uses direct delivery URLs: private/signed delivery and live provider
+acceptance remain a production launch gate. Do not claim local acceptance
+proves Cloudflare object privacy.

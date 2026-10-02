@@ -10,7 +10,7 @@ committed as `936baee`, and pushed on `codex/homepage-visuals`.
 
 The homepage package was subsequently reviewed and merged through PR #5
 (`c1ef18d`). Stage 6.2 continues on `codex/launch-quality-system`, PR #6.
-GitHub run 35 passed for `a739bcf`; always inspect the current PR commit's
+GitHub run 36 passed for `b32d457`; always inspect the current PR commit's
 checks before review or merge. The repository workbook under `docs/` is the
 current master tracker; older exported copies are historical snapshots.
 
@@ -22,12 +22,22 @@ cookie on loopback while its request client omits it. Request capture must
 wait until interception has actually aborted the request before removing the
 handler. Neither test accommodation changes production cookie behavior.
 
-Latest local acceptance: 91 browser passes and one planned desktop skip,
+The local media package now checks GET/HEAD visibility, blocks optimizer access
+to upload paths, and replays foreign photo keys through publish/edit actions
+with valid-owner controls. Private local images use cookie-bearing direct
+requests and no-store responses. Storage must live outside `public/`; the local
+development files were moved to `.uploads` and the private `.env` path updated.
+Cloudflare direct delivery privacy is not covered by this local fix and remains
+a production launch gate; see `docs/QUALITY.md` for migration and limitations.
+
+Latest local acceptance: 93 browser passes and one planned desktop skip,
 five database checks, and a 101-route sweep with no issues. Static checks,
 lint and production build pass; maximum First Load JS remains 128 KB.
+After the legacy-image compatibility adjustment, a final production rebuild,
+both focused media browser cases and a 103-route follow-up sweep also passed.
 The final local run used one Playwright worker after competing browser runs
 timed out on this machine. CI retains two workers. Remaining work includes
-private-media and HTTP upload-attachment negatives, dealer/service action
+Cloudflare private delivery, dealer/service action
 denial, controlled failure recovery, performance/load checks and live staging.
 
 Performance/content checkpoint, 9 September 2026: see

@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image from "@/components/StoredImage";
 import Link from "next/link";
 import { useActionState } from "react";
 import {

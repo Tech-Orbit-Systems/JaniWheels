@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import Image from "@/components/StoredImage";
 import Link from "next/link";
 import { getListingDetail } from "@/lib/listings/detail";
 import { buildListingPath } from "@/lib/listings/slug";

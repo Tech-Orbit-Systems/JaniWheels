@@ -1,4 +1,5 @@
-import { readLocalStoredImage } from "@/lib/images/storage";
+import { isStoredImageKey, readLocalStoredImage } from "@/lib/images/storage";
+import { canReadStoredImage } from "@/lib/images/access";
 
 type RouteContext = { params: Promise<{ key: string[] }> };
 
@@ -8,7 +9,9 @@ async function serve({ params }: RouteContext, head: boolean): Promise<Response>
   }
   const { key } = await params;
   const storageKey = key.join("/");
-  if (!storageKey.endsWith(".webp")) return new Response(null, { status: 404 });
+  if (!isStoredImageKey(storageKey) || !(await canReadStoredImage(storageKey))) {
+    return new Response(null, { status: 404, headers: { "Cache-Control": "private, no-store" } });
+  }
   const image = await readLocalStoredImage(storageKey);
   if (!image) return new Response(null, { status: 404 });
   return new Response(head ? null : new Uint8Array(image), {
@@ -16,7 +19,8 @@ async function serve({ params }: RouteContext, head: boolean): Promise<Response>
     headers: {
       "Content-Type": "image/webp",
       "Content-Length": String(image.length),
-      "Cache-Control": "public, max-age=31536000, immutable",
+      // Recheck visibility after moderation, sale, removal or session changes.
+      "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
     },
   });

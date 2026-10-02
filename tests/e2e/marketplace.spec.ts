@@ -541,7 +541,8 @@ test("seller uploads a photo and publishes a car", async ({ page, isMobile }) =>
   await page.locator('input[type="file"]').setInputFiles({ name: "acceptance.png", mimeType: "image/png", buffer: photo });
   await expect(page.getByText("1 photo added")).toBeVisible();
   const imageKey = await page.locator('input[name="imageKeys"]').inputValue();
-  const image = await page.request.get(`/uploads/${imageKey}`);
+  const uploadSession = (await page.context().cookies()).find((cookie) => cookie.name === "jw_session");
+  const image = await page.request.get(`/uploads/${imageKey}`, { headers: { cookie: `jw_session=${uploadSession!.value}` } });
   expect(image.ok()).toBe(true);
   expect(image.headers()["content-type"]).toContain("image/webp");
 

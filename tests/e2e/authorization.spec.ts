@@ -13,6 +13,98 @@ if (!databaseUrl || !/(?:_test|_acceptance)$/.test(new URL(databaseUrl).pathname
 const sql = postgres(databaseUrl, { max: 1 });
 test.afterAll(async () => { await sql.end(); });
 
+test("uploaded photos enforce read visibility and reject foreign publish and edit keys", async ({ page, isMobile }) => {
+  const ownerEmail = `acceptance-seller-${isMobile ? "mobile" : "desktop"}@example.invalid`;
+  const keys: string[] = [];
+  let listingId: number | undefined;
+  const photo = await sharp({ create: { width: 24, height: 24, channels: 3, background: "#487654" } }).png().toBuffer();
+  async function cookie() {
+    const session = (await page.context().cookies()).find((item) => item.name === "jw_session");
+    return session ? `jw_session=${session.value}` : "";
+  }
+  async function upload() {
+    const response = await page.request.post("/api/upload", {
+      headers: { cookie: await cookie() },
+      multipart: { files: { name: "private.png", mimeType: "image/png", buffer: photo } },
+    });
+    expect(response.status()).toBe(200);
+    const { keys: uploaded } = await response.json();
+    expect(uploaded).toHaveLength(1);
+    keys.push(uploaded[0]);
+    return uploaded[0] as string;
+  }
+  async function reads(key: string, status: number) {
+    for (const method of ["GET", "HEAD"]) {
+      const response = await page.request.fetch(`/uploads/${key}`, { method, headers: { cookie: await cookie() } });
+      expect(response.status()).toBe(status);
+      expect(response.headers()["cache-control"]).toContain("no-store");
+    }
+  }
+  try {
+    await signIn(page, "acceptance-seller@example.invalid");
+    const foreignKey = await upload();
+    await reads(foreignKey, 200);
+    await signIn(page, ownerEmail, "/sell/part");
+    await reads(foreignKey, 404);
+    const ownKey = await upload();
+    await reads(ownKey, 200);
+    const optimizer = await page.request.get(`/_next/image?url=${encodeURIComponent(`/uploads/${ownKey}`)}&w=640&q=75`, { headers: { cookie: await cookie() } });
+    expect(optimizer.status()).toBe(400);
+    await page.locator('select[name="categoryId"]').selectOption({ index: 1 });
+    await page.locator('input[name="brand"]').fill("Media authorization fixture");
+    await page.locator('input[name="pricePkr"]').fill("2500");
+    await page.locator('select[name="cityId"]').selectOption({ index: 1 });
+    // Submit a real valid browser form, replacing only its photo reference for the attack.
+    await page.locator('input[type="file"]').setInputFiles({ name: "publish.png", mimeType: "image/png", buffer: photo });
+    await expect(page.getByText("1 photo added")).toBeVisible();
+    const publishKey = await page.locator('input[name="imageKeys"]').inputValue();
+    keys.push(publishKey);
+    const publish = await captureAction(page, () => page.getByRole("button", { name: "Post Auto Part Ad — Free" }).click());
+    const [owner] = await sql`SELECT id FROM users WHERE email = ${ownerEmail}`;
+    const before = await sql`SELECT id FROM listings WHERE seller_id = ${owner.id} ORDER BY id`;
+    const payload = publish.data.toString();
+    expect(payload).toContain(publishKey);
+    const denied = await replay(page, { ...publish, data: Buffer.from(payload.replaceAll(publishKey, foreignKey)) });
+    expect(await denied.text()).toContain("belong to another account");
+    expect(await sql`SELECT id FROM listings WHERE seller_id = ${owner.id} ORDER BY id`).toEqual(before);
+    expect((await sql`SELECT claimed_at FROM pending_uploads WHERE storage_key = ${foreignKey}`)[0].claimed_at).toBeNull();
+    expect((await replay(page, publish)).status()).toBe(303);
+    const [created] = await sql`SELECT id FROM listings WHERE seller_id = ${owner.id} ORDER BY id DESC LIMIT 1`;
+    listingId = Number(created.id);
+
+    await page.goto(`/dashboard/listings/${listingId}/edit`);
+    await expect(page.getByAltText("Ad photo 1")).toBeVisible();
+    await expect.poll(() => page.getByAltText("Ad photo 1").evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    const edit = await captureAction(page, () => page.getByRole("button", { name: "Save advertisement changes" }).click());
+    expect(edit.data.toString()).toContain(publishKey);
+    const editDenied = await replay(page, { ...edit, data: Buffer.from(edit.data.toString().replaceAll(publishKey, foreignKey)) });
+    expect(await editDenied.text()).toContain("belong to another account");
+    expect((await sql`SELECT storage_key FROM listing_images WHERE listing_id = ${listingId}`).map((row) => row.storage_key)).toEqual([publishKey]);
+    expect((await replay(page, edit)).status()).toBe(303);
+
+    await page.context().clearCookies();
+    await reads(ownKey, 404);
+    await reads(publishKey, 200);
+    for (const status of ["draft", "pending_review", "sold", "expired", "rejected", "removed"]) {
+      await sql`UPDATE listings SET status = ${status} WHERE id = ${listingId}`;
+      await reads(publishKey, 404);
+    }
+    await signIn(page, "acceptance-seller@example.invalid");
+    await reads(publishKey, 404);
+    await signIn(page, ownerEmail);
+    await reads(publishKey, 200);
+    await signIn(page, "acceptance-admin@example.invalid");
+    await reads(publishKey, 200);
+    await reads(ownKey, 200);
+  } finally {
+    if (listingId) await sql`DELETE FROM listings WHERE id = ${listingId}`;
+    for (const key of keys) {
+      await sql`DELETE FROM pending_uploads WHERE storage_key = ${key}`;
+      if (process.env.UPLOAD_DIR) await rm(join(process.env.UPLOAD_DIR, key), { force: true });
+    }
+  }
+});
+
 async function signIn(page: Page, email: string, next = "/dashboard") {
   await page.context().clearCookies();
   await page.goto(`/login?next=${encodeURIComponent(next)}`);

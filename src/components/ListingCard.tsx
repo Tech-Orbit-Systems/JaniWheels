@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import Image from "@/components/StoredImage";
 import { formatPkr, formatMileage, relativeTime } from "@/lib/format";
 import { buildListingPath } from "@/lib/listings/slug";
 import type { SearchResultRow } from "@/lib/listings/search";

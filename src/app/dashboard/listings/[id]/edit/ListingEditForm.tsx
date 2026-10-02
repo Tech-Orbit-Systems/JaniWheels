@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image from "@/components/StoredImage";
 import { useActionState, useState } from "react";
 import { Camera, ChevronLeft, ChevronRight, MapPin, Save, Trash2 } from "lucide-react";
 import { updateListingAction } from "@/lib/listings/manage-actions";

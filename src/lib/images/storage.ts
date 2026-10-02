@@ -18,7 +18,7 @@ import sharp from "sharp";
  *      to 480px is the difference between a search page that loads and one
  *      that doesn't.
  *
- * `local` writes to public/uploads and is fine for development. It is not
+ * `local` writes outside public/ and is fine for development. It is not
  * fine for production — you will run out of disk and have no CDN in front.
  */
 
@@ -39,16 +39,19 @@ function imageProvider(): "local" | "cloudflare" {
  * Deliberately NOT bare `process.cwd()`. The server's working directory is
  * not guaranteed to be the project root — a systemd unit with a different
  * WorkingDirectory, pm2, a monorepo task runner, or `next dev <dir>` launched
- * from elsewhere all change it. When that happens uploads land outside
- * public/, every image 404s, and nothing errors: the upload returns 200 and
- * the file is simply written into the void.
+ * from elsewhere all change it. An absolute path keeps reads, uploads and
+ * cleanup pointed at the same private storage directory.
  *
  * Set UPLOAD_DIR to an absolute path to pin it.
  */
 function localUploadDir(): string {
-  return (
-    process.env.UPLOAD_DIR ?? path.join(process.cwd(), "public", "uploads")
-  );
+  const root = path.resolve(process.env.UPLOAD_DIR || path.join(process.cwd(), ".uploads"));
+  const publicRoot = path.resolve(process.cwd(), "public");
+  const relative = path.relative(publicRoot, root);
+  if (!relative || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative))) {
+    throw new Error("UPLOAD_DIR must be outside public/ so image access cannot bypass authorization.");
+  }
+  return root;
 }
 
 export const ACCEPTED_TYPES = new Set([
@@ -65,7 +68,12 @@ export interface StoredImage {
   bytes: number;
 }
 
-const STORAGE_KEY = /^\d{6}\/[a-f0-9]{32}\.(?:jpg|png|webp|avif|heic)$/;
+// Preserve the original development fixture keys when moving storage out of public/.
+const STORAGE_KEY = /^(?:\d{6}\/[a-f0-9]{32}\.(?:jpg|png|webp|avif|heic)|listings\/[a-z0-9-]+\.jpg)$/;
+
+export function isStoredImageKey(key: string): boolean {
+  return STORAGE_KEY.test(key);
+}
 
 function newKey(ext: string): string {
   const now = new Date();
@@ -147,7 +155,10 @@ export async function readLocalStoredImage(key: string): Promise<Buffer | null> 
   const target = path.resolve(root, key);
   if (!target.startsWith(`${root}${path.sep}`)) return null;
   try {
-    return await readFile(target);
+    const buffer = await readFile(target);
+    return key.endsWith(".webp") ? buffer : await sharp(buffer, { limitInputPixels: MAX_IMAGE_PIXELS })
+      .rotate().resize({ width: 2400, height: 2400, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 84 }).toBuffer();
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
