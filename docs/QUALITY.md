@@ -3,7 +3,7 @@
 Every pull request and main push runs `.github/workflows/quality.yml`. The job
 creates an isolated PostgreSQL service, applies migrations, seeds curated data
 and demo inventory, runs database assertions, checks, lint, a production build,
-the route sweep, desktop/mobile Chromium tests, and a production dependency
+the route sweep, desktop/mobile Chromium tests, iPhone WebKit smoke tests, and a production dependency
 audit. A failing step fails the
 required check; repository branch protection must mark **Quality and
 acceptance / acceptance** as required before a failure can block merging.
@@ -12,7 +12,7 @@ Run the same checks locally with a working local PostgreSQL server:
 
 ```bash
 npm run test:acceptance:prepare
-npx playwright install chromium
+npx playwright install chromium webkit
 npm run test:acceptance
 ```
 

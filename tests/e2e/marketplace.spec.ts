@@ -708,7 +708,7 @@ test("another seller cannot open a private listing edit page", async ({ page, is
   const device = isMobile ? "mobile" : "desktop";
   const [car] = await sql`
     SELECT l.id FROM listings l JOIN users u ON u.id = l.seller_id
-    WHERE u.email = ${`acceptance-seller-${device}@example.invalid`} AND l.vertical = 'car'
+    WHERE u.email = ${`acceptance-seller-${device}@example.invalid`} AND l.vertical = 'car' AND l.status = 'active'
     ORDER BY l.id DESC LIMIT 1
   `;
   expect(car?.id).toBeGreaterThan(0);
@@ -760,6 +760,74 @@ test("owner edits a car and deletes a bike with its photos", async ({ page, isMo
   expect(images).toHaveLength(0);
   expect((await page.request.get(`/used-bikes/${bike!.slug}-${bike!.id}`)).status()).toBe(404);
   expect((await page.request.get(`/uploads/${photo.storage_key}`)).status()).toBe(404);
+});
+
+test("another seller cannot replay direct sold or delete actions", async ({ page, isMobile }) => {
+  const device = isMobile ? "mobile" : "desktop";
+  const [owner] = await sql`SELECT id FROM users WHERE email = ${`acceptance-seller-${device}@example.invalid`}`;
+  expect(owner?.id).toBeGreaterThan(0);
+  const [city] = await sql`SELECT id FROM cities ORDER BY id LIMIT 1`;
+  const [car] = await sql`
+    INSERT INTO listings (vertical, seller_id, slug, title, price_pkr, city_id, status, published_at)
+    VALUES ('car', ${owner.id}, 'acceptance-direct-action', 'Authorization test car', 1200000, ${city.id}, 'active', NOW())
+    RETURNING id
+  `;
+  await sql`INSERT INTO car_details (listing_id) VALUES (${car.id})`;
+  const [beforeImages] = await sql`SELECT COUNT(*)::int AS count FROM listing_images WHERE listing_id = ${car.id}`;
+
+  try {
+    await page.goto("/login?next=/dashboard");
+    await page.getByRole("textbox", { name: "Email or mobile number" }).fill(`acceptance-seller-${device}@example.invalid`);
+    await page.getByLabel("Password").fill("AcceptanceOnly123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+    await expect.poll(async () => (await page.context().cookies()).some((cookie) => cookie.name === "jw_session")).toBe(true);
+
+    await page.route("**/*", async (route) => {
+      if (route.request().method() === "POST" && route.request().headers()["next-action"]) await route.abort();
+      else await route.continue();
+    });
+    const captured: { url: string; body: Buffer; headers: Record<string, string> }[] = [];
+    for (const action of ["sold", "delete"] as const) {
+      await page.goto("/dashboard");
+      const row = page.locator("li").filter({ has: page.locator(`a[href="/dashboard/listings/${car.id}/edit"]`) });
+      const actionRequest = page.waitForRequest((request) => request.method() === "POST" && Boolean(request.headers()["next-action"]));
+      if (action === "sold") {
+        await row.getByRole("button", { name: "Mark as sold" }).click();
+        await row.getByRole("button", { name: "Yes", exact: true }).click();
+      } else {
+        await row.getByRole("button", { name: "Delete ad" }).click();
+        await row.getByRole("button", { name: "Yes, delete" }).click();
+      }
+      const request = await actionRequest;
+      const body = request.postDataBuffer();
+      expect(body).toBeTruthy();
+      const headers = { ...request.headers() };
+      delete headers.cookie;
+      delete headers.host;
+      delete headers["content-length"];
+      captured.push({ url: request.url(), body: body!, headers });
+    }
+    await page.unrouteAll();
+    await page.context().clearCookies();
+    await page.goto("/login?next=/dashboard");
+    await page.getByRole("textbox", { name: "Email or mobile number" }).fill("acceptance-seller@example.invalid");
+    await page.getByLabel("Password").fill("AcceptanceOnly123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+    await expect.poll(async () => (await page.context().cookies()).some((cookie) => cookie.name === "jw_session")).toBe(true);
+
+    for (const action of captured) {
+      const response = await page.request.post(action.url, { data: action.body, headers: action.headers, maxRedirects: 0 });
+      expect([200, 303]).toContain(response.status());
+      const [after] = await sql`SELECT status, seller_deleted_at FROM listings WHERE id = ${car.id}`;
+      expect(after).toMatchObject({ status: "active", seller_deleted_at: null });
+      const [afterImages] = await sql`SELECT COUNT(*)::int AS count FROM listing_images WHERE listing_id = ${car.id}`;
+      expect(afterImages.count).toBe(beforeImages.count);
+    }
+  } finally {
+    await sql`DELETE FROM listings WHERE id = ${car.id}`;
+  }
 });
 
 test("car detail links an inspection across sign-in and rejects a forged listing", async ({ page, isMobile }) => {

@@ -27,7 +27,7 @@ npm run build:safe
 npm run test:acceptance
 ```
 
-`test:acceptance` performs fresh migration/seed, database assertions, build, route sweep, and desktop/mobile Chromium browser tests. It requires the isolated acceptance database described in the project scripts. If routes or interactive behavior changed, also run `npm run sweep` against the actual staging application with seeded data. Record the command results, failing case names, URL count, browser pass/skip count, and maximum First Load JS. Do not convert a planned skip into a pass.
+`test:acceptance` performs fresh migration/seed, database assertions, build, route sweep, desktop/mobile Chromium browser tests, and an iPhone WebKit smoke test. The WebKit smoke uses a test-only session-cookie injection for local HTTP; real Safari cookie behavior requires HTTPS staging. It requires the isolated acceptance database described in the project scripts. If routes or interactive behavior changed, also run `npm run sweep` against the actual staging application with seeded data. Record the command results, failing case names, URL count, browser pass/skip count, and maximum First Load JS. Do not convert a planned skip into a pass.
 
 ## Manual module checks
 
