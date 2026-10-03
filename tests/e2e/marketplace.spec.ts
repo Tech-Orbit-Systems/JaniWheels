@@ -1256,13 +1256,17 @@ test("administrator ban revokes sessions and restoration permits login", async (
 
 test("five independent reports hide an ad until administrator review", async ({ page, browser, isMobile }) => {
   const device = isMobile ? "mobile" : "desktop";
+  const fixture = `report-${device}-${randomBytes(8).toString("hex")}`;
   const [listing] = await sql`
-    SELECT l.id, l.slug FROM listings l JOIN users u ON u.id = l.seller_id
-    WHERE u.email = ${`acceptance-seller-${device}@example.invalid`} AND l.vertical = 'part' AND l.status = 'active'
-    ORDER BY l.id DESC LIMIT 1
+    INSERT INTO listings (vertical,seller_id,slug,title,price_pkr,city_id,status,published_at)
+    SELECT 'part',u.id,${fixture},'Report acceptance part',2500,c.id,'active',NOW()
+    FROM users u CROSS JOIN (SELECT id FROM cities ORDER BY id LIMIT 1) c
+    WHERE u.email = ${`acceptance-seller-${device}@example.invalid`}
+    RETURNING id,slug
   `;
   expect(listing?.id).toBeGreaterThan(0);
   const listingPath = `/auto-parts/${listing.slug}-${listing.id}`;
+  try {
   for (let reporter = 1; reporter <= 5; reporter++) {
     await page.context().clearCookies();
     await page.goto(listingPath);
@@ -1337,6 +1341,11 @@ test("five independent reports hide an ad until administrator review", async ({ 
   expect(queuedTwice.count).toBe(2);
   const [held] = await sql`SELECT status FROM listings WHERE id = ${listing.id}`;
   expect(held.status).toBe("pending_review");
+  } finally {
+    await sql`DELETE FROM listing_reports WHERE listing_id=${listing.id}`;
+    await sql`DELETE FROM moderation_log WHERE listing_id=${listing.id}`;
+    await sql`DELETE FROM listings WHERE id=${listing.id}`;
+  }
 });
 
 test("mobile viewport does not overflow horizontally", async ({ page, isMobile }) => {

@@ -22,6 +22,13 @@ Demo seeding replaces demo sellers' listings within that isolated database.
 It starts the production build on port 3101, runs the sweep and browser tests,
 then stops its server. `--browser-only` skips migrations, reseeding and build
 when only the browser tests need another run.
+`--database-only` rebuilds the isolated database and runs its checks without a
+browser/build. `--launch-gaps-only` targets dealer/tablet/readiness checks;
+`--load-only` performs the bounded local HTTP smoke. Combine the latter two
+with `--browser-only` only when the current build and seeded data are ready.
+`--grep` targets ordinary Chromium projects without recovery dependencies.
+The report-threshold test now creates/cleans its own listing, so it can be
+retested without depending on an earlier seller-publishing test.
 
 On a busy local machine, use
 `npx cross-env PLAYWRIGHT_WORKERS=1 npm run test:acceptance`
@@ -50,10 +57,11 @@ to an absolute private directory, set `UPLOAD_DIR` to that directory, and
 restart. Existing keys stay unchanged. Purge any previously public image caches
 when deploying this change; responses already downloaded cannot be revoked.
 
-This read-access protection is currently for the local provider. Cloudflare
-still uses direct delivery URLs: private/signed delivery and live provider
-acceptance remain a production launch gate. Do not claim local acceptance
-proves Cloudflare object privacy.
+Cloudflare now uses private UUID uploads and the same authorized application
+endpoint, with server-only signed delivery and mock-provider checks. Live
+variant configuration, old custom-ID migration and provider acceptance remain
+launch gates; see `docs/PRIVATE_MEDIA.md`. Local and mock acceptance do not
+prove privacy of existing provider objects.
 
 ## Administrative and expiry acceptance
 

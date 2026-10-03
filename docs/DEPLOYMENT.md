@@ -19,6 +19,12 @@ Configure the values documented in `.env.example`. At minimum:
 - `CRON_SECRET`
 
 Do not use local filesystem uploads on an ephemeral host.
+Runtime configuration is validated at startup. Run `npm run check:deployment`
+before launch for the stricter public HTTPS/provider/secret checks. It prints
+only variable names and corrections. Passing it does not prove provider access.
+See [private media setup and migration](./PRIVATE_MEDIA.md),
+[saved-search delivery](./ALERT_DELIVERY.md), and
+[retention decisions](./RETENTION_DECISIONS.md).
 
 ## Database
 
@@ -69,3 +75,8 @@ curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" \
 - Add privacy policy, terms and contact information
 - Run database query-plan and load tests for the selected infrastructure
 - Configure backups, logs, uptime monitoring and error reporting
+
+Builds require a reachable, migrated PostgreSQL database for page data. Use
+the isolated CI database or a dedicated staging/build database; never run demo
+seeds against production. A successful build does not provision staging or
+validate the production database/network credentials.

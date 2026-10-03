@@ -15,14 +15,7 @@ import { PhoneReveal } from "./PhoneReveal";
 import { ReportListing } from "./ReportListing";
 import { ModerationActions } from "@/app/admin/moderation/ModerationActions";
 import { BuyerListingActions } from "./BuyerListingActions";
-
-function imageUrl(key: string, width: number): string {
-  const provider = process.env.NEXT_PUBLIC_IMAGE_PROVIDER ?? "local";
-  if (provider === "cloudflare") {
-    return `https://imagedelivery.net/${process.env.NEXT_PUBLIC_CF_IMAGES_HASH}/${key}/w=${width}`;
-  }
-  return `/uploads/${key}`;
-}
+import { imageDeliveryUrl as imageUrl } from "@/lib/images/url";
 
 function titleCase(s: string): string {
   return s

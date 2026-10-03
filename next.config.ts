@@ -26,10 +26,7 @@ const config: NextConfig = {
     formats: ["image/avif", "image/webp"],
     deviceSizes: [360, 414, 640, 768, 1024, 1280],
     imageSizes: [64, 96, 128, 256, 384],
-    remotePatterns: [
-      { protocol: "https", hostname: "imagedelivery.net" },
-      { protocol: "https", hostname: "**.r2.cloudflarestorage.com" },
-    ],
+    remotePatterns: [],
   },
 
   async headers() {

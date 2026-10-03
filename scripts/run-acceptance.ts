@@ -59,6 +59,7 @@ try {
       child.once("error", reject);
     });
     await command(["run", "test:db"]);
+    if (process.argv.includes("--database-only")) process.exit(0);
     await command(["run", "build:safe"]);
   }
   if (!process.argv.includes("--browser-only")) {
@@ -82,11 +83,18 @@ try {
   }
   if (!ready) throw new Error("Acceptance server did not become ready");
   await command(["run", "sweep"]);
+  if (process.argv.includes("--load-only")) {
+    await command(["run", "test:load-smoke"]);
+    server.kill();
+    process.exit(0);
+  }
   const grepIndex = process.argv.indexOf("--grep");
   const grep = grepIndex >= 0 ? process.argv[grepIndex + 1] : undefined;
-  await command(process.argv.includes("--recovery-only")
+  await command(process.argv.includes("--launch-gaps-only")
+    ? ["run", "test:e2e", "--", "tests/e2e/launch-gaps.spec.ts", "--project=desktop-chromium", "--project=mobile-chromium", "--no-deps"]
+    : process.argv.includes("--recovery-only")
     ? ["run", "test:e2e", "--", "--project=recovery-chromium", "--no-deps"]
-    : grep ? ["run", "test:e2e", "--", "--grep", grep] : ["run", "test:e2e"]);
+    : grep ? ["run", "test:e2e", "--", "--project=desktop-chromium", "--project=mobile-chromium", "--no-deps", "--grep", grep] : ["run", "test:e2e"]);
 } finally {
   server?.kill();
 }

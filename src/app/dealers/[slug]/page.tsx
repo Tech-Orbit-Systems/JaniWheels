@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "@/components/StoredImage";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -39,7 +40,7 @@ async function getDealer(slug: string) {
     .from(dealers)
     .innerJoin(cities, eq(dealers.cityId, cities.id))
     .innerJoin(users, eq(dealers.userId, users.id))
-    .where(eq(dealers.slug, slug))
+    .where(and(eq(dealers.slug, slug), eq(users.isBanned, false)))
     .limit(1);
 
   return row ?? null;
@@ -75,7 +76,11 @@ export default async function DealerPage({
   const dealer = await getDealer(slug);
   if (!dealer) notFound();
 
-  const page = Math.max(1, Number(rawPage ?? 1) || 1);
+  const requestedPage = Number(rawPage ?? 1);
+  const [{ total }] = await db.select({ total: sql<number>`COUNT(*)::int` }).from(listings)
+    .where(and(eq(listings.dealerId, dealer.id), eq(listings.status, "active")));
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pageCount) : 1;
 
   const rows = await db
     .select({
@@ -105,7 +110,7 @@ export default async function DealerPage({
     .where(
       and(eq(listings.dealerId, dealer.id), eq(listings.status, "active")),
     )
-    .orderBy(desc(listings.publishedAt))
+    .orderBy(desc(listings.publishedAt), desc(listings.id))
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE);
 
@@ -180,7 +185,7 @@ export default async function DealerPage({
       </div>
 
       <h2 className="mb-3 text-lg font-semibold text-slate-900">
-        {rows.length} active {rows.length === 1 ? "ad" : "ads"}
+        {total} active {total === 1 ? "ad" : "ads"}
       </h2>
 
       {rows.length === 0 ? (
@@ -194,6 +199,11 @@ export default async function DealerPage({
           ))}
         </ul>
       )}
+      {pageCount > 1 && <nav aria-label="Dealer inventory pages" className="mt-8 flex flex-wrap items-center justify-center gap-4">
+        {page > 1 && <Link className="rounded border px-4 py-2" href={`/dealers/${dealer.slug}?page=${page - 1}`} rel="prev">Previous</Link>}
+        <span>Page {page} of {pageCount}</span>
+        {page < pageCount && <Link className="rounded border px-4 py-2" href={`/dealers/${dealer.slug}?page=${page + 1}`} rel="next">Next</Link>}
+      </nav>}
     </main>
   );
 }

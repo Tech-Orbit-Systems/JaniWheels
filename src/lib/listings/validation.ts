@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UPLOAD_KEY } from "@/lib/images/keys";
 
 /**
  * Listing input validation.
@@ -14,7 +15,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 const adLocalLabel = z.string().trim().min(2, "Enter at least 2 characters.").max(80, "Keep this name under 80 characters.").optional();
 const customFeatureNames = z.array(z.string().trim().min(2, "Enter at least 2 characters for each feature.").max(80, "Keep each feature under 80 characters.")).max(20, "Add no more than 20 custom features.").default([]);
 const imageKeys = (emptyMessage: string) => z
-  .array(z.string().regex(/^\d{6}\/[a-f0-9]{32}\.(?:jpg|png|webp|avif|heic)$/, "Upload the photo again."))
+  .array(z.string().regex(UPLOAD_KEY, "Upload the photo again."))
   .min(1, emptyMessage)
   .max(30, "Add no more than 30 photos.")
   .refine((keys) => new Set(keys).size === keys.length, "The same photo cannot be attached twice.");

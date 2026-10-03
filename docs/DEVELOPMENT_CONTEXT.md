@@ -18,16 +18,19 @@ Tracker reconciliation on 3 October corrected stale dashboard/roadmap/test
 entries and the excluded S3 provider's scope classification. Overall completion
 is an equal-weight average of feature estimates, not elapsed engineering effort
 or production launch approval. The workbook recalculates the 200 in-scope rows
-after each verified milestone: 154 completed, one feature-branch item awaiting review,
-34 partial/configuration items and 11 pending. Eleven excluded rows do not
+after each verified milestone: 156 completed, one feature-branch item awaiting review,
+35 partial/configuration items and eight pending. Eleven excluded rows do not
 contribute. Reviewed estimates and their remaining acceptance gaps are recorded
 on the affected rows. The browser framework is complete awaiting PR review;
 broader coverage and live-device acceptance retain their own open gates.
 
-Saved-search delivery is not complete: preferences, matching and a deduplicated
-outbox exist, but the delivery worker and matching/overflow/retry acceptance
-remain. Cleanup covers more than sessions, but account/report/service retention
-and deletion remain incomplete. Listing reactivation already exists; its
+Saved-search matching now drains overflow and has an immutable, leased delivery
+worker with retry/backoff and eligibility checks. Seven DB acceptance tests
+include alert concurrency, opt-out, deduplication and retry-window controls.
+Live Resend configuration, scheduling and mailbox acceptance remain open.
+Cleanup covers more than sessions, but account/report/service retention
+and deletion require the decisions in `docs/RETENTION_DECISIONS.md`; the new
+read-only inventory exports counts/dates only. Listing reactivation already exists; its
 local ownership/expiry acceptance now passes; production scheduling and full live lifecycle remain. Preserve these
 distinctions in future tracker updates, including numeric completion/status
 changes when supported, and keep dashboard/roadmap summaries synchronized.
@@ -45,10 +48,12 @@ to upload paths, and replays foreign photo keys through publish/edit actions
 with valid-owner controls. Private local images use cookie-bearing direct
 requests and no-store responses. Storage must live outside `public/`; the local
 development files were moved to `.uploads` and the private `.env` path updated.
-Cloudflare direct delivery privacy is not covered by this local fix and remains
-a production launch gate; see `docs/QUALITY.md` for migration and limitations.
+Cloudflare now uses private UUID uploads and server-only signed delivery through
+the same visibility endpoint. Mock-provider acceptance passes; live variant
+configuration and existing custom-ID migration remain launch gates. See
+`docs/PRIVATE_MEDIA.md` for limits and the required migration.
 
-Latest local acceptance: 101 browser passes and one planned desktop skip,
+Prior local baseline acceptance: 101 browser passes and one planned desktop skip,
 six database checks (five baseline plus admin-bootstrap acceptance), and a
 101-route sweep with no issues. Static checks,
 lint and production build pass; maximum First Load JS remains 128 KB.
@@ -62,8 +67,8 @@ failure; the targeted run also swept 103 URLs with zero issues. The test caught
 and fixed a stale error-boundary retry: the button now
 refreshes server data before reset. The recovery project runs after ordinary
 browser acceptance and restores its isolated table in cleanup.
-Remaining work includes Cloudflare private delivery,
-provider/slow-network recovery, alert delivery, retention/configuration,
+Remaining work includes live Cloudflare configuration/migration,
+provider/slow-network recovery, live alert delivery, retention policy/configuration,
 performance/load checks and live staging.
 
 The initial-admin operator tool is implemented in `scripts/bootstrap-admin.ts`
@@ -71,6 +76,21 @@ with `docs/ADMIN_BOOTSTRAP.md`. Default dry run and explicit target database,
 verified/unbanned account checks, serialized first-admin grant, atomic audit,
 session revocation, failure rollback and idempotency have database acceptance.
 No production administrator was created. Deployment execution remains JW-049.
+
+Autonomous launch hardening, 3 October: runtime/launch environment validation,
+private Cloudflare delivery, alert queue/worker, dealer inventory totals and
+pagination, enlarged-text header/footer fixes, readiness endpoint, structured
+request-error events and retention inventory are implemented. See the master
+tracker for current verification and remaining live gates. Local measurements
+are recorded in `docs/LOCAL_QUERY_PLAN_REPORT.md` and `docs/LOCAL_LOAD_SMOKE.md`:
+10,000 rollback-only synthetic cars identified the newest-first index gap;
+100 local HTTP requests at concurrency five completed without failures.
+These measurements do not replace staging capacity or 500-user soak tests.
+
+One local full browser run passed 100 cases but hit Chrome
+`ERR_INSUFFICIENT_RESOURCES` during the mobile report flow; recovery dependencies
+therefore did not run. That run is not recorded as a full pass. Targeted retests
+and CI on the final pushed commit govern the completed package.
 
 Performance/content checkpoint, 9 September 2026: see
 `docs/PERFORMANCE_CONTENT_REVIEW.md`. Duplicate account queries and unnecessary
