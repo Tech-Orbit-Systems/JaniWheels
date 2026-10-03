@@ -10,7 +10,11 @@ committed as `936baee`, and pushed on `codex/homepage-visuals`.
 
 The homepage package was subsequently reviewed and merged through PR #5
 (`c1ef18d`). Stage 6.2 continues on `codex/launch-quality-system`, PR #6.
-GitHub run 37 passed for `a96704b`; always inspect the current PR commit's
+GitHub run 42 passed for `254e171`, including migrations, database acceptance,
+static checks, lint, build, route sweep, browser acceptance and production
+dependency audit. The subsequent alert-key review fix uses a persisted UUID
+to prevent collisions between environments and passed its local database test,
+checks, lint and build. Always inspect the current PR commit's
 checks before review or merge. The repository workbook under `docs/` is the
 current master tracker; older exported copies are historical snapshots.
 

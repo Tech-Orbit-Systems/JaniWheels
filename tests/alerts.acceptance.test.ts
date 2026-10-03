@@ -33,8 +33,9 @@ test("saved alerts drain overflow, deduplicate, retry immutably and honor opt-ou
     let firstKey = "";
     const failure = await deliverSavedSearchAlerts(async (payload, key) => { firstPayload = payload; firstKey = key; throw new Error("provider unavailable"); }, 1);
     assert.equal(failure.failed, 1);
-    const firstId = Number(firstKey.replace("saved-search-", ""));
-    const [failed] = await sql`SELECT * FROM saved_search_notifications WHERE id=${firstId}`;
+    assert.match(firstKey, /^saved-search-[a-f0-9-]{36}$/);
+    const [failed] = await sql`SELECT * FROM saved_search_notifications WHERE saved_search_id=${search.id} AND payload->>'key'=${firstKey}`;
+    const firstId = failed.id;
     assert.equal(failed.delivered, false);
     assert.equal(failed.attempts, 1);
     assert.ok(failed.first_attempt_at && failed.next_attempt_at > new Date());

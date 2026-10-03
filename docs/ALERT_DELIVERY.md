@@ -21,7 +21,9 @@ untouched. These jobs are not publicly accessible.
   provider request already in flight.
 - Each delivery invocation claims at most 25 rows with locked, committed
   attempts and a one-minute lease. The immutable email body and provider
-  idempotency key survive process crashes. Provider requests time out at ten
+  UUID idempotency key survive process crashes. Each notification persists its
+  own random key so staging and production IDs cannot collide in a shared
+  provider account. Provider requests time out at ten
   seconds; retries back off to a maximum one hour.
 - Attempts older than 23 hours require operator reconciliation and are
   suppressed automatically. Do not blindly resend: Resend retains idempotency

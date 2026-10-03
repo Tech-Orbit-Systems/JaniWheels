@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { and, asc, eq, isNull, lte, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { savedSearches, savedSearchNotifications as notifications, listings, users } from "@/db/schema";
@@ -6,6 +7,8 @@ import { buildWhere } from "@/lib/listings/search";
 import { buildListingPath } from "@/lib/listings/slug";
 import type { FacetState } from "@/lib/seo/facets";
 import { buildAlertEmail, sendAlertEmail, type AlertEmail } from "@/lib/email/saved-search";
+
+interface DeliveryPayload { message: AlertEmail; key: string }
 
 export async function queueSavedSearchAlerts() {
   let queued = 0;
@@ -65,7 +68,11 @@ export async function deliverSavedSearchAlerts(send: typeof sendAlertEmail = sen
         await tx.update(notifications).set({ suppressedAt: new Date(), lastError: expiredRetry ? "Retry window expired; reconcile with provider before any resend" : "Recipient preference, eligibility or listing availability changed" }).where(eq(notifications.id, n.id));
         return { suppressed: true as const };
       }
-      const payload = n.payload as AlertEmail | null ?? buildAlertEmail(n.recipientEmail, row.listing.title, buildListingPath(row.listing.vertical, row.listing.slug, row.listing.id));
+      const payload = n.payload as DeliveryPayload | null ?? {
+        message: buildAlertEmail(n.recipientEmail, row.listing.title, buildListingPath(row.listing.vertical, row.listing.slug, row.listing.id)),
+        // Numeric IDs can overlap across staging/production sharing a provider.
+        key: `saved-search-${randomUUID()}`,
+      };
       const attempt = n.attempts + 1;
       // Commit the attempt and immutable payload before network I/O. A crash
       // retries the same provider key/body and never resets the retry window.
@@ -75,7 +82,7 @@ export async function deliverSavedSearchAlerts(send: typeof sendAlertEmail = sen
     if (!claim) break;
     if (claim.suppressed) { suppressed++; continue; }
     try {
-      await send(claim.payload, `saved-search-${claim.id}`);
+      await send(claim.payload.message, claim.payload.key);
       await db.update(notifications).set({ delivered: true, deliveredAt: new Date(), lastError: null }).where(and(eq(notifications.id, claim.id), eq(notifications.attempts, claim.attempt)));
       delivered++;
     } catch {
