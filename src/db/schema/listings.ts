@@ -134,6 +134,8 @@ export const listings = pgTable(
       t.publishedAt,
     ),
     index("listings_city_idx").on(t.vertical, t.status, t.cityId, t.publishedAt),
+    // Unfiltered newest-first browse cannot use the make/model index ordering.
+    index("listings_recent_idx").on(t.vertical, t.status, t.publishedAt.desc().nullsFirst(), t.id.desc().nullsFirst()),
     index("listings_price_idx").on(t.vertical, t.status, t.pricePkr),
     index("listings_year_idx").on(t.vertical, t.status, t.year),
     index("listings_seller_idx").on(t.sellerId),

@@ -23,8 +23,8 @@ export function InspectionForm({
       <div className="rounded border border-emerald-300 bg-emerald-50 p-4">
         <p className="font-medium text-emerald-900">Inspection requested</p>
         <p className="mt-1 text-sm text-emerald-900">
-          Reference <strong>{state.reference}</strong>. We&apos;ll call you
-          within a few hours to fix a time.
+          Reference <strong>{state.reference}</strong>. Our team will contact
+          you about availability and next steps.
         </p>
       </div>
     );
@@ -80,7 +80,7 @@ export function InspectionForm({
         disabled={pending}
         className="w-full rounded bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-60"
       >
-        {pending ? "Booking…" : "Request inspection"}
+        {pending ? "Sending…" : "Request inspection"}
       </button>
       <p className="text-xs text-slate-500">
         Our team will contact you to confirm the available service and next
@@ -104,8 +104,10 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700">{label}</label>
-      <div className="mt-1">{children}</div>
+      <label className="block">
+        <span className="block text-sm font-medium text-slate-700">{label}</span>
+        <span className="mt-1 block">{children}</span>
+      </label>
       {error && <p role="alert" className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

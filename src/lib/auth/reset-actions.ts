@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { passwordResetTokens, sessions, users } from "@/db/schema/users";
 import { sendPasswordResetEmail } from "@/lib/email/password-reset";
 import { hashPassword } from "./password";
+import { allowAuthAttempt, AUTH_LIMITS, clientIp } from "@/lib/security/rate-limit";
 import {
   createResetToken,
   hashResetToken,
@@ -26,20 +27,11 @@ export interface ResetPasswordState {
   fieldErrors?: Record<string, string>;
 }
 
-const emailSchema = z.string().trim().email("Enter a valid email address.").max(254);
+const emailSchema = z.string().trim().email("Enter a valid email address.").max(254, "Email address is too long.");
 const passwordSchema = z
   .string()
   .min(10, "Use at least 10 characters.")
   .max(128, "Password is too long.");
-
-function clientIp(h: Headers): string | null {
-  return (
-    h.get("cf-connecting-ip") ??
-    h.get("x-real-ip") ??
-    h.get("x-forwarded-for")?.split(",")[0].trim() ??
-    null
-  );
-}
 
 function siteUrl(): string {
   const configured = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -59,6 +51,9 @@ export async function requestPasswordResetAction(
   }
 
   const email = parsed.data.toLowerCase();
+  if (!await allowAuthAttempt("password-reset-request", email, await headers(), AUTH_LIMITS.emailRequest)) {
+    return { sent: true };
+  }
   const [account] = await db
     .select({ id: users.id, name: users.name, email: users.email, isBanned: users.isBanned })
     .from(users)
@@ -130,6 +125,9 @@ export async function resetPasswordAction(
   }
 
   const tokenHash = hashResetToken(token);
+  if (!await allowAuthAttempt("password-reset-confirm", tokenHash, await headers(), AUTH_LIMITS.tokenAction)) {
+    return { error: "Too many attempts. Please try again in 15 minutes." };
+  }
   const passwordHash = await hashPassword(parsed.data);
   const changed = await db.transaction(async (tx) => {
     const [consumed] = await tx

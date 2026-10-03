@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { randomBytes } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { inspectionEvents, listingReports, inspections, moderationLog } from "@/db/schema/trust";
@@ -17,6 +17,7 @@ import {
   shouldBanAfterFinalRemoval,
 } from "./moderation-policy";
 import { isInspectionStatus, validateInspectionUpdate } from "./inspection-policy";
+import { allowPublicAction } from "@/lib/security/rate-limit";
 
 /**
  * Trust actions: reporting bad listings, booking an inspection, and the
@@ -38,11 +39,12 @@ const REASONS = [
   "spam",
   "other",
 ] as const;
+const AUTO_HIDE_REPORT_THRESHOLD = 5;
 
 const reportSchema = z.object({
-  listingId: z.number().int().positive(),
-  reason: z.enum(REASONS),
-  comment: z.string().trim().max(1000).optional(),
+  listingId: z.number({ invalid_type_error: "Choose a valid ad." }).int("Choose a valid ad.").positive("Choose a valid ad."),
+  reason: z.enum(REASONS, { errorMap: () => ({ message: "Choose a reason." }) }),
+  comment: z.string().trim().max(1000, "Keep your comment under 1,000 characters.").optional(),
 });
 
 export interface ReportState {
@@ -77,6 +79,15 @@ export async function reportListingAction(
     });
   }
 
+  if (!await allowPublicAction(
+    "listing-report",
+    user ? `user:${user.id}` : `anon:${anonId}`,
+    await headers(),
+    { max: 5, sourceMax: 100, windowMs: 60 * 60_000 },
+  )) {
+    return { error: "Too many reports. Please try again later." };
+  }
+
   // One report per person per listing. Without this, a competitor can file
   // fifty reports and trip any automated threshold you set.
   const [existing] = await db
@@ -98,7 +109,13 @@ export async function reportListingAction(
     return { ok: true }; // idempotent; don't reveal that they already reported
   }
 
-  await db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
+    // Serialize reports for the same ad so concurrent submissions cannot skip the threshold.
+    const [listing] = await tx.select({ status: listings.status, sellerDeletedAt: listings.sellerDeletedAt })
+      .from(listings).where(eq(listings.id, parsed.data.listingId)).for("update").limit(1);
+    if (!listing || listing.sellerDeletedAt || listing.status !== "active") {
+      return { error: "This ad is no longer available for reporting." };
+    }
     const [report] = await tx.insert(listingReports).values({
       listingId: parsed.data.listingId,
       reporterUserId: user?.id ?? null,
@@ -107,10 +124,13 @@ export async function reportListingAction(
       comment: parsed.data.comment ?? null,
     }).onConflictDoNothing().returning({ id: listingReports.id });
 
-    if (!report) return;
+    if (!report) return { ok: true };
 
-    // A report is a safety hold, not a removal: immediately hide only a
-    // currently public ad and let an administrator decide the outcome.
+    const [{ count: openReports }] = await tx.select({ count: sql<number>`COUNT(*)::int` })
+      .from(listingReports).where(and(eq(listingReports.listingId, parsed.data.listingId), eq(listingReports.status, "open")));
+    if (openReports < AUTO_HIDE_REPORT_THRESHOLD) return { ok: true };
+
+    // Five independent reports trigger a temporary safety hold for an administrator to review.
     const [hidden] = await tx
       .update(listings)
       .set({ status: "pending_review", updatedAt: new Date() })
@@ -127,18 +147,22 @@ export async function reportListingAction(
         listingId: parsed.data.listingId,
         userId: hidden.sellerId,
         action: "queue",
-        reason: "Automatically queued for review after a report.",
+        reason: `Automatically queued for review after ${AUTO_HIDE_REPORT_THRESHOLD} open reports.`,
         isAutomated: true,
       });
     }
+    return { ok: true, hidden: Boolean(hidden) };
   });
+
+  if (outcome.error) return outcome;
 
   revalidatePath("/admin/moderation");
   revalidatePath("/used-cars");
   revalidatePath("/used-bikes");
   revalidatePath("/auto-parts");
 
-  return { ok: true };
+  if ("hidden" in outcome && outcome.hidden) redirect("/report-concern?submitted=1");
+  return outcome;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,8 +170,8 @@ export async function reportListingAction(
 // ---------------------------------------------------------------------------
 
 const inspectionSchema = z.object({
-  cityId: z.number().int().positive("Choose a city."),
-  address: z.string().trim().min(5, "Where should the inspector go?").max(240),
+  cityId: z.number().int("Choose a city.").positive("Choose a city."),
+  address: z.string().trim().min(5, "Where should the inspector go?").max(240, "Address is too long."),
   // Every constraint needs its own message. Without one Zod emits its raw
   // internal text ("String must contain at least 10 character(s)") straight
   // into the UI, which reads like a crash rather than a correction.
@@ -155,7 +179,7 @@ const inspectionSchema = z.object({
     .string()
     .min(10, "Enter your mobile number, e.g. 0300 1234567.")
     .max(20, "That number is too long."),
-  listingId: z.number().int().positive().optional(),
+  listingId: z.number().int("Choose a valid car listing.").positive("Choose a valid car listing.").optional(),
 });
 
 export interface InspectionState {
@@ -169,16 +193,18 @@ export async function bookInspectionAction(
   _prev: InspectionState,
   formData: FormData,
 ): Promise<InspectionState> {
+  const listingIdRaw = formData.get("listingId");
   const user = await getCurrentUser();
-  if (!user) redirect("/login?next=/inspection");
-
-  const listingIdRaw = Number(formData.get("listingId"));
+  if (!user) {
+    const next = listingIdRaw === null ? "/inspection" : `/inspection?listingId=${encodeURIComponent(String(listingIdRaw))}`;
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
 
   const parsed = inspectionSchema.safeParse({
     cityId: Number(formData.get("cityId")),
     address: formData.get("address"),
     contactPhone: formData.get("contactPhone"),
-    listingId: Number.isSafeInteger(listingIdRaw) && listingIdRaw > 0 ? listingIdRaw : undefined,
+    listingId: listingIdRaw === null ? undefined : Number(listingIdRaw),
   });
 
   if (!parsed.success) {
@@ -197,7 +223,20 @@ export async function bookInspectionAction(
     };
   }
 
+  if (!await allowPublicAction(
+    "inspection-request", `user:${user.id}`, await headers(),
+    { max: 5, sourceMax: 100, windowMs: 24 * 60 * 60_000 },
+  )) {
+    return { error: "Too many inspection requests. Please try again tomorrow." };
+  }
+
   const row = await db.transaction(async (tx) => {
+    if (parsed.data.listingId) {
+      const [listing] = await tx.select({ id: listings.id }).from(listings)
+        .where(and(eq(listings.id, parsed.data.listingId), eq(listings.vertical, "car"), eq(listings.status, "active"), isNull(listings.sellerDeletedAt)))
+        .limit(1);
+      if (!listing) return null;
+    }
     const [created] = await tx.insert(inspections).values({
       listingId: parsed.data.listingId ?? null,
       requestedByUserId: user.id,
@@ -216,6 +255,7 @@ export async function bookInspectionAction(
     return created;
   });
 
+  if (!row) return { error: "This car listing is no longer available for inspection." };
   return { ok: true, reference: `INS-${row.id}` };
 }
 

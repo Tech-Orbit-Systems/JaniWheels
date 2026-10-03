@@ -86,7 +86,7 @@ export function RecentlyViewed({
     <section className="mx-auto mt-16 w-full max-w-7xl px-4 sm:mt-20" aria-labelledby="recently-viewed-title">
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
-          <p className="mb-2 flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.2em] text-[#a97700]">
+          <p className="mb-2 flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.2em] text-[#805a00]">
             <History size={16} aria-hidden /> Your browsing history
           </p>
           <h2 id="recently-viewed-title" className="text-2xl font-extrabold tracking-tight text-zinc-950 sm:text-3xl">

@@ -12,15 +12,15 @@ const GOOGLE_JWKS = createRemoteJWKSet(
 );
 
 const claimsSchema = z.object({
-  sub: z.string().min(1),
-  email: z.string().email(),
+  sub: z.string().min(1, "Google account ID is missing."),
+  email: z.string().email("Google account email is invalid."),
   email_verified: z.literal(true),
-  name: z.string().trim().min(1).max(100).optional(),
+  name: z.string().trim().min(1, "Google account name is empty.").max(100, "Google account name is too long.").optional(),
   hd: z.string().optional(),
 });
 
 const tokenResponseSchema = z.object({
-  id_token: z.string().min(1),
+  id_token: z.string().min(1, "Google sign-in token is missing."),
 });
 
 export class GoogleAuthError extends Error {

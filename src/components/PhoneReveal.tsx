@@ -27,7 +27,7 @@ export function PhoneReveal({
     return (
       <a
         href={`tel:${phone.replace(/\s/g, "")}`}
-        className="flex w-full items-center justify-center gap-2 rounded bg-emerald-600 px-4 py-3 text-lg font-semibold text-white hover:bg-emerald-700"
+        className="flex w-full items-center justify-center gap-2 rounded bg-emerald-700 px-4 py-3 text-lg font-semibold text-white hover:bg-emerald-800"
       >
         {phone}
       </a>
@@ -46,10 +46,10 @@ export function PhoneReveal({
             else setError(result.error);
           })
         }
-        className="flex w-full items-center justify-center gap-2 rounded bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-2 rounded bg-emerald-700 px-4 py-3 font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
       >
         <span className="tracking-wide">{maskedPhone}</span>
-        <span className="text-sm font-normal opacity-90">
+        <span className="text-sm font-normal">
           {pending ? "…" : "· Show number"}
         </span>
       </button>

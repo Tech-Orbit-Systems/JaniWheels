@@ -59,7 +59,7 @@ export function MapLocationPicker({ initialLatitude, initialLongitude }: { initi
   }
 
   return <div className="space-y-3">
-    <div ref={host} className="h-72 overflow-hidden rounded-xl border border-slate-300 bg-slate-100" aria-label="Select advertisement location on Google Maps" />
+    <div ref={host} role="region" className="h-72 overflow-hidden rounded-xl border border-slate-300 bg-slate-100" aria-label="Select advertisement location on Google Maps" />
     <input type="hidden" name="exactLatitude" value={point?.lat ?? ""} /><input type="hidden" name="exactLongitude" value={point?.lng ?? ""} />
     <div className="flex flex-wrap items-center gap-3"><button type="button" onClick={useMyLocation} className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700">Use my current location</button>{point && <button type="button" onClick={() => { markerRef.current?.setMap(null); markerRef.current = null; setPoint(null); }} className="text-sm font-semibold text-slate-600 underline">Remove pin</button>}</div>
     <p className="text-xs leading-5 text-slate-500">Optional. Click Google Maps to place a pin. Your exact pin stays private; buyers only see a coarse approximate area.</p>{error && <p role="alert" className="text-xs font-medium text-red-600">{error}</p>}

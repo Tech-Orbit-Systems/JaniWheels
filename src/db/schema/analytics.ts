@@ -96,6 +96,12 @@ export const savedSearchNotifications = pgTable(
       .notNull()
       .defaultNow(),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    attempts: integer("attempts").notNull().default(0),
+    firstAttemptAt: timestamp("first_attempt_at", { withTimezone: true }),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    suppressedAt: timestamp("suppressed_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    payload: jsonb("payload"),
   },
   (t) => [
     uniqueIndex("saved_search_notifications_match_uq").on(

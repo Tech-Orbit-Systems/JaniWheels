@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { googleConfig, GoogleAuthError } from "@/lib/auth/google";
+import { clientIp, consumeRateLimit } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,16 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL("/login?google=unavailable", request.url));
     }
     throw error;
+  }
+
+  const ip = clientIp(request.headers);
+  if (ip && !await consumeRateLimit({
+    scope: "google-auth-start", subject: `ip:${ip}`,
+    max: 60, windowMs: 60 * 60_000,
+  })) {
+    return NextResponse.json({ error: "Too many sign-in attempts. Please try again later." }, {
+      status: 429, headers: { "Retry-After": "3600" },
+    });
   }
 
   const state = randomBytes(32).toString("base64url");

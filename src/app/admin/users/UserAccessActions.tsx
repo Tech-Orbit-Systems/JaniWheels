@@ -11,7 +11,7 @@ export function UserAccessActions({ userId, banned }: { userId: number; banned: 
   const decision = banned ? "unban" : "ban";
 
   return <div className="flex max-w-xs flex-col gap-2">
-    <input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder={`${banned ? "Restoration" : "Ban"} reason (required)`} className="rounded-lg border border-slate-300 px-3 py-2 text-xs" />
+    <input aria-label={`${banned ? "Restoration" : "Ban"} reason for user ${userId}`} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder={`${banned ? "Restoration" : "Ban"} reason (required)`} className="rounded-lg border border-slate-300 px-3 py-2 text-xs" />
     {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
     {message && <p role="status" className="text-xs text-emerald-700">{message}</p>}
     <button type="button" disabled={pending} onClick={() => startTransition(async () => {

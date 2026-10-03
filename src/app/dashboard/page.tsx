@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
+import Image from "@/components/StoredImage";
 import { redirect } from "next/navigation";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";

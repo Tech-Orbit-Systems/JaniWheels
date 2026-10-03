@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image from "@/components/StoredImage";
 import { useActionState, useState } from "react";
 import { Camera, ChevronLeft, ChevronRight, MapPin, Save, Trash2 } from "lucide-react";
 import { updateListingAction } from "@/lib/listings/manage-actions";
@@ -56,6 +56,8 @@ export function ListingEditForm({ listing, cities, initialAreas, images: origina
   const [compatibleModels, setCompatibleModels] = useState(initialCompatibleModels);
   const [compatibleModelId, setCompatibleModelId] = useState(listing.compatibleModelId ? String(listing.compatibleModelId) : "");
   const [bikeType, setBikeType] = useState(listing.bikeType ?? "motorcycle");
+  const [carIsUnregistered, setCarIsUnregistered] = useState(Boolean(listing.carIsUnregistered));
+  const [hasAuctionSheet, setHasAuctionSheet] = useState(Boolean(listing.hasAuctionSheet));
   const [imageKeys, setImageKeys] = useState(originalImages);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -114,11 +116,11 @@ export function ListingEditForm({ listing, cities, initialAreas, images: origina
         <Field label="Mileage (km)"><input name="mileageKm" type="number" min={0} defaultValue={listing.mileageKm ?? 0} required className={inputClass} /></Field>
         <Field label="Assembly"><select name="assembly" defaultValue={listing.assembly ?? "local"} className={inputClass}><option value="local">Local</option><option value="imported">Imported</option></select></Field>
         <Field label="Colour"><input name="color" maxLength={40} defaultValue={listing.carColor ?? ""} className={inputClass} /></Field>
-        <Field label="Registered city"><select name="registeredCityId" defaultValue={listing.registeredCityId ?? ""} className={inputClass}><option value="">Not specified</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></Field>
+        {!carIsUnregistered && <Field label="Registered city" error={error("registeredCityId")}><select name="registeredCityId" defaultValue={listing.registeredCityId ?? ""} className={inputClass}><option value="">Not specified</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></Field>}
         <Field label="Owner count"><input name="ownerCount" type="number" min={1} max={20} defaultValue={listing.ownerCount ?? ""} className={inputClass} /></Field>
-        <Field label="Last token paid"><select name="lastTokenPaidYear" defaultValue={listing.lastTokenPaidYear ?? ""} className={inputClass}><option value="">Not specified</option>{YEARS.filter((year) => year >= 1990).map((year) => <option key={year}>{year}</option>)}</select></Field>
-        <Field label="Auction grade"><input name="auctionGrade" maxLength={10} defaultValue={listing.auctionGrade ?? ""} className={inputClass} /></Field>
-      </div><Checks><Check name="isUnregistered" label="Unregistered" checked={Boolean(listing.carIsUnregistered)} /><Check name="hasAuctionSheet" label="Auction sheet available" checked={Boolean(listing.hasAuctionSheet)} /></Checks></Section>
+        {!carIsUnregistered && <Field label="Last token paid" error={error("lastTokenPaidYear")}><select name="lastTokenPaidYear" defaultValue={listing.lastTokenPaidYear ?? ""} className={inputClass}><option value="">Not specified</option>{YEARS.filter((year) => year >= 1990).map((year) => <option key={year}>{year}</option>)}</select></Field>}
+        {hasAuctionSheet && <Field label="Auction grade" error={error("auctionGrade")}><input name="auctionGrade" maxLength={10} defaultValue={listing.auctionGrade ?? ""} className={inputClass} /></Field>}
+      </div><Checks><label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" name="isUnregistered" checked={carIsUnregistered} onChange={(event) => setCarIsUnregistered(event.target.checked)} className="size-4 accent-blue-600" />Unregistered</label><label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" name="hasAuctionSheet" checked={hasAuctionSheet} onChange={(event) => setHasAuctionSheet(event.target.checked)} className="size-4 accent-blue-600" />Auction sheet available</label></Checks></Section>
     </>}
 
     {listing.vertical === "bike" && <>

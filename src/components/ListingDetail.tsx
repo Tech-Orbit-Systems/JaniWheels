@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import Image from "@/components/StoredImage";
 import {
   formatPkrExact,
   formatMileage,
@@ -15,14 +15,7 @@ import { PhoneReveal } from "./PhoneReveal";
 import { ReportListing } from "./ReportListing";
 import { ModerationActions } from "@/app/admin/moderation/ModerationActions";
 import { BuyerListingActions } from "./BuyerListingActions";
-
-function imageUrl(key: string, width: number): string {
-  const provider = process.env.NEXT_PUBLIC_IMAGE_PROVIDER ?? "local";
-  if (provider === "cloudflare") {
-    return `https://imagedelivery.net/${process.env.NEXT_PUBLIC_CF_IMAGES_HASH}/${key}/w=${width}`;
-  }
-  return `/uploads/${key}`;
-}
+import { imageDeliveryUrl as imageUrl } from "@/lib/images/url";
 
 function titleCase(s: string): string {
   return s
@@ -148,7 +141,7 @@ export async function ListingDetail({
                 className="object-cover"
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-slate-400">
+              <div className="flex h-full items-center justify-center text-slate-600">
                 No photos
               </div>
             )}
@@ -253,7 +246,7 @@ export async function ListingDetail({
                       <p className="mt-0.5 text-sm font-semibold text-slate-900">
                         {formatPkrExact(s.pricePkr)}
                       </p>
-                      <p className="text-xs text-slate-400">{s.cityName}</p>
+                      <p className="text-xs text-slate-600">{s.cityName}</p>
                     </div>
                   </Link>
                 </li>
@@ -313,7 +306,7 @@ export async function ListingDetail({
             </p>
           </div>
 
-          <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
+          <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-600">
             Ad ref #{listing.id} · updated {relativeTime(listing.updatedAt)}
           </p>
 
@@ -336,14 +329,14 @@ export async function ListingDetail({
               Not sure about this one?
             </p>
             <p className="mt-1 text-xs text-blue-900">
-              Get an independent engineer to check it on 200+ points before you
-              hand over any money.
+              Ask about inspection availability and next steps before you
+              decide.
             </p>
             <Link
               href={`/inspection?listingId=${listing.id}`}
               className="mt-2 inline-block rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
             >
-              Book an inspection
+              Request an inspection
             </Link>
           </div>
         )}

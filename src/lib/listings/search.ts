@@ -53,7 +53,7 @@ export interface SearchResult {
   pageCount: number;
 }
 
-function buildWhere(state: FacetState): SQL[] {
+export function buildWhere(state: FacetState): SQL[] {
   const clauses: SQL[] = [
     eq(listings.vertical, state.vertical),
     eq(listings.status, "active"),

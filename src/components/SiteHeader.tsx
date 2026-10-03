@@ -15,14 +15,14 @@ const navigation = [
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#101214]/95 text-white shadow-lg shadow-black/10 backdrop-blur">
-      <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center gap-3 px-4">
+      <div className="mx-auto flex min-h-16 w-full max-w-7xl flex-wrap items-center gap-3 px-4 py-2">
         <Link href="/" aria-label="JaniWheels home" className="shrink-0">
           <BrandLogo />
         </Link>
 
         <nav
           aria-label="Primary navigation"
-          className="mx-auto hidden items-center gap-1 lg:flex"
+          className="mx-auto hidden min-w-0 flex-wrap items-center justify-center gap-1 lg:flex"
         >
           {navigation.map((item) => (
             <Link

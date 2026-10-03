@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { imageDeliveryUrl } from "@/lib/images/url";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -235,7 +236,7 @@ export default async function HomePage() {
                         // Dealer logos can use the configured local or remote provider.
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={dealer.logoUrl}
+                          src={imageDeliveryUrl(dealer.logoUrl, 160)}
                           alt=""
                           className="size-12 rounded-xl border border-zinc-200 object-cover"
                         />

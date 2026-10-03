@@ -2,6 +2,14 @@ import type { MetadataRoute } from "next";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
+export function isProductionDeployment(
+  vercelEnv: string | undefined,
+  nodeEnv: string | undefined,
+): boolean {
+  // Preview builds also set NODE_ENV=production; the deployment tier wins.
+  return vercelEnv ? vercelEnv === "production" : nodeEnv === "production";
+}
+
 /**
  * robots.txt
  *
@@ -16,8 +24,10 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
  * matching URLs after the fact.
  */
 export default function robots(): MetadataRoute.Robots {
-  const isProduction = process.env.VERCEL_ENV === "production" ||
-    process.env.NODE_ENV === "production";
+  const isProduction = isProductionDeployment(
+    process.env.VERCEL_ENV,
+    process.env.NODE_ENV,
+  );
 
   // Never let a staging deployment get indexed — a duplicate of your whole
   // catalogue on a second hostname is a genuinely expensive mistake.

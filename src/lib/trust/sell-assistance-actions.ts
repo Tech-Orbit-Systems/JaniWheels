@@ -2,6 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
@@ -11,6 +12,7 @@ import { sellAssistanceEvents, sellAssistanceRequests } from "@/db/schema/trust"
 import { users } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { normalizePkPhone } from "@/lib/format";
+import { allowPublicAction } from "@/lib/security/rate-limit";
 import {
   isSellAssistanceStatus,
   validateSellAssistanceUpdate,
@@ -18,21 +20,21 @@ import {
 
 const currentYear = new Date().getFullYear() + 1;
 const requestSchema = z.object({
-  listingId: z.number().int().positive().optional(),
-  cityId: z.number().int().positive("Choose a city."),
-  makeId: z.number().int().positive("Choose a make."),
-  modelId: z.number().int().positive("Choose a model."),
-  year: z.number().int().min(1940, "Enter a valid model year.").max(currentYear, "Model year cannot be in the future."),
-  mileageKm: z.number().int().min(0, "Mileage cannot be negative.").max(2_000_000, "Check the mileage entered."),
-  registrationCity: z.string().trim().min(2, "Enter the registration city.").max(80),
+  listingId: z.number().int("Choose a valid listing.").positive("Choose a valid listing.").optional(),
+  cityId: z.number().int("Choose a city.").positive("Choose a city."),
+  makeId: z.number().int("Choose a make.").positive("Choose a make."),
+  modelId: z.number().int("Choose a model.").positive("Choose a model."),
+  year: z.number().int("Enter a whole model year.").min(1940, "Enter a valid model year.").max(currentYear, "Model year cannot be in the future."),
+  mileageKm: z.number().int("Enter whole kilometres.").min(0, "Mileage cannot be negative.").max(2_000_000, "Check the mileage entered."),
+  registrationCity: z.string().trim().min(2, "Enter the registration city.").max(80, "Registration city is too long."),
   ownershipStatus: z.enum(["own_name", "open_letter", "bank_financed", "company_owned", "other"], { message: "Choose the ownership status." }),
   vehicleCondition: z.enum(["excellent", "good", "fair", "needs_work", "accidental"], { message: "Choose the vehicle condition." }),
-  expectedPricePkr: z.number().int().min(50_000, "Expected price must be at least PKR 50,000.").max(500_000_000, "Check the expected price entered.").optional(),
+  expectedPricePkr: z.number().int("Enter a whole price in PKR.").min(50_000, "Expected price must be at least PKR 50,000.").max(500_000_000, "Check the expected price entered.").optional(),
   sellingTimeline: z.enum(["urgent", "within_month", "one_to_three_months", "exploring"], { message: "Choose when you want to sell." }),
-  address: z.string().trim().min(5, "Enter the vehicle location.").max(240),
+  address: z.string().trim().min(5, "Enter the vehicle location.").max(240, "Vehicle location is too long."),
   contactPhone: z.string().min(10, "Enter your mobile number, e.g. 0300 1234567.").max(20, "That number is too long."),
   preferredContact: z.enum(["phone", "whatsapp", "either"], { message: "Choose a contact method." }),
-  bestContactTime: z.string().trim().max(80).optional(),
+  bestContactTime: z.string().trim().max(80, "Best contact time is too long.").optional(),
   sellerNotes: z.string().trim().max(1500, "Notes must be 1,500 characters or fewer.").optional(),
 });
 
@@ -88,6 +90,13 @@ export async function requestSellAssistanceAction(
     const [owned] = await db.select({ id: listings.id }).from(listings)
       .where(and(eq(listings.id, parsed.data.listingId), eq(listings.sellerId, user.id), eq(listings.vertical, "car"))).limit(1);
     if (!owned) return { error: "The selected ad is not available for assistance." };
+  }
+
+  if (!await allowPublicAction(
+    "sell-assistance-request", `user:${user.id}`, await headers(),
+    { max: 3, sourceMax: 60, windowMs: 24 * 60 * 60_000 },
+  )) {
+    return { error: "Too many assistance requests. Please try again tomorrow." };
   }
 
   const created = await db.transaction(async (tx) => {

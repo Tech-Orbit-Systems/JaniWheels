@@ -1,9 +1,10 @@
 import Link from "next/link";
-import Image from "next/image";
+import Image from "@/components/StoredImage";
 import { formatPkr, formatMileage, relativeTime } from "@/lib/format";
 import { buildListingPath } from "@/lib/listings/slug";
 import type { SearchResultRow } from "@/lib/listings/search";
 import { BuyerListingActions } from "./BuyerListingActions";
+import { imageDeliveryUrl } from "@/lib/images/url";
 
 /**
  * Result card.
@@ -16,11 +17,7 @@ import { BuyerListingActions } from "./BuyerListingActions";
 
 function imageUrl(key: string | null, width: number): string {
   if (!key) return "/placeholder-car.svg";
-  const provider = process.env.NEXT_PUBLIC_IMAGE_PROVIDER ?? "local";
-  if (provider === "cloudflare") {
-    return `https://imagedelivery.net/${process.env.NEXT_PUBLIC_CF_IMAGES_HASH}/${key}/w=${width}`;
-  }
-  return `/uploads/${key}`;
+  return imageDeliveryUrl(key, width);
 }
 
 export function ListingCard({
@@ -80,7 +77,7 @@ export function ListingCard({
             {specs.join(" · ")}
           </p>
 
-          <p className="mt-2 flex items-center justify-between text-xs text-slate-400">
+          <p className="mt-2 flex items-center justify-between text-xs text-slate-600">
             <span>{row.cityName}</span>
             {row.publishedAt && <span>{relativeTime(row.publishedAt)}</span>}
           </p>
