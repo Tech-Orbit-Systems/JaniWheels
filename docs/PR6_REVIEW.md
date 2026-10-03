@@ -44,10 +44,13 @@ The review closeout commit changes documentation and the workbook only.
 | Alert delivery | Resend key and verified sender | Scheduler setup, backlog review, mailbox and provider-failure acceptance |
 | OAuth and Maps | Live domain/provider setup and Maps billing | HTTPS login and map acceptance |
 | Operations | Hosting/provider administration | Backups and restore drill, monitoring, cron and trusted proxy/request-size configuration |
-| Retention and individual-seller badges | Owner decisions in retention/project documents | Implement only the approved policy |
+| Retention | Client confirmation of decision A | Implement only the approved policy |
 | Release acceptance | HTTPS staging and physical devices/reviewer | Real-device, screen-reader and production-like load testing |
 | Main merge | Maintainer merge decision and repository checks | Merge reviewed branch after required gates |
 
 Local and mock-provider acceptance does not prove these live gates. Existing
 load measurements are a bounded local smoke, not the 500-user production target.
-The master tracker retains these gaps and its 92.62% feature estimate.
+Owner approved B1 on 4 October 2026: no ordinary-seller verification badge in
+V1; existing manual dealer verification continues. JW-053 is removed from scope.
+The master tracker retains live gaps; its estimate is now 93.09% after this
+approved scope removal. Retention decision A remains unapproved.

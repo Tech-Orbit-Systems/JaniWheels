@@ -1,6 +1,6 @@
 # JaniWheels consolidated development context
 
-Last reconciled: 3 October 2026
+Last reconciled: 4 October 2026
 
 Workflow decision, 30 September 2026: completed and verified development is
 committed, pushed on its feature branch, and recorded in the master tracker
@@ -22,12 +22,18 @@ current master tracker; older exported copies are historical snapshots.
 Tracker reconciliation on 3 October corrected stale dashboard/roadmap/test
 entries and the excluded S3 provider's scope classification. Overall completion
 is an equal-weight average of feature estimates, not elapsed engineering effort
-or production launch approval. The workbook recalculates the 200 in-scope rows
+or production launch approval. The workbook recalculates the 199 in-scope rows
 after each verified milestone: 156 completed, one feature-branch item awaiting review,
-35 partial/configuration items and eight pending. Eleven excluded rows do not
+35 partial/configuration items and seven pending. Twelve excluded rows do not
 contribute. Reviewed estimates and their remaining acceptance gaps are recorded
 on the affected rows. The browser framework is complete awaiting PR review;
 broader coverage and live-device acceptance retain their own open gates.
+
+Owner approved B1 on 4 October: no ordinary-seller verification badge in V1;
+JW-053 is removed from scope by that decision. Dealer verification remains.
+Retention decision A is awaiting client confirmation. The resulting tracker
+estimate is 93.09%; this increase reflects the approved scope removal, not new
+implementation or production acceptance.
 
 Saved-search matching now drains overflow and has an immutable, leased delivery
 worker with retry/backoff and eligibility checks. Seven DB acceptance tests

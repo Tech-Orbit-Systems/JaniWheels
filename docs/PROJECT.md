@@ -60,6 +60,12 @@ from `dealers.verified_at`, and every approval, revocation or automatic review
 reset is appended to `moderation_log`. Verified profiles return to review when
 the owner changes business identity details or the public logo.
 
+Owner decision B1, approved 4 October 2026: ordinary sellers do not receive a
+"Verified Seller" badge in V1. Email verification does not establish identity,
+phone verification or vehicle ownership. Individual-seller manual verification
+(tracker JW-053) is removed from V1 by this owner decision; dealer verification
+continues under its existing audited manual process.
+
 Administrators have an all-status listing console and a user access console.
 Listing flag, approval, rejection, reinstate, removal and administrator-edit
 events are appended to `moderation_log`. Manual bans revoke all active sessions;

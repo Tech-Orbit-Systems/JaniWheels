@@ -75,6 +75,7 @@ changing routes or interactive behaviour.
 - Homepage branding, mobile navigation and enlarged-text/tablet checks are
   implemented. Real-device/screen-reader, HTTPS and production load acceptance
   remain. Inspection workforce, valuation and transaction tooling are excluded.
-- Account/report/service retention and seller-verification badge semantics
-  need owner decisions; never invent destructive retention rules or phone
-  verification. See docs/RETENTION_DECISIONS.md and docs/PROJECT.md.
+- Account/report/service retention awaits client approval; never invent
+  destructive retention rules. Owner approved B1 on 4 October 2026: no ordinary
+  seller verification badge in V1. Existing manual dealer verification remains.
+  See docs/RETENTION_DECISIONS.md and docs/PROJECT.md.

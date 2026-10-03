@@ -1,5 +1,10 @@
 # Retention and deletion launch decisions
 
+4 October 2026: decision A is awaiting the client's confirmation. The proposed
+durations discussed with the owner are not approved policy; do not enable
+destructive cleanup based on that proposal. Seller badge decision B1 is approved
+separately and recorded in docs/PROJECT.md.
+
 `npm run retention:inventory` produces counts and oldest dates only, in a
 read-only database transaction. It never exports customer records or deletes
 anything. Run after migrations and retain the aggregate report with the launch
