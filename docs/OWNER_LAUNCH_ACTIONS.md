@@ -42,6 +42,8 @@ Reference: [Google Maps key setup](https://developers.google.com/maps/documentat
 
 **Us ke baad development:** Reported issues fix karke same flows recheck. Desktop/mobile browser automation actual camera, touch, assistive technology aur device acceptance ka substitute nahi hai.
 
+QA note: Full Linux CI run 49 mein WebKit navigation/upload pass hain. Windows par concurrent local suites ke dauran Auto Parts tab ki stability wait timeout hui; local WebKit upload pass hai. Actual iPhone par homepage navigation/search ko bhi acceptance mein include karein. Overlapping local run ko full local pass claim nahi kiya gaya.
+
 ## 7. Production-sized load and final launch
 
 **Aap ka step:** Staging host and approved load-test window provide karein; production privacy/provider/legal copy review karein. Hosting capability aur data volume select hone ke baad load target agree karein.
