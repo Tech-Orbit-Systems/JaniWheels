@@ -35,7 +35,20 @@ seeding, DB acceptance, static checks, lint, production build, route sweep and
 browser acceptance. Run 42 also passed the preceding implementation package.
 The review closeout commit changes documentation and the workbook only.
 
-## Remaining gates and who can unblock them
+## Approved retention package review — 5 October 2026
+
+Decision A implementation now includes restricted 30-day recovery, public hiding,
+session revocation, bounded calendar retention, early deletion, accountable holds,
+anonymous monthly usage totals, retryable media deletion and restore ledger replay.
+Reviewed authorization, publication/session races, moderator-change preservation,
+calendar boundaries, hold propagation, transactional redaction/queue persistence,
+provider retries and cross-database/idempotent restore protections. Browser
+acceptance exposed a raw SQL/Drizzle codec conflict; separate small native-codec
+pool fixes it. Check/lint/build, 9 DB tests, 4 desktop/mobile retention cases and
+101-route sweep pass locally. Full regression CI on the current commit must pass.
+Normal local schema is updated; no production customer cleanup was executed.
+
+## Remaining launch gates
 
 | Gate | Required input/access | Work after access is available |
 | --- | --- | --- |
@@ -44,7 +57,7 @@ The review closeout commit changes documentation and the workbook only.
 | Alert delivery | Resend key and verified sender | Scheduler setup, backlog review, mailbox and provider-failure acceptance |
 | OAuth and Maps | Live domain/provider setup and Maps billing | HTTPS login and map acceptance |
 | Operations | Hosting/provider administration | Backups and restore drill, monitoring, cron and trusted proxy/request-size configuration |
-| Retention | Client confirmation of decision A | Implement only the approved policy |
+| Retention operations | Production scheduler, storage and backup administration | Deploy the approved cleanup policy, verify provider deletion and rehearse restore |
 | Release acceptance | HTTPS staging and physical devices/reviewer | Real-device, screen-reader and production-like load testing |
 | Main merge | Maintainer merge decision and repository checks | Merge reviewed branch after required gates |
 
@@ -53,4 +66,4 @@ load measurements are a bounded local smoke, not the 500-user production target.
 Owner approved B1 on 4 October 2026: no ordinary-seller verification badge in
 V1; existing manual dealer verification continues. JW-053 is removed from scope.
 The master tracker retains live gaps; its estimate is now 93.09% after this
-approved scope removal. Retention decision A remains unapproved.
+approved scope removal. Retention decision A was approved exactly as proposed on 4 October 2026. The implementation and current verification are described in docs/RETENTION_DECISIONS.md.

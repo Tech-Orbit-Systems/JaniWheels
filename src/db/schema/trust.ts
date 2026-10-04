@@ -46,6 +46,8 @@ export const inspections = pgTable(
 
     /** requested | contacted | confirmed | completed | cancelled */
     status: text("status").notNull().default("requested"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    redactedAt: timestamp("redacted_at", { withTimezone: true }),
 
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -115,6 +117,8 @@ export const sellAssistanceRequests = pgTable(
     bestContactTime: text("best_contact_time"),
     sellerNotes: text("seller_notes"),
     status: text("status").notNull().default("requested"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    redactedAt: timestamp("redacted_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

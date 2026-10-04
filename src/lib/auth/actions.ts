@@ -182,6 +182,8 @@ export async function authenticateAction(
           passwordHash: users.passwordHash,
           emailVerifiedAt: users.emailVerifiedAt,
           isBanned: users.isBanned,
+          closedAt: users.closedAt,
+          anonymizedAt: users.anonymizedAt,
         })
         .from(users)
         .where(email ? eq(users.email, email) : eq(users.phone, phone!))
@@ -192,7 +194,7 @@ export async function authenticateAction(
     parsed.data.password,
     account?.passwordHash ?? (await dummyHash),
   );
-  if (!account || !valid || account.isBanned) {
+  if (!account || !valid || account.isBanned || account.anonymizedAt || (account.closedAt && account.closedAt.getTime() + 30 * 86400_000 <= Date.now())) {
     return { mode, next, error: "Incorrect email, mobile number or password." };
   }
   if (asEmail && !account.emailVerifiedAt) {
@@ -209,7 +211,7 @@ export async function authenticateAction(
     .set({ lastSeenAt: new Date() })
     .where(eq(users.id, account.id));
   await createSession(account.id, await requestMeta());
-  redirect(next);
+  redirect(account.closedAt ? "/account/restore" : next);
 }
 
 export async function logoutAction(): Promise<void> {

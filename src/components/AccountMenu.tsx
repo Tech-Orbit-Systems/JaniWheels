@@ -82,6 +82,9 @@ export async function AccountMenu() {
             <Link href="/admin/inspections" className={item}>
               Inspection requests
             </Link>
+            <Link href="/admin/retention" className={item}>
+              Retention holds
+            </Link>
           </>
         )}
 

@@ -75,7 +75,11 @@ changing routes or interactive behaviour.
 - Homepage branding, mobile navigation and enlarged-text/tablet checks are
   implemented. Real-device/screen-reader, HTTPS and production load acceptance
   remain. Inspection workforce, valuation and transaction tooling are excluded.
-- Account/report/service retention awaits client approval; never invent
-  destructive retention rules. Owner approved B1 on 4 October 2026: no ordinary
+- Client approved decision A exactly on 4 October 2026: account recovery 30 days,
+  inactive ads/closed services 12 months, resolved complaints 24 months,
+  detailed analytics and terminal alert PII 90 days, backups 30 days and
+  evidence holds reviewed every 90 days. Follow docs/RETENTION_DECISIONS.md.
+  Never delete held evidence or resume a restored backup before deletion replay.
+  Owner approved B1 on 4 October 2026: no ordinary
   seller verification badge in V1. Existing manual dealer verification remains.
   See docs/RETENTION_DECISIONS.md and docs/PROJECT.md.

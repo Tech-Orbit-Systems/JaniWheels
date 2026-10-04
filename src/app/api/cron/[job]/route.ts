@@ -7,6 +7,8 @@ import { emailVerificationTokens, passwordResetTokens, sessions } from "@/db/sch
 import { queueSavedSearchAlerts, deliverSavedSearchAlerts } from "@/lib/buyer/alerts";
 import { removeStoredImage } from "@/lib/images/storage";
 import { rateLimitBuckets } from "@/db/schema/security";
+import { sqlClient } from "@/db";
+import { runRetention } from "@/lib/retention/core";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -118,6 +120,11 @@ const JOBS = {
    */
   "saved-search-alerts": queueSavedSearchAlerts,
   "deliver-search-alerts": () => deliverSavedSearchAlerts(),
+  "retention-cleanup": async () => {
+    if (process.env.RETENTION_ENABLED!=="true") return { configured:false };
+    if (!process.env.RETENTION_DATABASE_NAME || decodeURIComponent(new URL(process.env.DATABASE_URL!).pathname.slice(1))!==process.env.RETENTION_DATABASE_NAME) throw new Error("Retention database confirmation does not match");
+    return runRetention(sqlClient,{apply:true,cutoff:new Date(),operator:"authenticated-retention-cron",limit:25});
+  },
 } as const;
 
 type JobName = keyof typeof JOBS;

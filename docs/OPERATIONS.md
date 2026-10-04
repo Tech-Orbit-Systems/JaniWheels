@@ -1,5 +1,15 @@
 # V1 operations handoff
 
+## Approved retention rollout
+
+Decision A is approved; use `RETENTION_DECISIONS.md` for exact windows and commands.
+Apply migrations, run a read-only preview, review holds, then configure authenticated
+`retention-cleanup` scheduling with an exact database-name guard. Schedule media
+queue draining and independent restricted ledger exports. Configure actual rolling
+30-day backup expiry, provider deletion and the restore-maintenance/replay drill.
+Keep cleanup disabled until deployment configuration is checked. Never enable a
+restored public application before applying the current deletion ledger and holds.
+
 ## Health and errors
 
 Monitor `GET /api/health` from the selected external monitor. It returns 200

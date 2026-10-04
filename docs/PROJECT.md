@@ -86,6 +86,19 @@ staff notes are retained in an append-only event history. V1 does not provide
 automatic valuation, buy the vehicle, guarantee a buyer/price/timeline, collect
 payment or manage ownership transfer.
 
+## Approved retention policy
+
+Client decision A was approved exactly as proposed on 4 October 2026. Account
+closure immediately hides profiles and listings, stops alerts and revokes all
+sessions. Authenticated recovery lasts 30 days; afterward personal data is
+redacted except necessary held complaint evidence. Inactive listings/photos and
+closed manual service cases retain personal content for 12 calendar months;
+resolved reports retain necessary evidence for 24 months. Raw usage/contact
+events and terminal alert payloads expire after 90 days. Complaint holds require
+an accountable person and 90-day review, with no automatic release. Inactivity
+alone never closes an account. See `RETENTION_DECISIONS.md` for operator commands,
+30-day backup expiry and mandatory deletion replay before restored service opens.
+
 ## SEO model
 
 Facet URLs are parsed through a registry with canonical ordering. Only approved

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { dealers, users } from "@/db/schema/users";
 import { cities } from "@/db/schema/geo";
@@ -35,7 +35,7 @@ export default async function DealersIndexPage() {
       listings,
       and(eq(listings.dealerId, dealers.id), eq(listings.status, "active")),
     )
-    .where(and(isNotNull(dealers.verifiedAt), eq(users.isBanned, false)))
+    .where(and(isNotNull(dealers.verifiedAt), eq(users.isBanned, false), isNull(users.closedAt)))
     .groupBy(
       dealers.id,
       dealers.slug,

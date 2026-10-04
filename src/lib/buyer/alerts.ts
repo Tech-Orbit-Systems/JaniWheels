@@ -24,7 +24,7 @@ export async function queueSavedSearchAlerts() {
           .innerJoin(users, eq(users.id, savedSearches.userId)).where(eq(savedSearches.id, candidate.id))
           .for("update", { skipLocked: true });
         if (!row || row.search.alertFrequency === "off") return 0;
-        if (row.user.isBanned || !row.user.emailVerifiedAt || !row.user.email) {
+        if (row.user.isBanned || row.user.closedAt || !row.user.emailVerifiedAt || !row.user.email) {
           await tx.update(savedSearches).set({ lastNotifiedAt: new Date() }).where(eq(savedSearches.id, candidate.id));
           return 0;
         }
@@ -64,7 +64,7 @@ export async function deliverSavedSearchAlerts(send: typeof sendAlertEmail = sen
       if (!row) return null;
       const n = row.notification;
       const expiredRetry = n.firstAttemptAt && Date.now() - n.firstAttemptAt.getTime() >= 23 * 3600_000;
-      if (row.search.alertFrequency === "off" || row.user.isBanned || !row.user.emailVerifiedAt || row.user.email !== n.recipientEmail || row.listing.status !== "active" || expiredRetry) {
+      if (row.search.alertFrequency === "off" || row.user.isBanned || row.user.closedAt || !row.user.emailVerifiedAt || row.user.email !== n.recipientEmail || row.listing.status !== "active" || expiredRetry) {
         await tx.update(notifications).set({ suppressedAt: new Date(), lastError: expiredRetry ? "Retry window expired; reconcile with provider before any resend" : "Recipient preference, eligibility or listing availability changed" }).where(eq(notifications.id, n.id));
         return { suppressed: true as const };
       }

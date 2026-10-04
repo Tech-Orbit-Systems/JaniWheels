@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "@/components/StoredImage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { dealers, users } from "@/db/schema/users";
 import { listings, listingImages } from "@/db/schema/listings";
@@ -40,7 +40,7 @@ async function getDealer(slug: string) {
     .from(dealers)
     .innerJoin(cities, eq(dealers.cityId, cities.id))
     .innerJoin(users, eq(dealers.userId, users.id))
-    .where(and(eq(dealers.slug, slug), eq(users.isBanned, false)))
+    .where(and(eq(dealers.slug, slug), eq(users.isBanned, false), isNull(users.closedAt)))
     .limit(1);
 
   return row ?? null;

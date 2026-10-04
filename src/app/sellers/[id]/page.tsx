@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "@/components/StoredImage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cities } from "@/db/schema/geo";
 import { listingImages, listings } from "@/db/schema/listings";
@@ -27,7 +27,7 @@ export default async function SellerProfilePage({ params, searchParams }: { para
   const [seller] = await db
     .select({ id: users.id, name: users.name, avatarUrl: users.avatarUrl, createdAt: users.createdAt, type: users.type })
     .from(users)
-    .where(and(eq(users.id, sellerId), eq(users.type, "individual"), eq(users.isBanned, false)))
+    .where(and(eq(users.id, sellerId), eq(users.type, "individual"), eq(users.isBanned, false), isNull(users.closedAt)))
     .limit(1);
   if (!seller) notFound();
 

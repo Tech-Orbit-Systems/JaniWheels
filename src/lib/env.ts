@@ -22,11 +22,17 @@ export function environmentIssues(env: Record<string, string | undefined>, launc
     if (!isAbsolute(env.UPLOAD_DIR) || !inside || (!inside.startsWith(`..${sep}`) && inside !== ".." && !isAbsolute(inside))) issues.push("UPLOAD_DIR must be absolute and outside public/");
   }
   if (Boolean(env.GOOGLE_CLIENT_ID) !== Boolean(env.GOOGLE_CLIENT_SECRET)) issues.push("Google OAuth requires both client ID and secret");
+  if (env.RETENTION_ENABLED==="true") {
+    try { if (decodeURIComponent(new URL(env.DATABASE_URL ?? "").pathname.slice(1))!==env.RETENTION_DATABASE_NAME) issues.push("RETENTION_DATABASE_NAME must match the target database before retention is enabled"); }
+    catch { issues.push("Retention requires a valid DATABASE_URL"); }
+  }
+  if (env.BACKUP_RETENTION_DAYS && env.BACKUP_RETENTION_DAYS!=="30") issues.push("Approved rolling backup retention is 30 days");
   if (launch) {
     for (const key of ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "RESEND_API_KEY", "EMAIL_FROM", "CRON_SECRET"]) required(key);
     if ((env.CRON_SECRET?.length ?? 0) < 32) issues.push("Launch CRON_SECRET must contain at least 32 characters");
     if (provider !== "cloudflare") issues.push("Launch requires durable Cloudflare image storage");
     if (env.ACCEPTANCE_EMAIL_DIR) issues.push("Acceptance email capture must be disabled for launch");
+    if (env.RESTORE_REPLAY_REQUIRED==="true") issues.push("Complete deletion replay before ending restore maintenance");
   }
   return issues;
 }

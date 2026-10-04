@@ -1,6 +1,6 @@
 # JaniWheels consolidated development context
 
-Last reconciled: 4 October 2026
+Last reconciled: 5 October 2026
 
 Workflow decision, 30 September 2026: completed and verified development is
 committed, pushed on its feature branch, and recorded in the master tracker
@@ -31,9 +31,8 @@ broader coverage and live-device acceptance retain their own open gates.
 
 Owner approved B1 on 4 October: no ordinary-seller verification badge in V1;
 JW-053 is removed from scope by that decision. Dealer verification remains.
-Retention decision A is awaiting client confirmation. The resulting tracker
-estimate is 93.09%; this increase reflects the approved scope removal, not new
-implementation or production acceptance.
+Client approved retention decision A exactly as proposed on 4 October 2026.
+The retention milestone below records implementation and current acceptance.
 
 Saved-search matching now drains overflow and has an immutable, leased delivery
 worker with retry/backoff and eligibility checks. Seven DB acceptance tests
@@ -280,7 +279,20 @@ September 2026. The reconciled workbook marks Stage 6.1 active, records Google
 authentication as complete, and adds approximate map-based location as a
 pending V1 feature.
 
-## Resolved sequencing decisions
+## Retention milestone — 5 October 2026
+
+Implemented account closure/recovery, public hiding, session revocation, alerts
+suppression, calendar-based redaction, approved early-deletion tooling, restricted
+complaint holds/review, anonymous usage aggregation, retryable media deletion and
+independent backup deletion ledger/replay with restore maintenance.
+Local verification: 9 DB tests, 4 targeted desktop/mobile retention browser tests,
+101-route sweep with zero issues, check/lint/build passed; maximum First Load JS
+128 KB. Fixed the browser-discovered raw SQL date/JSON codec conflict. Normal
+local database migrations are applied; production cleanup was not run.
+Current PR CI remains authoritative for full regression coverage. Production
+scheduler, provider deletion, actual 30-day backups and restore drill remain gates.
+
+## Agreed sequencing
 
 1. Stage 6.1 legal/content starts before branding and final QA.
 2. Database acceptance runs alongside development.
