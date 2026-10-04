@@ -287,6 +287,7 @@ export async function replayLedger(sql: Sql, ledger: RetentionLedger, operator: 
     await tx`SELECT pg_advisory_xact_lock(${LOCK})`;
     const [identity] = await tx`SELECT instance_id FROM retention_identity WHERE id=1`;
     if (!identity || identity.instance_id!==ledger.instanceId) throw new RetentionError("Restore ledger belongs to a different database instance.");
+    await tx`LOCK TABLE users,listings,inspections,sell_assistance_requests,listing_reports,moderation_log,saved_search_notifications,lead_events IN SHARE ROW EXCLUSIVE MODE`;
     for (const row of ledger.receipts) {
       const id = row.resource_id;
       if (row.resource === "account" && row.action === "close") {
@@ -312,6 +313,13 @@ export async function replayLedger(sql: Sql, ledger: RetentionLedger, operator: 
       else if (row.resource === "lead") await tx`DELETE FROM lead_events WHERE id=${id}`;
       else await tx`DELETE FROM ${tx(row.resource === "report" ? "listing_reports" : "moderation_log")} WHERE id=${id}`;
       await tx`INSERT INTO retention_receipts(resource,resource_id,action,occurred_at) VALUES (${row.resource},${id},${row.action},${row.occurred_at}::text::timestamptz) ON CONFLICT DO NOTHING`;
+    }
+    // Backups may predate IDs in the ledger. Reusing those IDs would apply an
+    // old deletion to a new person's record on the next restore.
+    const tables = { account: "users", listing: "listings", inspection: "inspections", assistance: "sell_assistance_requests", report: "listing_reports", moderation: "moderation_log", alert: "saved_search_notifications", lead: "lead_events" };
+    for (const [resource, table] of Object.entries(tables)) {
+      const maximum = ledger.receipts.filter(r=>r.resource===resource).reduce((max,r)=>Math.max(max,r.resource_id),0);
+      if (maximum) await tx`SELECT setval(pg_get_serial_sequence(${table},'id'),GREATEST(COALESCE(pg_sequence_last_value(pg_get_serial_sequence(${table},'id')::regclass),0),(SELECT COALESCE(MAX(id),0) FROM ${tx(table)}),${maximum}),true)`;
     }
     await tx`INSERT INTO retention_runs(operator,mode,cutoff,summary) VALUES (${operator},'restore-replay',NOW(),${tx.json({ entries: ledger.receipts.length })})`;
     return { replayed: ledger.receipts.length };

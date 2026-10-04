@@ -35,12 +35,12 @@ Client approved retention decision A exactly as proposed on 4 October 2026.
 The retention milestone below records implementation and current acceptance.
 
 Saved-search matching now drains overflow and has an immutable, leased delivery
-worker with retry/backoff and eligibility checks. Seven DB acceptance tests
+worker with retry/backoff and eligibility checks. Nine DB acceptance tests
 include alert concurrency, opt-out, deduplication and retry-window controls.
 Live Resend configuration, scheduling and mailbox acceptance remain open.
-Cleanup covers more than sessions, but account/report/service retention
-and deletion require the decisions in `docs/RETENTION_DECISIONS.md`; the new
-read-only inventory exports counts/dates only. Listing reactivation already exists; its
+Approved account/report/service retention and deletion are implemented, with
+operator runbooks in `docs/RETENTION_DECISIONS.md`. The read-only inventory
+exports counts/dates only. Listing reactivation already exists; its
 local ownership/expiry acceptance now passes; production scheduling and full live lifecycle remain. Preserve these
 distinctions in future tracker updates, including numeric completion/status
 changes when supported, and keep dashboard/roadmap summaries synchronized.
@@ -291,6 +291,11 @@ Local verification: 9 DB tests, 4 targeted desktop/mobile retention browser test
 local database migrations are applied; production cleanup was not run.
 Current PR CI remains authoritative for full regression coverage. Production
 scheduler, provider deletion, actual 30-day backups and restore drill remain gates.
+
+Full GitHub run 46 passed on retention application `279bd8b`. Restore review then
+added sequence reservation above ledger IDs and a passing regression fixture so
+old deletion receipts cannot target new records after backup restoration. Current
+PR checks govern this additional fix; tracker score is 93.46% (display 93.5%).
 
 ## Agreed sequencing
 

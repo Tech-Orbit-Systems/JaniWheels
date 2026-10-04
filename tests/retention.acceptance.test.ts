@@ -118,6 +118,14 @@ test("calendar retention windows use closure/resolution dates and preserve alert
     const [alert]=await sql`SELECT * FROM saved_search_notifications WHERE saved_search_id=${search.id}`;
     assert.equal(alert.recipient_email,''); assert.equal(alert.payload,null); assert.equal(alert.delivered,true);
     assert.equal((await sql`SELECT count(*)::int n FROM saved_search_notifications WHERE saved_search_id=${search.id} AND listing_id=${listing.id}`)[0].n,1);
+    const ledger = await exportLedger(sql);
+    const reservedId = Number((await sql`SELECT last_value FROM users_id_seq`)[0].last_value)+100;
+    ledger.receipts.push({resource:'account',resource_id:reservedId,action:'redact',occurred_at:ledger.generatedAt});
+    await replayLedger(sql,ledger,tag);
+    const [nextUser] = await sql`INSERT INTO users(email) VALUES (${tag+'-after-restore@example.invalid'}) RETURNING id`;
+    assert.ok(nextUser.id>reservedId,'Restored sequences must not reuse IDs present only in the deletion ledger');
+    await sql`DELETE FROM users WHERE id=${nextUser.id}`;
+    await sql`DELETE FROM retention_receipts WHERE resource='account' AND resource_id=${reservedId}`;
   } finally {
     await sql`DELETE FROM retention_runs WHERE operator=${tag}`;
     await sql`DELETE FROM retention_receipts WHERE (resource='listing' AND resource_id=${listing.id}) OR (resource='inspection' AND resource_id=${service.id})`;

@@ -48,6 +48,13 @@ pool fixes it. Check/lint/build, 9 DB tests, 4 desktop/mobile retention cases an
 101-route sweep pass locally. Full regression CI on the current commit must pass.
 Normal local schema is updated; no production customer cleanup was executed.
 
+Full [GitHub run 46](https://github.com/Tech-Orbit-Systems/JaniWheels/actions/runs/37229189953)
+passed on `279bd8b`, including the complete browser suite. Subsequent restore
+review added sequence reservation beyond ledger IDs, preventing old deletion
+receipts from matching newly created identities after restoration. Both targeted
+retention DB cases pass with a missing-from-backup ID fixture. Current-head CI
+governs the additional fix and metadata closeout.
+
 ## Remaining launch gates
 
 | Gate | Required input/access | Work after access is available |

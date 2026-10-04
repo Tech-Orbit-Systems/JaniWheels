@@ -102,7 +102,10 @@ npm run retention -- media --database janiwheels --operator restore-owner
 ```
 
 Replay is atomic and idempotent, rejects a different database instance/invalid
-actions and preserves receipts for subsequent exports. Restore current hold
+actions and preserves receipts for subsequent exports. It also advances restored
+record sequences beyond ledger IDs so deleted identities cannot be reused for
+new accounts or ads. Keep background writers stopped during the restore drill.
+Restore current hold
 records from the restricted operations record before cleanup resumes. Verify
 closed/redacted records, drain failed media removals, export a new ledger and
 record the drill before clearing maintenance. Without a current authentic ledger,
