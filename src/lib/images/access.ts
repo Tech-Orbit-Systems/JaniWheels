@@ -6,11 +6,12 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { canViewListingDetail } from "@/lib/listings/visibility";
 
 export async function canReadStoredImage(key: string): Promise<boolean> {
-  const [listing] = await db.select({ status: listings.status, sellerId: listings.sellerId })
+  const [listing] = await db.select({ status: listings.status, sellerId: listings.sellerId, sellerDeletedAt:listings.sellerDeletedAt })
     .from(listingImages).innerJoin(listings, eq(listings.id, listingImages.listingId))
     .where(eq(listingImages.storageKey, key)).limit(1);
-  if (listing?.status === "active") return true;
+  if (listing?.status === "active" && !listing.sellerDeletedAt) return true;
   const user = await getCurrentUser();
+  if (listing?.sellerDeletedAt) return Boolean(user?.isAdmin);
   if (listing) return canViewListingDetail(listing.status, listing.sellerId, user);
 
   // Saved identity photos are intentionally public; unfinished uploads are not.

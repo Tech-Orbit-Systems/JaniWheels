@@ -168,6 +168,7 @@ export async function updateAvatarAction(
 
 export async function removeAvatarAction(): Promise<void> {
   const account = await requireAccount();
+  if (!await allowAccountAction("avatar",account.id,ACCOUNT_LIMITS.avatar)) redirect("/dashboard?limited=1");
   await db.update(users).set({ avatarUrl: null, updatedAt: new Date() }).where(eq(users.id, account.id));
   if (account.avatarUrl) await removeStoredImage(account.avatarUrl);
   revalidatePath("/dashboard/profile");

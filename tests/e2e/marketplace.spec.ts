@@ -724,7 +724,7 @@ test("another seller cannot open a private listing edit page", async ({ page, is
   await expect(page.getByRole("button", { name: "Save advertisement changes" })).toHaveCount(0);
 });
 
-test("owner edits a car and deletes a bike with its photos", async ({ page, isMobile }) => {
+test("owner edits a car and deletes a bike while photos follow approved retention", async ({ page, isMobile }) => {
   const device = isMobile ? "mobile" : "desktop";
   const email = `acceptance-seller-${device}@example.invalid`;
   const own = await sql`
@@ -758,7 +758,7 @@ test("owner edits a car and deletes a bike with its photos", async ({ page, isMo
     return row?.status === "removed" && Boolean(row.seller_deleted_at);
   }).toBe(true);
   const images = await sql`SELECT id FROM listing_images WHERE listing_id = ${bike!.id}`;
-  expect(images).toHaveLength(0);
+  expect(images.length).toBeGreaterThan(0);
   expect((await page.request.get(`/used-bikes/${bike!.slug}-${bike!.id}`)).status()).toBe(404);
   expect((await page.request.get(`/uploads/${photo.storage_key}`)).status()).toBe(404);
 });

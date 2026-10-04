@@ -8,7 +8,7 @@ import { queueSavedSearchAlerts, deliverSavedSearchAlerts } from "@/lib/buyer/al
 import { removeStoredImage } from "@/lib/images/storage";
 import { rateLimitBuckets } from "@/db/schema/security";
 import { sqlClient } from "@/db";
-import { runRetention } from "@/lib/retention/core";
+import { drainMediaDeletions, runRetention } from "@/lib/retention/core";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -125,6 +125,11 @@ const JOBS = {
     if (!process.env.RETENTION_DATABASE_NAME || decodeURIComponent(new URL(process.env.DATABASE_URL!).pathname.slice(1))!==process.env.RETENTION_DATABASE_NAME) throw new Error("Retention database confirmation does not match");
     return runRetention(sqlClient,{apply:true,cutoff:new Date(),operator:"authenticated-retention-cron",limit:25});
   },
+  "retention-media": async () => {
+    if (process.env.RETENTION_ENABLED!=="true") return {configured:false};
+    if (!process.env.RETENTION_DATABASE_NAME || decodeURIComponent(new URL(process.env.DATABASE_URL!).pathname.slice(1))!==process.env.RETENTION_DATABASE_NAME) throw new Error("Retention database confirmation does not match");
+    return drainMediaDeletions(sqlClient,removeStoredImage,25);
+  },
 } as const;
 
 type JobName = keyof typeof JOBS;
@@ -148,6 +153,7 @@ export async function POST(
   const started = Date.now();
   try {
     const result = await JOBS[job as JobName]();
+    console.info(JSON.stringify({event:"cron.completed",job,ok:true,durationMs:Date.now()-started,result}));
     return NextResponse.json({
       job,
       ok: true,
@@ -155,6 +161,7 @@ export async function POST(
       result,
     });
   } catch (err) {
+    console.error(JSON.stringify({event:"cron.failed",job,ok:false,durationMs:Date.now()-started}));
     console.error(`cron job ${job} failed`, err);
     return NextResponse.json(
       { job, ok: false, error: "The scheduled job failed. Check the operator logs." },

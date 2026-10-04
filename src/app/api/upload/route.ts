@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { pendingUploads } from "@/db/schema/listings";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { allowPublicAction } from "@/lib/security/rate-limit";
+import { permitsMutationOrigin } from "@/lib/security/origin";
 
 export const runtime = "nodejs";
 
@@ -24,16 +25,7 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   }
-  if (request.headers.get("sec-fetch-site") === "cross-site") {
-    return NextResponse.json({ error: "Cross-site uploads are not allowed." }, { status: 403 });
-  }
-  const origin = request.headers.get("origin");
-  const requestHost = request.headers.get("host") ?? new URL(request.url).host;
-  let originHost: string | null = null;
-  try {
-    if (origin) originHost = new URL(origin).host;
-  } catch { /* Invalid origins are rejected below. */ }
-  if (origin && originHost !== requestHost) {
+  if (!permitsMutationOrigin(request,process.env.NEXT_PUBLIC_SITE_URL)) {
     return NextResponse.json({ error: "Cross-site uploads are not allowed." }, { status: 403 });
   }
   if (!await allowPublicAction(

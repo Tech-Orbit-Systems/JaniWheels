@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bikeDetails,
@@ -19,7 +19,8 @@ import { makes, models, partCategories, variants } from "@/db/schema/taxonomy";
 import { getCurrentUser } from "@/lib/auth/session";
 import { moderationLog } from "@/db/schema/trust";
 import { claimUploadedImages, UploadOwnershipError } from "@/lib/images/ownership";
-import { removeStoredImage } from "@/lib/images/storage";
+import { retentionMediaDeletions } from "@/db/schema/retention";
+import { listingEditHeld } from "./edit-protection";
 import { buildListingSlug, buildListingPath } from "./slug";
 import { listingCoordinates } from "./location";
 import {
@@ -29,6 +30,7 @@ import {
   sanitizeDescription,
 } from "./validation";
 import type { SellState } from "./sell-actions";
+import { ACCOUNT_LIMITS, allowAccountAction } from "@/lib/security/rate-limit";
 
 function num(value: FormDataEntryValue | null): number | undefined {
   if (value === null || value === "") return undefined;
@@ -194,17 +196,18 @@ export async function updateListingAction(
       .from(listings).where(eq(listings.id, listingId)).limit(1).then(([row]) => row?.sellerDeletedAt ? null : row)
     : await ownedListing(user.id, listingId);
   if (!listing || listing.status === "removed") return { error: "This ad cannot be edited." };
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) return {error:"Too many ad changes. Please wait and try again."};
 
   const parsed = parseEdit(listing.vertical, formData);
   if (!("vertical" in parsed)) return parsed;
   const location = await validateLocation(parsed.data.cityId, parsed.data.areaId);
   if (!location) return { error: "Choose a valid city and area.", fieldErrors: { cityId: "Choose a valid city and area." } };
 
-  let removedKeys: string[] = [];
   try {
-    removedKeys = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
+      if (await listingEditHeld(tx,listingId)) throw new Error("LISTING_HELD");
       const [locked] = await tx.select({ sellerId: listings.sellerId, status: listings.status })
-        .from(listings).where(eq(listings.id, listingId)).limit(1);
+        .from(listings).where(eq(listings.id, listingId)).for("update").limit(1);
       const adminEdit = Boolean(user.isAdmin && locked?.sellerId !== user.id);
       if (!locked || (!adminEdit && locked.sellerId !== user.id) || locked.status === "removed") throw new Error("LISTING_UNAVAILABLE");
 
@@ -355,16 +358,16 @@ export async function updateListingAction(
         eq(pendingUploads.listingId, listingId),
         inArray(pendingUploads.storageKey, removed),
       ));
-      return removed;
+      if (removed.length) await tx.insert(retentionMediaDeletions).values(removed.map(storageKey=>({storageKey}))).onConflictDoNothing();
     });
   } catch (error) {
     if (error instanceof UploadOwnershipError) return { error: error.message, fieldErrors: { imageKeys: error.message } };
     if (error instanceof Error && error.message === "INVALID_TAXONOMY") return { error: "Choose valid category and vehicle options." };
     if (error instanceof Error && error.message === "LISTING_UNAVAILABLE") return { error: "This ad can no longer be edited." };
+    if (error instanceof Error && error.message === "LISTING_HELD") return {error:"This ad is under complaint review. Its details and photos cannot be changed until the review is released."};
     throw error;
   }
 
-  await Promise.all(removedKeys.map((key) => removeStoredImage(key)));
   revalidatePath("/dashboard");
   revalidatePath(buildListingPath(listing.vertical, "updated", listingId));
   redirect(user.isAdmin && listing.sellerId !== user.id ? `/admin/listings?updated=${listingId}` : `/dashboard?updated=1`);
@@ -385,18 +388,10 @@ export async function deleteListingAction(listingId: number): Promise<void> {
   if (!user) redirect("/login?next=/dashboard");
   const listing = await ownedListing(user.id, listingId);
   if (!listing) return;
-
-  const keys = await db.transaction(async (tx) => {
-    const images = await tx.select({ key: listingImages.storageKey }).from(listingImages)
-      .where(eq(listingImages.listingId, listingId));
-    await tx.update(listings).set({
-      status: "removed", sellerDeletedAt: new Date(), updatedAt: new Date(), photoCount: 0,
-    }).where(and(eq(listings.id, listingId), eq(listings.sellerId, user.id)));
-    await tx.delete(listingImages).where(eq(listingImages.listingId, listingId));
-    await tx.delete(pendingUploads).where(eq(pendingUploads.listingId, listingId));
-    return images.map((image) => image.key);
-  });
-  await Promise.all(keys.map((key) => removeStoredImage(key)));
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) redirect("/dashboard?limited=1");
+  // Ordinary ad deletion hides it; approved retention owns evidence/photo expiry.
+  await db.update(listings).set({status:"removed",sellerDeletedAt:new Date(),updatedAt:new Date()})
+    .where(and(eq(listings.id,listingId),eq(listings.sellerId,user.id),isNull(listings.sellerDeletedAt)));
   revalidatePath("/dashboard");
 }
 
@@ -405,10 +400,11 @@ export async function reactivateListingAction(listingId: number): Promise<void> 
   if (!user) redirect("/login?next=/dashboard");
   const listing = await ownedListing(user.id, listingId);
   if (!listing || (listing.status !== "sold" && listing.status !== "expired")) return;
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) redirect("/dashboard?limited=1");
   const now = new Date();
   await db.update(listings).set({
     status: "active", soldAt: null, publishedAt: now,
     expiresAt: new Date(now.getTime() + 30 * 86_400_000), updatedAt: now,
-  }).where(and(eq(listings.id, listingId), eq(listings.sellerId, user.id)));
+  }).where(and(eq(listings.id, listingId), eq(listings.sellerId, user.id),inArray(listings.status,["sold","expired"]),isNull(listings.sellerDeletedAt),isNull(listings.redactedAt)));
   revalidatePath("/dashboard");
 }

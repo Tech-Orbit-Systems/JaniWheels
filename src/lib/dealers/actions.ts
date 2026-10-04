@@ -291,6 +291,7 @@ export async function updateDealerLogoAction(
 
 export async function removeDealerLogoAction(): Promise<void> {
   const dealer = await requireDealerOwner();
+  if (!await allowAccountAction("dealer-logo",dealer.userId,ACCOUNT_LIMITS.dealerLogo)) redirect("/dashboard?limited=1");
   const resetVerification = Boolean(dealer.verifiedAt && dealer.logoUrl);
   await db.transaction(async (tx) => {
     await tx
@@ -329,6 +330,8 @@ export async function setDealerVerificationAction(
   reason?: string,
 ): Promise<{ ok: boolean; message: string }> {
   const admin = await requireDealerAdmin();
+  if (!Number.isSafeInteger(dealerId) || dealerId<1 || !["verify","revoke"].includes(decision) || (reason!==undefined && typeof reason!=="string")) return {ok:false,message:"Invalid dealer verification decision."};
+  if (!await allowAccountAction("admin-write",admin.id,ACCOUNT_LIMITS.adminWrite)) return {ok:false,message:"Too many administrative changes. Please wait and try again."};
   const cleanReason = reason?.trim();
   if (decision === "revoke" && (!cleanReason || cleanReason.length < 5)) {
     return {
@@ -351,7 +354,7 @@ export async function setDealerVerificationAction(
       })
       .from(dealers)
       .where(eq(dealers.id, dealerId))
-      .limit(1);
+      .for("update").limit(1);
     if (!dealer) return { ok: false, message: "Dealer not found.", slug: null };
     if (decision === "verify" && dealer.verifiedAt) {
       return { ok: false, message: "This dealer is already verified.", slug: dealer.slug };

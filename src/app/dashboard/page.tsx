@@ -28,7 +28,8 @@ const STATUS_STYLE: Record<string, string> = {
   removed: "bg-red-200 text-red-900",
 };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({searchParams}:{searchParams:Promise<{limited?:string}>}) {
+  const query = await searchParams;
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/dashboard");
 
@@ -65,6 +66,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
+      {query.limited==="1" && <p role="alert" className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-amber-900">Too many changes. Please wait and try again.</p>}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-slate-900">My ads</h1>
         <Link

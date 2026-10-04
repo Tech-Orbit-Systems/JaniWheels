@@ -1,0 +1,137 @@
+import {expect,test,type Page} from "@playwright/test";
+import "dotenv/config";
+import {createHmac,randomUUID} from "node:crypto";
+import {mkdir,readFile,rm,writeFile} from "node:fs/promises";
+import {dirname,join} from "node:path";
+import postgres from "postgres";
+import sharp from "sharp";
+
+const url=process.env.DATABASE_URL!;
+if (!/(?:_test|_acceptance)$/.test(new URL(url).pathname)) throw new Error("Isolated acceptance database required");
+const sql=postgres(url,{max:3});
+test.afterAll(async()=>{await sql.end();});
+async function fixture() {
+  const tag=randomUUID();
+  const [owner]=await sql`INSERT INTO users(name,email,email_verified_at,password_hash) SELECT 'Closeout seller',${tag+'@example.invalid'},NOW(),password_hash FROM users WHERE email='acceptance-seller@example.invalid' RETURNING id,email`;
+  const [admin]=await sql`INSERT INTO users(name,email,email_verified_at,password_hash,is_admin) SELECT 'Closeout administrator',${tag+'-admin@example.invalid'},NOW(),password_hash,true FROM users WHERE email='acceptance-admin@example.invalid' RETURNING id,email`;
+  const [listing]=await sql`INSERT INTO listings SELECT r.* FROM listings l CROSS JOIN LATERAL jsonb_populate_record(NULL::listings,to_jsonb(l)||jsonb_build_object('id',nextval('listings_id_seq'),'seller_id',${owner.id}::integer,'dealer_id',NULL,'title',${tag}::text,'slug',${tag}::text,'status','active','seller_deleted_at',NULL,'redacted_at',NULL,'photo_count',1)) r WHERE l.vertical='car' AND l.status='active' AND l.variant_id IS NOT NULL ORDER BY l.id LIMIT 1 RETURNING id,slug`;
+  await sql`INSERT INTO car_details SELECT r.* FROM car_details c CROSS JOIN LATERAL jsonb_populate_record(NULL::car_details,to_jsonb(c)||jsonb_build_object('listing_id',${listing.id}::integer)) r WHERE c.listing_id=(SELECT id FROM listings WHERE vertical='car' AND status='active' AND variant_id IS NOT NULL ORDER BY id LIMIT 1)`;
+  const key=`202610/${tag.replaceAll('-','')}.webp`;
+  const path=join(process.env.UPLOAD_DIR!,key);
+  await mkdir(dirname(path),{recursive:true});
+  await writeFile(path,await sharp({create:{width:24,height:24,channels:3,background:'#7799aa'}}).webp().toBuffer());
+  await sql`INSERT INTO listing_images(listing_id,storage_key,position) VALUES (${listing.id},${key},0)`;
+  await sql`UPDATE listings SET updated_at=NOW() WHERE id=${listing.id}`;
+  return {tag,owner,admin,listing,key,path};
+}
+function bucket(scope:string,id:number,max:number) {
+  const period=Math.floor(Date.now()/3600_000);
+  const key=createHmac('sha256',process.env.SESSION_SECRET!).update(`account:${scope}\0user:${id}\0${period}`).digest('hex');
+  return sql`INSERT INTO rate_limit_buckets(key,hits,expires_at) VALUES (${key},${max},NOW()+INTERVAL '1 hour') ON CONFLICT(key) DO UPDATE SET hits=EXCLUDED.hits`;
+}
+async function cleanup(f:Awaited<ReturnType<typeof fixture>>) {
+  await sql`DELETE FROM retention_holds WHERE resource='listing' AND resource_id=${f.listing.id}`;
+  await sql`DELETE FROM moderation_log WHERE listing_id=${f.listing.id}`;
+  await sql`DELETE FROM listings WHERE id=${f.listing.id}`;
+  await sql`DELETE FROM sessions WHERE user_id IN (${f.owner.id},${f.admin.id})`;
+  await sql`DELETE FROM users WHERE id IN (${f.owner.id},${f.admin.id})`;
+  await rm(f.path,{force:true});
+}
+async function login(page:Page,email:string,next='/dashboard') {
+  await page.goto(`/login?next=${encodeURIComponent(next)}`);
+  await page.getByRole('textbox',{name:'Email or mobile number'}).fill(email);
+  await page.getByLabel('Password').fill('AcceptanceOnly123!');
+  await page.getByRole('button',{name:'Sign in'}).click();
+  await expect(page).not.toHaveURL(/\/login/);
+}
+async function capture(page:Page,click:()=>Promise<void>) {
+  const request=page.waitForRequest(r=>r.method()==='POST' && Boolean(r.headers()['next-action']));
+  await page.route('**/*',async route=>{if(route.request().headers()['next-action']) await route.abort(); else await route.continue();});
+  await click();
+  const r=await request;
+  await page.unrouteAll({behavior:'wait'});
+  const headers={...r.headers()};
+  // API replay must explicitly carry the browser's secure local session cookie.
+  headers.cookie=(await page.context().cookies()).map(c=>`${c.name}=${c.value}`).join('; ');
+  delete headers.host; delete headers['content-length'];
+  return {url:r.url(),headers,data:r.postDataBuffer()!};
+}
+
+test('autonomy seller lifecycle blocks stale actions and preserves deleted photos privately',async({page})=>{
+  const f=await fixture();
+  try {
+    await login(page,f.owner.email);
+    const row=()=>page.getByRole('listitem').filter({hasText:f.tag});
+    const sold=await capture(page,async()=>{await row().getByRole('button',{name:'Mark as sold'}).click();await row().getByRole('button',{name:'Yes',exact:true}).click();});
+    const foreign=await page.request.post(sold.url,{data:sold.data,headers:{...sold.headers,origin:'https://foreign.example.invalid'},maxRedirects:0});
+    expect(foreign.status()).toBeGreaterThanOrEqual(400);
+    expect((await sql`SELECT status FROM listings WHERE id=${f.listing.id}`)[0].status).toBe('active');
+    await bucket('listing-write',f.owner.id,120);
+    await page.request.post(sold.url,{data:sold.data,headers:sold.headers,maxRedirects:0});
+    expect((await sql`SELECT status FROM listings WHERE id=${f.listing.id}`)[0].status).toBe('active');
+    await page.goto('/dashboard?limited=1');
+    await expect(page.getByRole('alert').filter({hasText:'Too many changes.'})).toHaveText('Too many changes. Please wait and try again.');
+    await bucket('listing-write',f.owner.id,0);
+    // A delayed action must show pending feedback and prevent duplicate clicks.
+    await page.route('**/*',async route=>{if(route.request().headers()['next-action']) await new Promise(resolve=>setTimeout(resolve,1500));await route.continue();});
+    await row().getByRole('button',{name:'Mark as sold'}).click();
+    await row().getByRole('button',{name:'Yes',exact:true}).click();
+    await expect(row().getByRole('button',{name:'…',exact:true})).toBeDisabled();
+    await expect.poll(async()=>(await sql`SELECT status FROM listings WHERE id=${f.listing.id}`)[0].status).toBe('sold');
+    await page.unrouteAll({behavior:'wait'});
+    await page.goto('/dashboard');
+    expect((await page.request.get(`/used-cars/${f.listing.slug}-${f.listing.id}`,{headers:{cookie:''}})).status()).toBe(404);
+    expect(await (await page.request.get(`/api/recently-viewed?ids=${f.listing.id}`)).json()).toEqual({rows:[]});
+    expect(await (await page.request.get('/sitemap.xml')).text()).not.toContain(`${f.listing.slug}-${f.listing.id}`);
+    await row().getByRole('button',{name:'Delete ad',exact:true}).click();
+    await row().getByRole('button',{name:'Yes, delete'}).click();
+    await expect.poll(async()=>(await sql`SELECT seller_deleted_at FROM listings WHERE id=${f.listing.id}`)[0].seller_deleted_at).toBeTruthy();
+    await page.request.post(sold.url,{data:sold.data,headers:sold.headers,maxRedirects:0});
+    expect((await sql`SELECT status FROM listings WHERE id=${f.listing.id}`)[0].status).toBe('removed');
+    expect((await sql`SELECT count(*)::int n FROM listing_images WHERE listing_id=${f.listing.id}`)[0].n).toBe(1);
+    expect((await readFile(f.path)).length).toBeGreaterThan(0);
+    expect((await page.request.get(`/uploads/${f.key}`,{headers:{cookie:sold.headers.cookie}})).status()).toBe(404);
+    await page.context().clearCookies();
+    await login(page,f.admin.email,'/admin/listings');
+    const adminCookie=(await page.context().cookies()).map(c=>`${c.name}=${c.value}`).join('; ');
+    expect((await page.request.get(`/uploads/${f.key}`,{headers:{cookie:adminCookie}})).status()).toBe(200);
+  } finally {await cleanup(f);}
+});
+
+test('autonomy admin tampering and concurrent decisions preserve state and one audit',async({page})=>{
+  const f=await fixture();
+  try {
+    await login(page,f.admin.email,'/admin/listings');
+    const row=page.getByRole('article').filter({hasText:f.tag});
+    await row.getByPlaceholder('Rejection reason (required to reject)').fill('Acceptance removal reason');
+    const action=await capture(page,()=>row.getByRole('button',{name:'Remove',exact:true}).click());
+    const args=JSON.parse(action.data.toString());
+    expect(args).toEqual([f.listing.id,'remove','Acceptance removal reason']);
+    for (const invalid of [[f.listing.id,'unexpected','Acceptance removal reason'],[-1,'remove','Acceptance removal reason'],[f.listing.id,'remove','x'.repeat(501)]]) {
+      expect((await page.request.post(action.url,{data:JSON.stringify(invalid),headers:action.headers})).status()).toBe(200);
+      expect((await sql`SELECT status FROM listings WHERE id=${f.listing.id}`)[0].status).toBe('active');
+    }
+    await bucket('admin-write',f.admin.id,300);
+    await page.request.post(action.url,{data:action.data,headers:action.headers});
+    expect((await sql`SELECT status FROM listings WHERE id=${f.listing.id}`)[0].status).toBe('active');
+    expect((await sql`SELECT count(*)::int n FROM moderation_log WHERE listing_id=${f.listing.id}`)[0].n).toBe(0);
+    await bucket('admin-write',f.admin.id,0);
+    await Promise.all(Array.from({length:3},()=>page.request.post(action.url,{data:action.data,headers:action.headers})));
+    expect((await sql`SELECT status FROM listings WHERE id=${f.listing.id}`)[0].status).toBe('removed');
+    expect((await sql`SELECT count(*)::int n FROM moderation_log WHERE listing_id=${f.listing.id}`)[0].n).toBe(1);
+  } finally {await cleanup(f);}
+});
+
+test('autonomy complaint hold rejects edit without changing details or photos',async({page})=>{
+  const f=await fixture();
+  try {
+    await sql`INSERT INTO retention_holds(resource,resource_id,reason,responsible,actor_user_id) VALUES ('listing',${f.listing.id},'Necessary complaint evidence','Acceptance administrator',${f.admin.id})`;
+    const [before]=await sql`SELECT price_pkr FROM listings WHERE id=${f.listing.id}`;
+    await login(page,f.owner.email,`/dashboard/listings/${f.listing.id}/edit`);
+    await page.locator('input[name="pricePkr"]').fill('3650000');
+    await page.getByRole('button',{name:'Save advertisement changes'}).click();
+    await expect(page.getByText('This ad is under complaint review. Its details and photos cannot be changed until the review is released.')).toBeVisible();
+    expect((await sql`SELECT price_pkr FROM listings WHERE id=${f.listing.id}`)[0].price_pkr).toBe(before.price_pkr);
+    expect((await sql`SELECT count(*)::int n FROM listing_images WHERE listing_id=${f.listing.id}`)[0].n).toBe(1);
+  } finally {await cleanup(f);}
+});

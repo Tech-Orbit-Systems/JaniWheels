@@ -12,7 +12,7 @@ import { sellAssistanceEvents, sellAssistanceRequests } from "@/db/schema/trust"
 import { users } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { normalizePkPhone } from "@/lib/format";
-import { allowPublicAction } from "@/lib/security/rate-limit";
+import { ACCOUNT_LIMITS, allowAccountAction, allowPublicAction } from "@/lib/security/rate-limit";
 import {
   isSellAssistanceStatus,
   validateSellAssistanceUpdate,
@@ -142,6 +142,7 @@ export async function updateSellAssistanceAction(
   if (!admin) redirect("/login?next=/admin/sell-assistance");
   const [adminRow] = await db.select({ isAdmin: users.isAdmin }).from(users).where(eq(users.id, admin.id)).limit(1);
   if (!adminRow?.isAdmin) redirect("/");
+  if (!await allowAccountAction("admin-write",admin.id,ACCOUNT_LIMITS.adminWrite)) return {error:"Too many administrative changes. Please wait and try again."};
   const requestId = Number(formData.get("requestId"));
   const next = String(formData.get("status") ?? "");
   const internalNote = String(formData.get("internalNote") ?? "").trim();

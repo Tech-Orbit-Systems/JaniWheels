@@ -17,7 +17,7 @@ import {
   shouldBanAfterFinalRemoval,
 } from "./moderation-policy";
 import { isInspectionStatus, validateInspectionUpdate } from "./inspection-policy";
-import { allowPublicAction } from "@/lib/security/rate-limit";
+import { ACCOUNT_LIMITS, allowAccountAction, allowPublicAction } from "@/lib/security/rate-limit";
 
 /**
  * Trust actions: reporting bad listings, booking an inspection, and the
@@ -267,6 +267,7 @@ export async function updateInspectionAction(
 ): Promise<InspectionAdminState> {
   const admin = await requireAdmin();
   const inspectionId = Number(formData.get("inspectionId"));
+  if (!await allowAccountAction("admin-write",admin.id,ACCOUNT_LIMITS.adminWrite)) return {error:"Too many administrative changes. Please wait and try again."};
   const nextRaw = String(formData.get("status") ?? "");
   const internalNote = String(formData.get("internalNote") ?? "").trim();
   const customerMessage = String(formData.get("customerMessage") ?? "").trim();
@@ -325,7 +326,10 @@ export async function moderateAction(
   reason?: string,
 ): Promise<{ ok: boolean; message: string }> {
   const admin = await requireAdmin();
+  if (!Number.isSafeInteger(listingId) || listingId<1 || !["approve","reject"].includes(action) || (reason!==undefined && typeof reason!=="string")) return {ok:false,message:"Invalid moderation decision."};
+  if (!await allowAccountAction("admin-write",admin.id,ACCOUNT_LIMITS.adminWrite)) return {ok:false,message:"Too many administrative changes. Please wait and try again."};
   const cleanReason = reason?.trim();
+  if (cleanReason && cleanReason.length>500) return {ok:false,message:"The moderation reason is too long."};
   if (action === "reject" && (!cleanReason || cleanReason.length < 3)) {
     return { ok: false, message: "Enter a rejection reason of at least 3 characters." };
   }
@@ -335,11 +339,12 @@ export async function moderateAction(
       .select({ sellerId: listings.sellerId, status: listings.status })
       .from(listings)
       .where(eq(listings.id, listingId))
-      .limit(1);
+      .for("update").limit(1);
     if (!listing) return { ok: false, message: "Listing not found." };
     if (listing.status === "removed") {
       return { ok: false, message: "This listing has already been permanently removed." };
     }
+    if (listing.status!=="pending_review") return {ok:false,message:"Only an ad awaiting review can be approved or rejected."};
 
     if (action === "approve") {
       await tx.update(listings).set({ status: "active", publishedAt: new Date(), updatedAt: new Date() }).where(eq(listings.id, listingId));
@@ -392,6 +397,8 @@ export async function setAdminListingStateAction(
   reason?: string,
 ): Promise<{ ok: boolean; message: string }> {
   const admin = await requireAdmin();
+  if (!Number.isSafeInteger(listingId) || listingId<1 || !["flag","reinstate","remove"].includes(decision) || (reason!==undefined && typeof reason!=="string")) return {ok:false,message:"Invalid listing decision."};
+  if (!await allowAccountAction("admin-write",admin.id,ACCOUNT_LIMITS.adminWrite)) return {ok:false,message:"Too many administrative changes. Please wait and try again."};
   const cleanReason = reason?.trim();
   if (!cleanReason || cleanReason.length < 5) {
     return { ok: false, message: "Enter a reason of at least 5 characters." };
@@ -405,7 +412,7 @@ export async function setAdminListingStateAction(
       sellerId: listings.sellerId,
       status: listings.status,
       sellerDeletedAt: listings.sellerDeletedAt,
-    }).from(listings).where(eq(listings.id, listingId)).limit(1);
+    }).from(listings).where(eq(listings.id, listingId)).for("update").limit(1);
     if (!listing || listing.sellerDeletedAt) return { ok: false, message: "Listing not found." };
 
     const nextStatus = decision === "reinstate" ? "active" : decision === "flag" ? "pending_review" : "removed";
@@ -453,6 +460,8 @@ export async function setUserBanAction(
   reason?: string,
 ): Promise<{ ok: boolean; message: string }> {
   const admin = await requireAdmin();
+  if (!Number.isSafeInteger(targetUserId) || targetUserId<1 || !["ban","unban"].includes(decision) || (reason!==undefined && typeof reason!=="string")) return {ok:false,message:"Invalid user access decision."};
+  if (!await allowAccountAction("admin-write",admin.id,ACCOUNT_LIMITS.adminWrite)) return {ok:false,message:"Too many administrative changes. Please wait and try again."};
   const cleanReason = reason?.trim();
   if (!cleanReason || cleanReason.length < 5) {
     return { ok: false, message: "Enter a reason of at least 5 characters." };
@@ -462,7 +471,7 @@ export async function setUserBanAction(
 
   const result = await db.transaction(async (tx) => {
     const [target] = await tx.select({ isAdmin: users.isAdmin, isBanned: users.isBanned })
-      .from(users).where(eq(users.id, targetUserId)).limit(1);
+      .from(users).where(eq(users.id, targetUserId)).for("update").limit(1);
     if (!target) return { ok: false, message: "User not found." };
     if (target.isAdmin) return { ok: false, message: "Administrator access cannot be changed here." };
     const shouldBan = decision === "ban";

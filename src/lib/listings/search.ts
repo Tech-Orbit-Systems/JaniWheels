@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import { db } from "@/db";
 import { listings, listingImages } from "@/db/schema/listings";
 import { makes, models } from "@/db/schema/taxonomy";
@@ -194,26 +194,26 @@ export function buildWhere(state: FacetState): SQL[] {
   return clauses;
 }
 
-function buildOrderBy(sort: SortKey) {
+function buildOrderBy(sort: SortKey, columns: {pricePkr:SQLWrapper;year:SQLWrapper;mileageKm:SQLWrapper;publishedAt:SQLWrapper;id:SQLWrapper}=listings) {
   const primary = (() => {
     switch (sort) {
       case "price_asc":
-        return asc(listings.pricePkr);
+        return asc(columns.pricePkr);
       case "price_desc":
-        return desc(listings.pricePkr);
+        return desc(columns.pricePkr);
       case "year_desc":
-        return desc(listings.year);
+        return desc(columns.year);
       case "year_asc":
-        return asc(listings.year);
+        return asc(columns.year);
       case "mileage_asc":
-        return asc(listings.mileageKm);
+        return asc(columns.mileageKm);
       case "recent":
       default:
-        return desc(listings.publishedAt);
+        return desc(columns.publishedAt);
     }
   })();
 
-  return [primary, desc(listings.id)];
+  return [primary, desc(columns.id)];
 }
 
 export async function searchListings(
@@ -225,58 +225,38 @@ export async function searchListings(
   const sort = (state.sort as SortKey) ?? "recent";
   const where = and(...buildWhere(state));
 
-  /**
-   * Primary image is fetched with a LATERAL join rather than a second query
-   * per row. With 25 rows a page, the N+1 version is 25 extra round trips on
-   * the hottest page in the product.
-   */
-  const primaryImage = db
-    .$with("primary_image")
-    .as(
-      db
-        .select({
-          listingId: listingImages.listingId,
-          storageKey: sql<string>`MIN(${listingImages.storageKey})`.as(
-            "storage_key",
-          ),
-        })
-        .from(listingImages)
-        .where(eq(listingImages.position, 0))
-        .groupBy(listingImages.listingId),
-    );
-
+  // Pagination precedes enrichment, so deep pages don't join thousands of
+  // discarded ads. MIN preserves deterministic duplicate-position photo behavior.
+  const listingPage=db.$with("listing_page").as(db.select().from(listings).where(where)
+    .orderBy(...buildOrderBy(sort)).limit(pageSize).offset((page-1)*pageSize));
   const rows = await db
-    .with(primaryImage)
+    .with(listingPage)
     .select({
-      id: listings.id,
-      slug: listings.slug,
-      title: listings.title,
-      pricePkr: listings.pricePkr,
-      year: listings.year,
-      mileageKm: listings.mileageKm,
+      id: listingPage.id,
+      slug: listingPage.slug,
+      title: listingPage.title,
+      pricePkr: listingPage.pricePkr,
+      year: listingPage.year,
+      mileageKm: listingPage.mileageKm,
       cityName: cities.name,
       makeName: makes.name,
       modelName: models.name,
-      fuel: sql<string | null>`${listings.fuel}::text`,
-      transmission: sql<string | null>`${listings.transmission}::text`,
-      engineCc: listings.engineCc,
-      publishedAt: listings.publishedAt,
-      primaryImageKey: sql<string | null>`${primaryImage.storageKey}`,
+      fuel: sql<string | null>`${listingPage.fuel}::text`,
+      transmission: sql<string | null>`${listingPage.transmission}::text`,
+      engineCc: listingPage.engineCc,
+      publishedAt: listingPage.publishedAt,
+      primaryImageKey: sql<string | null>`(SELECT MIN(storage_key) FROM ${listingImages} WHERE listing_id=${listingPage.id} AND position=0)`,
       sellerType: sql<string>`${users.type}::text`,
       dealerName: dealers.businessName,
       dealerVerifiedAt: dealers.verifiedAt,
     })
-    .from(listings)
-    .innerJoin(cities, eq(listings.cityId, cities.id))
-    .innerJoin(users, eq(listings.sellerId, users.id))
-    .leftJoin(dealers, eq(listings.dealerId, dealers.id))
-    .leftJoin(makes, eq(listings.makeId, makes.id))
-    .leftJoin(models, eq(listings.modelId, models.id))
-    .leftJoin(primaryImage, eq(primaryImage.listingId, listings.id))
-    .where(where)
-    .orderBy(...buildOrderBy(sort))
-    .limit(pageSize)
-    .offset((page - 1) * pageSize);
+    .from(listingPage)
+    .innerJoin(cities, eq(listingPage.cityId, cities.id))
+    .innerJoin(users, eq(listingPage.sellerId, users.id))
+    .leftJoin(dealers, eq(listingPage.dealerId, dealers.id))
+    .leftJoin(makes, eq(listingPage.makeId, makes.id))
+    .leftJoin(models, eq(listingPage.modelId, models.id))
+    .orderBy(...buildOrderBy(sort,listingPage));
 
   // Homepage previews have no pagination and do not need an inventory count.
   if (options.previewLimit !== undefined) {

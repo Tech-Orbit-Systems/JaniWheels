@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { carDetails, listings } from "@/db/schema/listings";
@@ -14,7 +14,8 @@ import { bikeListingSchema, carListingSchema, partListingSchema, sanitizeDescrip
 import { publishBikeListing, publishCarListing, publishPartListing } from "./publish";
 import { buildListingPath } from "./slug";
 import { UploadOwnershipError } from "@/lib/images/ownership";
-import { allowPublicAction } from "@/lib/security/rate-limit";
+import { listingEditHeld } from "./edit-protection";
+import { ACCOUNT_LIMITS, allowAccountAction, allowPublicAction } from "@/lib/security/rate-limit";
 
 export interface SellState {
   error?: string;
@@ -323,11 +324,12 @@ export async function markSoldAction(listingId: number): Promise<void> {
     .limit(1);
 
   if (!row || row.sellerId !== user.id) return;
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) redirect("/dashboard?limited=1");
 
   await db
     .update(listings)
     .set({ status: "sold", soldAt: new Date(), updatedAt: new Date() })
-    .where(eq(listings.id, listingId));
+    .where(and(eq(listings.id, listingId),eq(listings.sellerId,user.id),eq(listings.status,"active"),isNull(listings.sellerDeletedAt),isNull(listings.redactedAt)));
 
   revalidatePath("/dashboard");
 }
@@ -347,11 +349,12 @@ export async function resubmitRejectedListingAction(listingId: number): Promise<
   if (row.status !== "rejected") {
     return { error: "Only a rejected listing can be resubmitted for review." };
   }
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) return {error:"Too many ad changes. Please wait and try again."};
 
   await db
     .update(listings)
     .set({ status: "pending_review", updatedAt: new Date() })
-    .where(eq(listings.id, listingId));
+    .where(and(eq(listings.id, listingId),eq(listings.sellerId,user.id),eq(listings.status,"rejected"),isNull(listings.sellerDeletedAt),isNull(listings.redactedAt)));
   revalidatePath("/dashboard");
   return { notice: "Your corrected ad has been submitted for another review." };
 }
@@ -384,7 +387,11 @@ export async function correctRejectedListingAction(
     return { error: "This rejected listing can no longer be changed." };
   }
   const { text: description } = sanitizeDescription(parsed.data.description ?? "");
-  await db.transaction(async (tx) => {
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) return {error:"Too many ad changes. Please wait and try again."};
+  const changed = await db.transaction(async (tx) => {
+    if (await listingEditHeld(tx,listingId)) return false;
+    const [current] = await tx.select({sellerId:listings.sellerId,status:listings.status,sellerDeletedAt:listings.sellerDeletedAt}).from(listings).where(eq(listings.id,listingId)).for("update").limit(1);
+    if (!current || current.sellerId!==user.id || current.status!=="rejected" || current.sellerDeletedAt) return false;
     await tx.update(listings).set({
       pricePkr: parsed.data.pricePkr,
       mileageKm: parsed.data.mileageKm,
@@ -394,7 +401,9 @@ export async function correctRejectedListingAction(
       updatedAt: new Date(),
     }).where(eq(listings.id, listingId));
     await tx.update(carDetails).set({ color: parsed.data.color || null }).where(eq(carDetails.listingId, listingId));
+    return true;
   });
+  if (!changed) return {error:"This rejected listing can no longer be changed."};
   revalidatePath("/dashboard");
   revalidatePath("/admin/moderation");
   redirect("/dashboard");

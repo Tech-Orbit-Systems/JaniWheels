@@ -23,6 +23,8 @@ export const ACCOUNT_LIMITS = {
   dealerRegistration: { max: 5, windowMs: DAY },
   dealerProfile: { max: 30, windowMs: HOUR },
   dealerLogo: { max: 10, windowMs: DAY },
+  listingWrite: { max: 120, windowMs: HOUR },
+  adminWrite: { max: 300, windowMs: HOUR },
 } as const;
 
 function secret(): string {
