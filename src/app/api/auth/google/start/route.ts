@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     config = googleConfig();
   } catch (error) {
     if (error instanceof GoogleAuthError) {
-      return NextResponse.redirect(new URL("/login?google=unavailable", request.url));
+      return NextResponse.redirect(new URL("/login?google=unavailable", process.env.NEXT_PUBLIC_SITE_URL ?? request.url));
     }
     throw error;
   }

@@ -40,6 +40,7 @@ export function LoginForm({
     <div className="space-y-5">
       <Link
         href={`/api/auth/google/start?next=${encodeURIComponent(next)}`}
+        prefetch={false}
         className="flex w-full items-center justify-center gap-3 rounded border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
       >
         <GoogleIcon />

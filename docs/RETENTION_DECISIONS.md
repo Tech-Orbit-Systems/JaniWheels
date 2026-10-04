@@ -57,7 +57,10 @@ referenced media. Review overdue holds and failed removals.
 
 Enable authenticated `retention-cleanup` cron only after migrations and preview:
 `RETENTION_ENABLED=true`, with `RETENTION_DATABASE_NAME` matching the database.
-Schedule the media CLI separately. Live scheduler/provider configuration remains
+Schedule authenticated `POST /api/cron/retention-media` or the media CLI separately.
+The media endpoint uses the same enabled/exact-database guard and drains at most
+25 queued objects per invocation, preserving failed deletions for retry.
+Live scheduler/provider configuration remains
 a deployment gate; local acceptance does not delete production customer data.
 
 ## Backup restore

@@ -10,6 +10,11 @@ queue draining and independent restricted ledger exports. Configure actual rolli
 Keep cleanup disabled until deployment configuration is checked. Never enable a
 restored public application before applying the current deletion ledger and holds.
 
+`POST /api/cron/retention-media` provides bounded media draining under the same
+bearer authentication, retention-enabled and exact-database guard as cleanup.
+Failed deletions remain queued. Inspect retry counts before increasing scheduling
+frequency; do not treat a completed worker invocation as live-provider acceptance.
+
 ## Health and errors
 
 Monitor `GET /api/health` from the selected external monitor. It returns 200
@@ -39,6 +44,11 @@ semantics. These settings depend on the selected host and retention decisions;
 local development checks are not backup or uptime sign-off.
 
 ## Basic V1 measurement
+
+Run `npm run ops:report -- --database EXACT_DATABASE_NAME` for a read-only
+aggregate JSON snapshot of inventory, activity, services/reports, email backlog,
+overdue evidence holds and media retries. It excludes personal customer payloads.
+Record a production reporting cadence and alert recipients after hosting selection.
 
 Use existing database aggregates for new verified accounts, new published ads
 by vertical, active inventory, phone/WhatsApp contact events, open reports and
