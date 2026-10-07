@@ -35,7 +35,10 @@ npm run db:migrate
 npm run db:seed
 ```
 
-Back up production before every schema migration. Never run the demo seed in
+`db:seed` inserts curated taxonomy, location, category and feature reference
+data required by the product. It does not create demo users or listings. Back
+up production before every schema migration. Never run
+`src/db/seed/demo.ts`, acceptance account seeds, `db:reset` or `db:push` in
 production.
 
 ## Build and verification
@@ -66,6 +69,10 @@ curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" \
   https://janiwheels.com/api/cron/purge-expired
 ```
 
+Also schedule `saved-search-alerts` before `deliver-search-alerts`. Enable
+`retention-cleanup` and `retention-media` only after the approved preview,
+backup and independent ledger setup described in `RETENTION_DECISIONS.md`.
+
 ## Launch requirements
 
 - Apply the approved JaniWheels logo and brand palette
@@ -80,3 +87,6 @@ Builds require a reachable, migrated PostgreSQL database for page data. Use
 the isolated CI database or a dedicated staging/build database; never run demo
 seeds against production. A successful build does not provision staging or
 validate the production database/network credentials.
+
+For the external deployment team and the evidence it must return, see
+[deployment handoff](./DEPLOYMENT_HANDOFF.md).
