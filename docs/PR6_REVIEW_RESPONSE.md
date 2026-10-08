@@ -29,6 +29,10 @@ Local verification passed: `npm run check`, `npm run lint`, `npm run build:safe`
 
 The earlier full local browser run was interrupted after timeouts and connection resets; it is not recorded as a pass. The updated commit's GitHub Quality and acceptance workflow is the full-suite gate. The independent baseline review is not approval of these new changes.
 
+GitHub run 55 on `7c9a1e1` stopped at the production dependency audit before application tests. Its two Next.js cache-poisoning advisories are addressed by updating Next.js and the matching ESLint configuration to 15.5.27. The production audit subsequently reports zero vulnerabilities. Sources: [GHSA-4jqv-mc3x-m676](https://github.com/vercel/next.js/security/advisories/GHSA-4jqv-mc3x-m676) and [GHSA-mcj8-r9mp-w47p](https://github.com/vercel/next.js/security/advisories/GHSA-mcj8-r9mp-w47p). The follow-up commit must pass the full workflow.
+
+The 15.5.27 patch passed local checks and lint. Its first local build compiled but the type-check worker ran out of memory; a bounded-heap retry and full clean CI verification follow. The earlier successful local build and browser counts above belong to the review-repair package before this dependency patch.
+
 ## Release gates
 
 Keep PR #6 open for independent review of the updated commit. Passing CI does not approve a merge. Live hosting/database/media/mail/Google configuration, backup restore rehearsal, external monitoring, representative staging load and real-device/screen-reader acceptance remain deployment and launch gates. Approved retention A and seller-badge B1 are unchanged.
