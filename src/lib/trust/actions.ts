@@ -112,9 +112,10 @@ export async function reportListingAction(
 
   const outcome = await db.transaction(async (tx) => {
     // Serialize reports for the same ad so concurrent submissions cannot skip the threshold.
-    const [listing] = await tx.select({ status: listings.status, sellerDeletedAt: listings.sellerDeletedAt })
-      .from(listings).where(and(eq(listings.id, parsed.data.listingId),publicListingEligibility())).for("update").limit(1);
-    if (!listing || listing.sellerDeletedAt || listing.status !== "active") {
+    const locked = await lockModerationListing(tx, parsed.data.listingId);
+    const listing = locked?.listing;
+    const owner = locked?.owner;
+    if (!listing || !owner || listing.sellerDeletedAt || listing.redactedAt || listing.status !== "active" || owner.closedAt || owner.isBanned || owner.anonymizedAt) {
       return { error: "This ad is no longer available for reporting." };
     }
     const [report] = await tx.insert(listingReports).values({
@@ -307,6 +308,22 @@ export async function updateInspectionAction(
 // Moderation
 // ---------------------------------------------------------------------------
 
+type ModerationTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function lockModerationListing(tx: ModerationTx, listingId: number) {
+  const [candidate] = await tx.select({ sellerId: listings.sellerId })
+    .from(listings).where(eq(listings.id, listingId)).limit(1);
+  if (!candidate) return null;
+  // Closure locks the owner before its inventory; moderation must use that order too.
+  const [owner] = await tx.select({ closedAt: users.closedAt, isBanned: users.isBanned, anonymizedAt: users.anonymizedAt })
+    .from(users).where(eq(users.id, candidate.sellerId)).for("update").limit(1);
+  if (!owner) return null;
+  const [listing] = await tx.select({ sellerId: listings.sellerId, status: listings.status, sellerDeletedAt: listings.sellerDeletedAt, redactedAt: listings.redactedAt })
+    .from(listings).where(eq(listings.id, listingId)).for("update").limit(1);
+  if (!listing || listing.sellerId !== candidate.sellerId) return null;
+  return { listing, owner };
+}
+
 async function requireAdmin() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/admin/moderation");
@@ -336,16 +353,16 @@ export async function moderateAction(
   }
 
   const outcome = await db.transaction(async (tx) => {
-    const [listing] = await tx
-      .select({ sellerId: listings.sellerId, status: listings.status })
-      .from(listings)
-      .where(eq(listings.id, listingId))
-      .for("update").limit(1);
-    if (!listing) return { ok: false, message: "Listing not found." };
+    const locked = await lockModerationListing(tx, listingId);
+    if (!locked) return { ok: false, message: "Listing not found." };
+    const { listing, owner } = locked;
     if (listing.status === "removed") {
       return { ok: false, message: "This listing has already been permanently removed." };
     }
     if (listing.status!=="pending_review") return {ok:false,message:"Only an ad awaiting review can be approved or rejected."};
+    if (action === "approve" && (owner.closedAt || owner.isBanned || owner.anonymizedAt || listing.sellerDeletedAt)) {
+      return { ok: false, message: "This seller's ad cannot be published." };
+    }
 
     if (action === "approve") {
       await tx.update(listings).set({ status: "active", publishedAt: new Date(), updatedAt: new Date() }).where(eq(listings.id, listingId));
@@ -409,14 +426,14 @@ export async function setAdminListingStateAction(
   }
 
   const result = await db.transaction(async (tx) => {
-    const [listing] = await tx.select({
-      sellerId: listings.sellerId,
-      status: listings.status,
-      sellerDeletedAt: listings.sellerDeletedAt,
-    }).from(listings).where(eq(listings.id, listingId)).for("update").limit(1);
-    if (!listing || listing.sellerDeletedAt) return { ok: false, message: "Listing not found." };
+    const locked = await lockModerationListing(tx, listingId);
+    if (!locked || locked.listing.sellerDeletedAt) return { ok: false, message: "Listing not found." };
+    const { listing, owner } = locked;
 
     const nextStatus = decision === "reinstate" ? "active" : decision === "flag" ? "pending_review" : "removed";
+    if (decision === "reinstate" && (owner.closedAt || owner.isBanned || owner.anonymizedAt)) {
+      return { ok: false, message: "This seller's ad cannot be published." };
+    }
     if (decision === "reinstate" && listing.status === "removed") {
       return { ok: false, message: "Permanently removed ads cannot be reinstated." };
     }

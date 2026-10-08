@@ -10,7 +10,7 @@ import { carDetails, listings } from "@/db/schema/listings";
 import { dealers } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { requirePostingPhone } from "@/lib/auth/seller-readiness";
-import { bikeListingSchema, carListingSchema, partListingSchema, sanitizeDescription } from "./validation";
+import { bikeListingSchema, carListingSchema, optionalVariantId, partListingSchema, sanitizeDescription } from "./validation";
 import { ListingInputError, publishBikeListing, publishCarListing, publishPartListing } from "./publish";
 import { buildListingPath } from "./slug";
 import { UploadOwnershipError } from "@/lib/images/ownership";
@@ -56,7 +56,7 @@ export async function createCarListingAction(
   requirePostingPhone(user);
 
   const parsed = carListingSchema.safeParse({
-    variantId: num(formData.get("variantId")),
+    variantId: optionalVariantId(formData.get("variantId")),
     customMakeName: optionalText(formData.get("customMakeName")),
     customModelName: optionalText(formData.get("customModelName")),
     customVariantName: optionalText(formData.get("customVariantName")),
@@ -212,7 +212,7 @@ export async function createBikeListingAction(
   const bikeType = String(formData.get("bikeType") ?? "motorcycle");
   const isElectric = bikeType.startsWith("electric-");
   const parsed = bikeListingSchema.safeParse({
-    variantId: num(formData.get("variantId")),
+    variantId: optionalVariantId(formData.get("variantId")),
     customMakeName: optionalText(formData.get("customMakeName")),
     customModelName: optionalText(formData.get("customModelName")),
     customVariantName: optionalText(formData.get("customVariantName")),

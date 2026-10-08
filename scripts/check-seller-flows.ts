@@ -1,4 +1,4 @@
-import { bikeListingSchema, carListingSchema, partListingSchema } from "../src/lib/listings/validation";
+import { bikeListingSchema, carListingSchema, optionalVariantId, partListingSchema } from "../src/lib/listings/validation";
 
 const imageKeys = ["202608/0123456789abcdef0123456789abcdef.webp"];
 const validBike = {
@@ -49,6 +49,10 @@ const checks = [
   ["car year requires a whole number", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, year: 2008.5 }), "year", "Enter a whole model year.")],
   ["car city requires a whole ID", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, cityId: 1.5 }), "cityId", "Choose a city.")],
   ["car variant requires a whole ID", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, variantId: 1.5 }), "variantId", "Choose the exact variant.")],
+  ["car publication rejects a database-out-of-range variant", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, variantId: 2_147_483_648 }), "variantId", "Choose a valid variant.")],
+  ["bike publication rejects a database-out-of-range variant", !bikeListingSchema.safeParse({ ...validBike, variantId: 2_147_483_648 }).success],
+  ["empty variant selection keeps ad-local fallback", optionalVariantId("") === undefined],
+  ["malformed nonempty variant remains a field error", !carListingSchema.safeParse({ ...validCustomCar, variantId: optionalVariantId("NaN") }).success],
   ["car photo limit explains correction", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, imageKeys: Array.from({ length: 31 }, (_, n) => `202608/${n.toString(16).padStart(32, "0")}.webp`) }), "imageKeys", "Add no more than 30 photos.")],
   ["registered car details accepted", carListingSchema.safeParse({ ...validCustomCar, registeredCityId: 1, lastTokenPaidYear: 2025, hasAuctionSheet: true, auctionGrade: "4.5" }).success],
   ["unregistered car rejects registration city", hasIssueMessage(carListingSchema.safeParse({ ...validCustomCar, isUnregistered: true, registeredCityId: 1 }), "registeredCityId", "Remove the registration city for an unregistered car.")],

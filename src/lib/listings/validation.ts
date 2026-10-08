@@ -11,6 +11,14 @@ import { UPLOAD_KEY } from "@/lib/images/keys";
  */
 
 const CURRENT_YEAR = new Date().getFullYear();
+const MAX_TAXONOMY_ID = 2_147_483_647;
+
+export function optionalVariantId(value: FormDataEntryValue | null): number | string | undefined {
+  if (value === null || value === "") return undefined;
+  // Preserve malformed nonempty input so the schema reports it as an ID error.
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return String(value);
+  return Number(value);
+}
 
 const adLocalLabel = z.string().trim().min(2, "Enter at least 2 characters.").max(80, "Keep this name under 80 characters.").optional();
 const customFeatureNames = z.array(z.string().trim().min(2, "Enter at least 2 characters for each feature.").max(80, "Keep each feature under 80 characters.")).max(20, "Add no more than 20 custom features.").default([]);
@@ -28,9 +36,9 @@ function validateCoordinatePair(data: { exactLatitude?: number; exactLongitude?:
 }
 
 export const carListingSchema = z.object({
-  variantId: z.number().int("Choose the exact variant.").positive({
+  variantId: z.number({ invalid_type_error: "Choose the exact variant." }).int("Choose the exact variant.").positive({
     message: "Choose the exact variant — it's what powers price comparisons.",
-  }).optional(),
+  }).max(MAX_TAXONOMY_ID, "Choose a valid variant.").optional(),
   customMakeName: adLocalLabel,
   customModelName: adLocalLabel,
   customVariantName: adLocalLabel,
@@ -101,7 +109,7 @@ export type CarListingInput = z.infer<typeof carListingSchema>;
 
 export const bikeListingSchema = z
   .object({
-    variantId: z.number().int("Choose the exact bike variant.").positive("Choose the exact bike variant.").optional(),
+    variantId: z.number({ invalid_type_error: "Choose the exact bike variant." }).int("Choose the exact bike variant.").positive("Choose the exact bike variant.").max(MAX_TAXONOMY_ID, "Choose a valid bike variant.").optional(),
     customMakeName: adLocalLabel,
     customModelName: adLocalLabel,
     customVariantName: adLocalLabel,

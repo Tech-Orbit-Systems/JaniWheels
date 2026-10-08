@@ -26,6 +26,7 @@ import { listingCoordinates } from "./location";
 import {
   bikeListingSchema,
   carListingSchema,
+  optionalVariantId,
   partListingSchema,
   sanitizeDescription,
 } from "./validation";
@@ -103,7 +104,7 @@ function parseEdit(vertical: "car" | "bike" | "part", formData: FormData): Parse
   if (vertical === "car") {
     const parsed = carListingSchema.safeParse({
       ...common,
-      variantId: num(formData.get("variantId")),
+      variantId: optionalVariantId(formData.get("variantId")),
       customMakeName: text(formData.get("customMakeName")),
       customModelName: text(formData.get("customModelName")),
       customVariantName: text(formData.get("customVariantName")),
@@ -127,7 +128,7 @@ function parseEdit(vertical: "car" | "bike" | "part", formData: FormData): Parse
     const bikeType = String(formData.get("bikeType") ?? "motorcycle");
     const parsed = bikeListingSchema.safeParse({
       ...common,
-      variantId: num(formData.get("variantId")),
+      variantId: optionalVariantId(formData.get("variantId")),
       customMakeName: text(formData.get("customMakeName")),
       customModelName: text(formData.get("customModelName")),
       customVariantName: text(formData.get("customVariantName")),

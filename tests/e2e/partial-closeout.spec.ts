@@ -34,6 +34,7 @@ function bucket(scope:string,id:number,max:number) {
 async function cleanup(f:Awaited<ReturnType<typeof fixture>>) {
   await sql`DELETE FROM retention_runs WHERE operator=${f.tag}`;
   await sql`DELETE FROM retention_holds WHERE resource='listing' AND resource_id=${f.listing.id}`;
+  await sql`DELETE FROM retention_receipts WHERE resource='account' AND resource_id=${f.owner.id}`;
   await sql`DELETE FROM retention_receipts WHERE resource='listing' AND resource_id=${f.listing.id}`;
   await sql`DELETE FROM moderation_log WHERE listing_id=${f.listing.id}`;
   await sql`DELETE FROM listings WHERE id=${f.listing.id}`;
@@ -259,7 +260,15 @@ for(const vertical of ['car','bike'] as const) test(`${vertical} vehicle edit re
     const request=await capture(page,()=>page.getByRole('button',{name:'Save advertisement changes'}).click());
     const originalBody=request.data.toString();
     expect(originalBody).toMatch(/name="_1_variantId"\r?\n\r?\n\d+/);
-    const submit=(id:number)=>page.request.post(request.url,{data:Buffer.from(originalBody.replace(/(name="_1_variantId"\r?\n\r?\n)\d+/,(_,prefix:string)=>`${prefix}${id}`)),headers:request.headers});
+    expect(originalBody).toMatch(/name="_1_customMakeName"\r?\n\r?\n/);
+    expect(originalBody).toMatch(/name="_1_customModelName"\r?\n\r?\n/);
+    const submit=(id:number|string,withFallback=false)=>{
+      let body=originalBody.replace(/(name="_1_variantId"\r?\n\r?\n)\d+/,(_,prefix:string)=>`${prefix}${id}`);
+      if(withFallback) body=body
+        .replace(/(name="_1_customMakeName"\r?\n\r?\n)[^\r\n]*/,(_,prefix:string)=>`${prefix}Fallback make`)
+        .replace(/(name="_1_customModelName"\r?\n\r?\n)[^\r\n]*/,(_,prefix:string)=>`${prefix}Fallback model`);
+      return page.request.post(request.url,{data:Buffer.from(body),headers:request.headers});
+    };
     for(const [table,id] of [['makes',make.id],['models',model.id],['variants',variant.id]] as const) {
       await sql`UPDATE ${sql(table)} SET is_active=false WHERE id=${id}`;
       const response=await submit(variant.id);
@@ -272,6 +281,17 @@ for(const vertical of ['car','bike'] as const) test(`${vertical} vehicle edit re
     expect(forged.status()).toBe(200);
     expect(await forged.text()).toContain('Choose valid category and vehicle options.');
     expect((await sql`SELECT variant_id,price_pkr,make_id,model_id FROM listings WHERE id=${f.listing.id}`)[0]).toEqual(original);
+    for(const malformed of ['not-a-number','NaN','Infinity','2147483648']) {
+      const response=await submit(malformed,true);
+      expect(response.status()).toBe(200);
+      expect(await response.text()).toContain('Please fix the highlighted fields.');
+      expect((await sql`SELECT variant_id,price_pkr,make_id,model_id FROM listings WHERE id=${f.listing.id}`)[0]).toEqual(original);
+      expect((await sql`SELECT count(*)::int n FROM listing_images WHERE listing_id=${f.listing.id}`)[0].n).toBe(1);
+    }
+    const fallback=await submit('',true);
+    expect(fallback.status()).toBe(303);
+    expect((await sql`SELECT variant_id,custom_make_name,custom_model_name FROM listings WHERE id=${f.listing.id}`)[0])
+      .toMatchObject({variant_id:null,custom_make_name:'Fallback make',custom_model_name:'Fallback model'});
     const valid=await submit(variant.id);
     expect(valid.status()).toBe(303);
     expect((await sql`SELECT variant_id,make_id,model_id FROM listings WHERE id=${f.listing.id}`)[0]).toMatchObject({variant_id:variant.id,make_id:make.id,model_id:model.id});
@@ -282,6 +302,66 @@ for(const vertical of ['car','bike'] as const) test(`${vertical} vehicle edit re
     if(makeId) await sql`DELETE FROM makes WHERE id=${makeId}`;
   }
 });
+
+async function waitForLock(fragment:string) {
+  await expect.poll(async()=>{
+    const [row]=await sql`SELECT count(*)::int n FROM pg_stat_activity
+      WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE ${'%'+fragment+'%'}`;
+    return row.n;
+  },{timeout:10000}).toBeGreaterThan(0);
+}
+
+for(const decision of ['approve','reinstate'] as const) for(const schedule of ['admin-first','closure-first'] as const) {
+  test(`admin ${decision} and closure serialize in ${schedule} order`,async({page})=>{
+    const f=await fixture();
+    let release!:()=>void;
+    let ready!:()=>void;
+    const gate=new Promise<void>(resolve=>{release=resolve;});
+    const held=new Promise<void>(resolve=>{ready=resolve;});
+    let blocker:Promise<unknown>|undefined;
+    try {
+      await sql`UPDATE listings SET status='pending_review' WHERE id=${f.listing.id}`;
+      await login(page,f.admin.email,'/admin/moderation');
+      const row=page.getByRole('listitem').filter({hasText:f.tag});
+      if(decision==='reinstate') await row.getByPlaceholder('Rejection reason (required to reject)').fill('Review completed safely');
+      const action=await capture(page,()=>row.getByRole('button',{name:decision==='approve'?'Approve':'Reinstate'}).click());
+      blocker=sql.begin(async tx=>{
+        if(schedule==='admin-first') await tx`SELECT id FROM listings WHERE id=${f.listing.id} FOR UPDATE`;
+        else await tx`SELECT id FROM users WHERE id=${f.owner.id} FOR UPDATE`;
+        ready();
+        await gate;
+      });
+      await held;
+      let adminRequest:Promise<Awaited<ReturnType<typeof page.request.post>>>;
+      let closure:Promise<unknown>;
+      if(schedule==='admin-first') {
+        adminRequest=page.request.post(action.url,{data:action.data,headers:action.headers,timeout:15000});
+        await waitForLock('FROM "listings"');
+        closure=closeAccount(sql,f.owner.id);
+        await waitForLock('FROM users WHERE id=');
+      } else {
+        closure=closeAccount(sql,f.owner.id);
+        await waitForLock('FROM users WHERE id=');
+        adminRequest=page.request.post(action.url,{data:action.data,headers:action.headers,timeout:15000});
+        await waitForLock('FROM "users"');
+      }
+      release();
+      const [response]=await Promise.all([adminRequest,closure,blocker]);
+      expect(response.status()).toBeLessThan(500);
+      expect(await response.text()).not.toMatch(/\d+:E\{"digest":"\d+"/);
+      const [listing]=await sql`SELECT status FROM listings WHERE id=${f.listing.id}`;
+      const [owner]=await sql`SELECT closed_at FROM users WHERE id=${f.owner.id}`;
+      expect(owner.closed_at).toBeTruthy();
+      expect(listing.status).toBe('removed');
+      const [audit]=await sql`SELECT count(*)::int n FROM moderation_log WHERE listing_id=${f.listing.id}`;
+      expect(audit.n).toBe(schedule==='admin-first'?1:0);
+    } finally {
+      release?.();
+      await blocker?.catch(()=>{});
+      await cleanup(f);
+    }
+  });
+}
 
 test('concurrent account closure and vehicle edit finish without deadlock',async({page})=>{
   const f=await fixture();
