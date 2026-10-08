@@ -363,6 +363,143 @@ for(const decision of ['approve','reinstate'] as const) for(const schedule of ['
   });
 }
 
+for(const existingCount of [3,4] as const) {
+  test(`reciprocal authenticated reports serialize with ${existingCount} prior reports`,async({page,browser})=>{
+    const a=await fixture();
+    const b=await fixture();
+    const contextB=await browser.newContext();
+    const pageB=await contextB.newPage();
+    let release!:()=>void;
+    let ready!:()=>void;
+    const gate=new Promise<void>(resolve=>{release=resolve;});
+    const held=new Promise<void>(resolve=>{ready=resolve;});
+    let blocker:Promise<unknown>|undefined;
+    let settled:Promise<PromiseSettledResult<Awaited<ReturnType<typeof page.request.post>>>[]>|undefined;
+    try {
+      for(const listing of [a.listing,b.listing]) for(let i=0;i<existingCount;i++) {
+        await sql`INSERT INTO listing_reports(listing_id,reporter_anon_id,reason) VALUES (${listing.id},${`${a.tag}-${listing.id}-${i}`},'fraud')`;
+      }
+      await login(page,a.owner.email);
+      await page.goto(`/used-cars/${b.listing.slug}-${b.listing.id}`);
+      await page.getByRole('button',{name:'Report this ad'}).click();
+      await page.locator('select[name="reason"]').selectOption('fraud');
+      const actionA=await capture(page,()=>page.getByRole('button',{name:'Send report'}).click());
+      await login(pageB,b.owner.email);
+      await pageB.goto(`/used-cars/${a.listing.slug}-${a.listing.id}`);
+      await pageB.getByRole('button',{name:'Report this ad'}).click();
+      await pageB.locator('select[name="reason"]').selectOption('fraud');
+      const actionB=await capture(pageB,()=>pageB.getByRole('button',{name:'Send report'}).click());
+      blocker=sql.begin(async tx=>{
+        await tx`SELECT id FROM listings WHERE id IN (${a.listing.id},${b.listing.id}) ORDER BY id FOR UPDATE`;
+        ready();
+        await gate;
+      });
+      await held;
+      const requests=[
+        page.request.post(actionA.url,{data:actionA.data,headers:actionA.headers,timeout:15000}),
+        pageB.request.post(actionB.url,{data:actionB.data,headers:actionB.headers,timeout:15000}),
+      ];
+      settled=Promise.allSettled(requests);
+      await expect.poll(async()=>{
+        const [row]=await sql`SELECT count(*)::int n FROM pg_stat_activity
+          WHERE datname=current_database() AND wait_event_type='Lock'
+          AND query ILIKE '%FROM "listings"%' AND query ILIKE '%FOR UPDATE%'`;
+        return row.n;
+      },{timeout:10000}).toBeGreaterThanOrEqual(2);
+      release();
+      const results=await settled;
+      for(const result of results) {
+        expect(result.status).toBe('fulfilled');
+        if(result.status==='fulfilled') {
+          expect(result.value.status()).toBeLessThan(500);
+          expect(await result.value.text()).not.toMatch(/\d+:E\{"digest":"\d+"/);
+        }
+      }
+      for(const listing of [a.listing,b.listing]) {
+        const [report]=await sql`SELECT count(*)::int n FROM listing_reports WHERE listing_id=${listing.id} AND status='open'`;
+        const [state]=await sql`SELECT status FROM listings WHERE id=${listing.id}`;
+        const [audit]=await sql`SELECT count(*)::int n FROM moderation_log WHERE listing_id=${listing.id} AND action='queue' AND is_automated=true`;
+        expect(report.n).toBe(existingCount+1);
+        expect(state.status).toBe(existingCount===4?'pending_review':'active');
+        expect(audit.n).toBe(existingCount===4?1:0);
+      }
+      const duplicate=await page.request.post(actionA.url,{data:actionA.data,headers:actionA.headers});
+      expect(duplicate.status()).toBeLessThan(500);
+      expect(await duplicate.text()).not.toMatch(/\d+:E\{"digest":"\d+"/);
+      const [dedup]=await sql`SELECT count(*)::int n FROM listing_reports WHERE listing_id=${b.listing.id}`;
+      expect(dedup.n).toBe(existingCount+1);
+    } finally {
+      release?.();
+      await blocker?.catch(()=>{});
+      await settled?.catch(()=>{});
+      await contextB.close();
+      await sql`DELETE FROM listing_reports WHERE listing_id IN (${a.listing.id},${b.listing.id})`;
+      await cleanup(a);
+      await cleanup(b);
+    }
+  });
+}
+
+for(const schedule of ['report-first','closure-first'] as const) {
+  test(`fifth report and account closure serialize in ${schedule} order`,async({page})=>{
+    const target=await fixture();
+    const reporter=await fixture();
+    let release!:()=>void;
+    let ready!:()=>void;
+    const gate=new Promise<void>(resolve=>{release=resolve;});
+    const held=new Promise<void>(resolve=>{ready=resolve;});
+    let blocker:Promise<unknown>|undefined;
+    let request:Promise<Awaited<ReturnType<typeof page.request.post>>>|undefined;
+    let closure:Promise<unknown>|undefined;
+    try {
+      for(let i=0;i<4;i++) await sql`INSERT INTO listing_reports(listing_id,reporter_anon_id,reason)
+        VALUES (${target.listing.id},${`${target.tag}-close-${i}`},'fraud')`;
+      await login(page,reporter.owner.email);
+      await page.goto(`/used-cars/${target.listing.slug}-${target.listing.id}`);
+      await page.getByRole('button',{name:'Report this ad'}).click();
+      await page.locator('select[name="reason"]').selectOption('fraud');
+      const action=await capture(page,()=>page.getByRole('button',{name:'Send report'}).click());
+      blocker=sql.begin(async tx=>{
+        if(schedule==='report-first') await tx`SELECT id FROM listings WHERE id=${target.listing.id} FOR UPDATE`;
+        else await tx`SELECT id FROM users WHERE id=${target.owner.id} FOR UPDATE`;
+        ready();
+        await gate;
+      });
+      await held;
+      if(schedule==='report-first') {
+        request=page.request.post(action.url,{data:action.data,headers:action.headers,timeout:15000});
+        await waitForLock('FROM "listings"');
+        closure=closeAccount(sql,target.owner.id);
+        await waitForLock('FROM users WHERE id=');
+      } else {
+        closure=closeAccount(sql,target.owner.id);
+        await waitForLock('FROM users WHERE id=');
+        request=page.request.post(action.url,{data:action.data,headers:action.headers,timeout:15000});
+        await waitForLock('FROM "users"');
+      }
+      release();
+      const [response]=await Promise.all([request,closure,blocker]);
+      expect(response.status()).toBeLessThan(500);
+      expect(await response.text()).not.toMatch(/\d+:E\{"digest":"\d+"/);
+      const [owner]=await sql`SELECT closed_at FROM users WHERE id=${target.owner.id}`;
+      const [listing]=await sql`SELECT status FROM listings WHERE id=${target.listing.id}`;
+      const [reports]=await sql`SELECT count(*)::int n FROM listing_reports WHERE listing_id=${target.listing.id}`;
+      const [audit]=await sql`SELECT count(*)::int n FROM moderation_log WHERE listing_id=${target.listing.id} AND action='queue' AND is_automated=true`;
+      expect(owner.closed_at).toBeTruthy();
+      expect(listing.status).toBe('removed');
+      expect(reports.n).toBe(schedule==='report-first'?5:4);
+      expect(audit.n).toBe(schedule==='report-first'?1:0);
+    } finally {
+      release?.();
+      await blocker?.catch(()=>{});
+      await Promise.allSettled([request,closure].filter((value):value is NonNullable<typeof value>=>Boolean(value)));
+      await sql`DELETE FROM listing_reports WHERE listing_id=${target.listing.id}`;
+      await cleanup(target);
+      await cleanup(reporter);
+    }
+  });
+}
+
 test('concurrent account closure and vehicle edit finish without deadlock',async({page})=>{
   const f=await fixture();
   try {
