@@ -4,9 +4,58 @@ import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { earlyDeletion, closeAccount, restoreAccount, createHold, reviewHold, runRetention, drainMediaDeletions, exportLedger, replayLedger } from "../src/lib/retention/core";
+import { incrementViewCount } from "../src/lib/listings/detail";
 
 const url = process.env.DATABASE_URL!;
 assert.match(new URL(url).pathname, /(?:_test|_acceptance)$/);
+
+test("view count and account closure serialize without a seller/listing deadlock", async () => {
+  const sql = postgres(url,{max:5});
+  const tag = randomUUID();
+  const [city] = await sql`SELECT id FROM cities LIMIT 1`;
+  const [owner] = await sql`INSERT INTO users(email) VALUES (${tag+'@example.invalid'}) RETURNING id`;
+  const [listing] = await sql`INSERT INTO listings(vertical,seller_id,slug,title,price_pkr,city_id,status)
+    VALUES ('part',${owner.id},${tag},'Counter lock fixture',2500,${city.id},'active') RETURNING id`;
+  let release!:()=>void;
+  let ready!:()=>void;
+  const held=new Promise<void>(resolve=>{ready=resolve;});
+  const gate=new Promise<void>(resolve=>{release=resolve;});
+  const blocker=sql.begin(async tx=>{
+    await tx`SELECT id FROM listings WHERE id=${listing.id} FOR UPDATE`;
+    ready();
+    await gate;
+  });
+  async function waitBlocked(fragment:string) {
+    for(let attempt=0;attempt<100;attempt++) {
+      const [row]=await sql`SELECT count(*)::int n FROM pg_stat_activity
+        WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE ${'%'+fragment+'%'}`;
+      if(row.n>0) return;
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    throw new Error(`Expected blocked ${fragment} transaction`);
+  }
+  try {
+    await held;
+    const count=incrementViewCount(listing.id);
+    await waitBlocked('view_count');
+    const closure=closeAccount(sql,owner.id);
+    try {
+      await waitBlocked('seller_id=%FOR UPDATE');
+    } finally { release(); }
+    const results=await Promise.allSettled([count,closure,blocker]);
+    assert.ok(results.every(result=>result.status==='fulfilled'),JSON.stringify(results));
+    const [final]=await sql`SELECT status,view_count FROM listings WHERE id=${listing.id}`;
+    assert.equal(final.status,'removed');
+    assert.equal(final.view_count,1);
+  } finally {
+    release();
+    await blocker.catch(()=>{});
+    await sql`DELETE FROM retention_receipts WHERE resource='account' AND resource_id=${owner.id}`;
+    await sql`DELETE FROM listings WHERE id=${listing.id}`;
+    await sql`DELETE FROM users WHERE id=${owner.id}`;
+    await sql.end();
+  }
+});
 
 test("approved retention respects recovery, holds, cutoff, retries and restore replay", async () => {
   const sql = postgres(url,{max:3});

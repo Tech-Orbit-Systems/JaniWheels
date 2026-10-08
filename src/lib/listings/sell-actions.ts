@@ -376,8 +376,8 @@ export async function correctRejectedListingAction(
   let changed: boolean;
   try {
     changed = await db.transaction(async (tx) => {
-      await lockListingOwner(tx, user.id);
       if (await listingEditHeld(tx,listingId)) return false;
+      await lockListingOwner(tx, user.id);
       const [current] = await tx.select({sellerId:listings.sellerId,status:listings.status,sellerDeletedAt:listings.sellerDeletedAt}).from(listings).where(eq(listings.id,listingId)).for("update").limit(1);
       if (!current || current.sellerId!==user.id || current.status!=="rejected" || current.sellerDeletedAt) return false;
       await assertListingQuota(tx, user.id);
