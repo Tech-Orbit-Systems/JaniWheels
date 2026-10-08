@@ -1,5 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import axe from "axe-core";
+import "dotenv/config";
+import postgres from "postgres";
+
+const databaseUrl = process.env.DATABASE_URL!;
+if (!/(?:_test|_acceptance)$/.test(new URL(databaseUrl).pathname)) throw new Error("Isolated acceptance database required");
+const sql = postgres(databaseUrl, { max: 1 });
+test.afterAll(async () => { await sql.end(); });
 
 const PUBLIC_ROUTES = [
   "/", "/used-cars", "/used-bikes", "/auto-parts", "/dealers",
@@ -70,14 +77,21 @@ test("vehicle-detail pages pass automated accessibility checks", async ({ contex
   for (const route of ["/used-cars", "/used-bikes", "/auto-parts"]) {
     const page = await context.newPage();
     try {
-      await page.goto(route, { waitUntil: "domcontentloaded" });
-      const detailPath = await page.locator("li.group > a").first().getAttribute("href");
-      expect(detailPath, route).toBeTruthy();
-      const response = await page.goto(detailPath!, { waitUntil: "domcontentloaded" });
-      expect(response?.status(), detailPath!).toBe(200);
+      // Concurrent lifecycle tests remove their ads; scan a stable demo record instead.
+      const vertical = route === "/used-cars" ? "car" : route === "/used-bikes" ? "bike" : "part";
+      const [listing] = await sql`
+        SELECT l.id, l.slug FROM listings l JOIN users u ON u.id = l.seller_id
+        WHERE l.vertical = ${vertical} AND l.status = 'active'
+          AND u.phone IN ('+923001234567', '+923219876543', '+923334455667', '+923455667788')
+        ORDER BY l.id LIMIT 1
+      `;
+      expect(listing, route).toBeTruthy();
+      const detailPath = `${route}/${listing.slug}-${listing.id}`;
+      const response = await page.goto(detailPath, { waitUntil: "domcontentloaded" });
+      expect(response?.status(), detailPath).toBe(200);
       await expect(page.getByRole("main")).toBeVisible();
       await expect(page.locator("h1").first()).toBeVisible();
-      expect(await scanPage(page), detailPath!).toEqual([]);
+      expect(await scanPage(page), detailPath).toEqual([]);
     } finally {
       await page.close();
     }

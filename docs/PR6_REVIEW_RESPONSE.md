@@ -31,7 +31,9 @@ The earlier full local browser run was interrupted after timeouts and connection
 
 GitHub run 55 on `7c9a1e1` stopped at the production dependency audit before application tests. Its two Next.js cache-poisoning advisories are addressed by updating Next.js and the matching ESLint configuration to 15.5.27. The production audit subsequently reports zero vulnerabilities. Sources: [GHSA-4jqv-mc3x-m676](https://github.com/vercel/next.js/security/advisories/GHSA-4jqv-mc3x-m676) and [GHSA-mcj8-r9mp-w47p](https://github.com/vercel/next.js/security/advisories/GHSA-mcj8-r9mp-w47p). The follow-up commit must pass the full workflow.
 
-The 15.5.27 patch passed local checks and lint. Its first local build compiled but the type-check worker ran out of memory; a bounded-heap retry and full clean CI verification follow. The earlier successful local build and browser counts above belong to the review-repair package before this dependency patch.
+The 15.5.27 patch passed local audit, checks, lint, production build, 103-URL sweep and both desktop/mobile resubmission cases. The first local build worker ran out of memory; the bounded-heap retry passed.
+
+[GitHub run 56](https://github.com/Tech-Orbit-Systems/JaniWheels/actions/runs/37753334311) passed on `df422a7`: 18 DB cases, checks, lint, build, 101 URLs with zero issues and 129 browser cases (127 passed, one passed on retry, one planned skip). The retry came from the mobile accessibility scanner selecting another test's temporary ad while its cleanup deleted it. The scanner now selects stable seeded demo inventory; it still asserts HTTP 200 and no axe violations, without adding retries or weakening assertions. The follow-up test-only commit must pass the full workflow again.
 
 ## Release gates
 
