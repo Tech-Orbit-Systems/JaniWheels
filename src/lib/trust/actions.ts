@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { randomBytes } from "node:crypto";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { inspectionEvents, listingReports, inspections, moderationLog } from "@/db/schema/trust";
@@ -18,6 +18,7 @@ import {
 } from "./moderation-policy";
 import { isInspectionStatus, validateInspectionUpdate } from "./inspection-policy";
 import { ACCOUNT_LIMITS, allowAccountAction, allowPublicAction } from "@/lib/security/rate-limit";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 /**
  * Trust actions: reporting bad listings, booking an inspection, and the
@@ -112,7 +113,7 @@ export async function reportListingAction(
   const outcome = await db.transaction(async (tx) => {
     // Serialize reports for the same ad so concurrent submissions cannot skip the threshold.
     const [listing] = await tx.select({ status: listings.status, sellerDeletedAt: listings.sellerDeletedAt })
-      .from(listings).where(eq(listings.id, parsed.data.listingId)).for("update").limit(1);
+      .from(listings).where(and(eq(listings.id, parsed.data.listingId),publicListingEligibility())).for("update").limit(1);
     if (!listing || listing.sellerDeletedAt || listing.status !== "active") {
       return { error: "This ad is no longer available for reporting." };
     }
@@ -233,7 +234,7 @@ export async function bookInspectionAction(
   const row = await db.transaction(async (tx) => {
     if (parsed.data.listingId) {
       const [listing] = await tx.select({ id: listings.id }).from(listings)
-        .where(and(eq(listings.id, parsed.data.listingId), eq(listings.vertical, "car"), eq(listings.status, "active"), isNull(listings.sellerDeletedAt)))
+        .where(and(eq(listings.id, parsed.data.listingId), eq(listings.vertical, "car"), publicListingEligibility()))
         .limit(1);
       if (!listing) return null;
     }

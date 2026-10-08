@@ -5,6 +5,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { CLOUDFLARE_KEY, UPLOAD_KEY } from "./keys";
 import { privateCloudflareUrl, readPrivateCloudflareImage } from "./cloudflare";
+import { logSafeError } from "@/lib/operations/safe-error";
 
 /**
  * Image storage.
@@ -146,7 +147,7 @@ export async function removeStoredImage(key: string): Promise<boolean> {
     return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
-    console.error("Local image cleanup failed", error);
+    logSafeError("image.local_cleanup_failed", error);
     return false;
   }
 }

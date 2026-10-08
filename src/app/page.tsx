@@ -19,13 +19,14 @@ import { db } from "@/db";
 import { cities } from "@/db/schema/geo";
 import { listings as listingRows } from "@/db/schema/listings";
 import { makes, models, partCategories } from "@/db/schema/taxonomy";
-import { dealers } from "@/db/schema/users";
+import { dealers, users } from "@/db/schema/users";
 import { HomeListingTabs } from "@/components/HomeListingTabs";
 import { HomeSearch } from "@/components/HomeSearch";
 import { searchListings } from "@/lib/listings/search";
 import { buildPath } from "@/lib/seo/facets";
 import { abs } from "@/lib/seo/jsonld";
 import { RecentlyViewed } from "@/components/RecentlyViewed";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 export const revalidate = 300;
 
@@ -99,12 +100,13 @@ export default async function HomePage() {
         activeListingCount: sql<number>`COUNT(${listingRows.id})::int`,
       })
       .from(dealers)
+      .innerJoin(users, eq(users.id, dealers.userId))
       .innerJoin(cities, eq(dealers.cityId, cities.id))
       .leftJoin(
         listingRows,
-        and(eq(listingRows.dealerId, dealers.id), eq(listingRows.status, "active")),
+        and(eq(listingRows.dealerId, dealers.id), publicListingEligibility()),
       )
-      .where(isNotNull(dealers.verifiedAt))
+      .where(and(isNotNull(dealers.verifiedAt), eq(users.isBanned, false), isNull(users.closedAt)))
       .groupBy(
         dealers.id,
         dealers.slug,

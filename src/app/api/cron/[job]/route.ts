@@ -9,6 +9,7 @@ import { removeStoredImage } from "@/lib/images/storage";
 import { rateLimitBuckets } from "@/db/schema/security";
 import { sqlClient } from "@/db";
 import { drainMediaDeletions, runRetention } from "@/lib/retention/core";
+import { logSafeError } from "@/lib/operations/safe-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,7 +96,7 @@ const JOBS = {
             failed++;
           }
         } catch (error) {
-          console.error("Abandoned upload cleanup failed", error);
+          logSafeError("cron.abandoned_upload_cleanup_failed", error);
           failed++;
         }
       }
@@ -162,7 +163,7 @@ export async function POST(
     });
   } catch (err) {
     console.error(JSON.stringify({event:"cron.failed",job,ok:false,durationMs:Date.now()-started}));
-    console.error(`cron job ${job} failed`, err);
+    logSafeError("cron.job_failed", err);
     return NextResponse.json(
       { job, ok: false, error: "The scheduled job failed. Check the operator logs." },
       { status: 500 },

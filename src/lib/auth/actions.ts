@@ -11,6 +11,8 @@ import { issueEmailVerification } from "./email-verification";
 import { hashPassword, verifyPassword } from "./password";
 import { createSession, destroySession } from "./session";
 import { allowAuthAttempt, AUTH_LIMITS, clearRateLimit } from "@/lib/security/rate-limit";
+import { safeReturnPath } from "./return-path";
+import { logSafeError } from "@/lib/operations/safe-error";
 
 export type AuthMode = "sign_in" | "register";
 
@@ -57,8 +59,7 @@ async function requestMeta() {
 }
 
 function safeNext(value: FormDataEntryValue | null): string {
-  const next = typeof value === "string" ? value : "/";
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  return safeReturnPath(typeof value === "string" ? value : null);
 }
 
 function issues(error: z.ZodError): Record<string, string> {
@@ -129,7 +130,7 @@ export async function authenticateAction(
           next,
         });
       } catch (error) {
-        console.error("Registration verification delivery failed", error);
+        logSafeError("auth.registration_delivery_failed", error);
         return {
           mode,
           next,

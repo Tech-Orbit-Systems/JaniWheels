@@ -8,9 +8,21 @@ import {permitsMutationOrigin} from "../src/lib/security/origin";
 import {consumeRateLimit} from "../src/lib/security/rate-limit";
 import {searchListings,type SortKey} from "../src/lib/listings/search";
 import type {Vertical} from "../src/lib/seo/facets";
+import {logSafeError} from "../src/lib/operations/safe-error";
 
 const url=process.env.DATABASE_URL!;
 assert.match(new URL(url).pathname,/(?:_test|_acceptance)$/);
+
+test('handled error logging omits query parameters and customer identifiers',()=>{
+  const original=console.error;
+  const captured:string[]=[];
+  console.error=(...args:unknown[])=>{captured.push(args.map(String).join(' '));};
+  try {
+    logSafeError('lead.phone_record_failed',{code:'23514',message:'private-token-marker',query:'INSERT private-query-marker',params:['private-user-marker','private-referrer-marker']});
+    assert.deepEqual(JSON.parse(captured[0]),{event:'lead.phone_record_failed',code:'23514'});
+    assert.ok(!captured[0].includes('private-'));
+  } finally {console.error=original;}
+});
 
 test('paginated browse enrichment preserves every sort, vertical and primary photo',async()=>{
   const sql=postgres(url,{max:1});

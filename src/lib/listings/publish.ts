@@ -11,7 +11,7 @@ import {
   listingCustomFeatures,
 } from "@/db/schema/listings";
 import { models, variants, makes, partCategories } from "@/db/schema/taxonomy";
-import { cities } from "@/db/schema/geo";
+import { areas, cities } from "@/db/schema/geo";
 import { buildListingSlug } from "./slug";
 import {
   initialPublicationState,
@@ -25,6 +25,7 @@ import {
 } from "./validation";
 import { claimUploadedImages } from "@/lib/images/ownership";
 import { listingCoordinates } from "./location";
+import { assertListingQuota, lockListingOwner } from "./quota";
 
 /**
  * THE PUBLISH PATH
@@ -42,6 +43,18 @@ import { listingCoordinates } from "./location";
  */
 
 const LISTING_TTL_DAYS = 30;
+
+export class ListingInputError extends Error {
+  constructor(message: string, public field: "variantId" | "areaId") { super(message); }
+}
+
+type PublicationTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+async function validateArea(tx: PublicationTx, cityId: number, areaId?: number) {
+  if (!areaId) return;
+  const [area] = await tx.select({ id: areas.id }).from(areas)
+    .where(and(eq(areas.id, areaId), eq(areas.cityId, cityId))).limit(1);
+  if (!area) throw new ListingInputError("Choose an area in the selected city.", "areaId");
+}
 
 export interface PublishResult {
   listingId: number;
@@ -66,6 +79,9 @@ export async function publishBikeListing(
       makeId: makes.id,
       makeName: makes.name,
       vertical: makes.vertical,
+      makeActive: makes.isActive,
+      modelActive: models.isActive,
+      variantActive: variants.isActive,
     })
     .from(variants)
     .innerJoin(models, eq(variants.modelId, models.id))
@@ -73,7 +89,8 @@ export async function publishBikeListing(
     .where(eq(variants.id, input.variantId))
     .limit(1) : [];
 
-  if (variant && variant.vertical !== "bike") throw new Error("Choose a valid bike variant.");
+  if (input.variantId && (!variant || variant.vertical !== "bike" || !variant.makeActive || !variant.modelActive || !variant.variantActive))
+    throw new ListingInputError("Choose a valid bike variant.", "variantId");
   if (variant && (variant.fuel === "electric") !== input.isElectric) {
     throw new Error("The selected variant does not match the bike power source.");
   }
@@ -103,6 +120,9 @@ export async function publishBikeListing(
   const expiresAt = new Date(now.getTime() + LISTING_TTL_DAYS * 86_400_000);
 
   return db.transaction(async (tx) => {
+    await lockListingOwner(tx, sellerId);
+    await assertListingQuota(tx, sellerId);
+    await validateArea(tx, input.cityId, input.areaId);
     const [row] = await tx.insert(listings).values({
       vertical: "bike",
       sellerId,
@@ -200,6 +220,10 @@ export async function publishCarListing(
       modelBodyType: models.bodyType,
       makeId: makes.id,
       makeName: makes.name,
+      vertical: makes.vertical,
+      makeActive: makes.isActive,
+      modelActive: models.isActive,
+      variantActive: variants.isActive,
     })
     .from(variants)
     .innerJoin(models, eq(variants.modelId, models.id))
@@ -207,6 +231,8 @@ export async function publishCarListing(
     .where(eq(variants.id, input.variantId))
     .limit(1) : [];
 
+  if (input.variantId && (!variant || variant.vertical !== "car" || !variant.makeActive || !variant.modelActive || !variant.variantActive))
+    throw new ListingInputError("Choose a valid car variant.", "variantId");
   if (!variant && (!input.customMakeName || !input.customModelName)) {
     throw new Error("Choose a listed car or enter the missing make and model.");
   }
@@ -256,6 +282,9 @@ export async function publishCarListing(
    * outright — the seller sees it live and broken.
    */
   return db.transaction(async (tx) => {
+    await lockListingOwner(tx, sellerId);
+    await assertListingQuota(tx, sellerId);
+    await validateArea(tx, input.cityId, input.areaId);
     const [row] = await tx
       .insert(listings)
       .values({
@@ -384,6 +413,9 @@ export async function publishPartListing(
   const expiresAt = new Date(now.getTime() + LISTING_TTL_DAYS * 86_400_000);
 
   return db.transaction(async (tx) => {
+    await lockListingOwner(tx, sellerId);
+    await assertListingQuota(tx, sellerId);
+    await validateArea(tx, input.cityId, input.areaId);
     const [row] = await tx.insert(listings).values({
       vertical: "part",
       sellerId,

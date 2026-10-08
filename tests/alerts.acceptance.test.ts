@@ -6,6 +6,37 @@ import postgres from "postgres";
 import { queueSavedSearchAlerts, deliverSavedSearchAlerts } from "@/lib/buyer/alerts";
 import type { AlertEmail } from "@/lib/email/saved-search";
 
+test("banned listing owners cannot match or deliver alerts to a different buyer", async () => {
+  const url = process.env.DATABASE_URL!;
+  assert.match(new URL(url).pathname, /(?:_test|_acceptance)$/);
+  const sql = postgres(url, {max:2});
+  const tag = randomUUID();
+  process.env.EMAIL_FROM = "JaniWheels <alerts@example.invalid>";
+  const [seller] = await sql`INSERT INTO users(email,is_banned) VALUES (${tag+'-seller@example.invalid'},true) RETURNING id`;
+  const [buyer] = await sql`INSERT INTO users(email,email_verified_at) VALUES (${tag+'-buyer@example.invalid'},NOW()) RETURNING id`;
+  try {
+    const [city] = await sql`SELECT id FROM cities LIMIT 1`;
+    const [listing] = await sql`INSERT INTO listings(vertical,seller_id,slug,title,price_pkr,city_id,status,published_at) VALUES ('part',${seller.id},${tag},${tag},2500,${city.id},'active',NOW()) RETURNING id`;
+    const [search] = await sql`INSERT INTO saved_searches(user_id,name,vertical,filters,alert_frequency) VALUES (${buyer.id},'Ban acceptance','part',${sql.json({state:{vertical:'part',keyword:tag}})},'instant') RETURNING id`;
+    await queueSavedSearchAlerts();
+    assert.equal((await sql`SELECT count(*)::int n FROM saved_search_notifications WHERE saved_search_id=${search.id}`)[0].n,0);
+    await sql`UPDATE users SET is_banned=false WHERE id=${seller.id}`;
+    await sql`UPDATE saved_searches SET last_notified_at=NULL WHERE id=${search.id}`;
+    await queueSavedSearchAlerts();
+    assert.equal((await sql`SELECT count(*)::int n FROM saved_search_notifications WHERE saved_search_id=${search.id}`)[0].n,1);
+    await sql`UPDATE users SET is_banned=true WHERE id=${seller.id}`;
+    let sent=0;
+    await deliverSavedSearchAlerts(async(payload)=>{if(payload.to.includes(tag+'-buyer@example.invalid')) sent++;},25);
+    assert.equal(sent,0);
+    assert.ok((await sql`SELECT suppressed_at FROM saved_search_notifications WHERE saved_search_id=${search.id} AND listing_id=${listing.id}`)[0].suppressed_at);
+  } finally {
+    await sql`DELETE FROM saved_searches WHERE user_id=${buyer.id}`;
+    await sql`DELETE FROM listings WHERE seller_id=${seller.id}`;
+    await sql`DELETE FROM users WHERE id IN (${seller.id},${buyer.id})`;
+    await sql.end();
+  }
+});
+
 test("saved alerts drain overflow, deduplicate, retry immutably and honor opt-out", async () => {
   const url = process.env.DATABASE_URL!;
   assert.match(new URL(url).pathname, /(?:_test|_acceptance)$/);

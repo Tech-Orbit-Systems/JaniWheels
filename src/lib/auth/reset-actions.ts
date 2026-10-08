@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { passwordResetTokens, sessions, users } from "@/db/schema/users";
 import { sendPasswordResetEmail } from "@/lib/email/password-reset";
+import { logSafeError } from "@/lib/operations/safe-error";
 import { hashPassword } from "./password";
 import { allowAuthAttempt, AUTH_LIMITS, clientIp } from "@/lib/security/rate-limit";
 import {
@@ -90,7 +91,7 @@ export async function requestPasswordResetAction(
           idempotencyKey: `password-reset-${created.id}`,
         });
       } catch (error) {
-        console.error("Password reset delivery failed", error);
+        logSafeError("auth.reset_delivery_failed", error);
         await db
           .update(passwordResetTokens)
           .set({ usedAt: new Date() })

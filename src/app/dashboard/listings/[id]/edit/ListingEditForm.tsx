@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "@/components/StoredImage";
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState, type FormEvent } from "react";
 import { Camera, ChevronLeft, ChevronRight, MapPin, Save, Trash2 } from "lucide-react";
 import { updateListingAction } from "@/lib/listings/manage-actions";
 import type { SellState } from "@/lib/listings/sell-actions";
@@ -96,7 +96,14 @@ export function ListingEditForm({ listing, cities, initialAreas, images: origina
     setImageKeys((keys) => { const next = [...keys]; const [item] = next.splice(from, 1); next.splice(to, 0, item); return next; });
   }
 
-  return <form action={action} className="space-y-6">
+  function submit(event: FormEvent<HTMLFormElement>) {
+    // A form action resets uncontrolled inputs even when it returns a validation error.
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    startTransition(() => action(data));
+  }
+
+  return <form onSubmit={submit} className="space-y-6">
     {state.error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{state.error}</p>}
 
     {listing.vertical !== "part" && <Section title="Vehicle identity">

@@ -1,6 +1,7 @@
 import { headers, cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSession, getSessionAccount, safeEqual } from "@/lib/auth/session";
+import { safeReturnPath } from "@/lib/auth/return-path";
 import {
   exchangeGoogleCode,
   GoogleAuthError,
@@ -10,7 +11,7 @@ import {
 export const runtime = "nodejs";
 
 function safeNext(value?: string): string {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : "/";
+  return safeReturnPath(value);
 }
 
 function loginError(code: string): never {

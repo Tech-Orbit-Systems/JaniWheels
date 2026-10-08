@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { savedListings, savedSearches } from "@/db/schema/analytics";
 import { listings } from "@/db/schema/listings";
 import { getCurrentUser } from "@/lib/auth/session";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 export type BuyerActionResult = { ok: boolean; authenticated: boolean; saved?: boolean; message?: string };
 
@@ -15,7 +16,7 @@ export async function toggleSavedListingAction(listingId: number): Promise<Buyer
   if (!user) return { ok: false, authenticated: false };
   if (!Number.isSafeInteger(listingId) || listingId < 1) return { ok: false, authenticated: true, message: "Invalid listing." };
   const [listing] = await db.select({ id: listings.id }).from(listings)
-    .where(and(eq(listings.id, listingId), eq(listings.status, "active"))).limit(1);
+    .where(and(eq(listings.id, listingId), publicListingEligibility())).limit(1);
   if (!listing) return { ok: false, authenticated: true, message: "This ad is no longer available." };
   const [existing] = await db.select({ listingId: savedListings.listingId }).from(savedListings)
     .where(and(eq(savedListings.userId, user.id), eq(savedListings.listingId, listingId))).limit(1);

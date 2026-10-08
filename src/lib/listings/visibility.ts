@@ -14,6 +14,7 @@ export function canViewListingDetail(
   status: ListingVisibilityStatus,
   sellerId: number,
   user: Pick<SessionUser, "id" | "isAdmin"> | null,
+  sellerEligible = true,
 ): boolean {
-  return status === "active" || user?.isAdmin === true || user?.id === sellerId;
+  return (status === "active" && sellerEligible) || user?.isAdmin === true || user?.id === sellerId;
 }

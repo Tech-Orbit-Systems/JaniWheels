@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { googleConfig, GoogleAuthError } from "@/lib/auth/google";
+import { safeReturnPath } from "@/lib/auth/return-path";
 import { clientIp, consumeRateLimit } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
@@ -9,7 +10,7 @@ export const runtime = "nodejs";
 const TEN_MINUTES = 10 * 60;
 
 function safeNext(value: string | null): string {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : "/";
+  return safeReturnPath(value);
 }
 
 export async function GET(request: Request) {

@@ -8,6 +8,7 @@ import { dealers } from "@/db/schema/users";
 import { buildPath } from "@/lib/seo/facets";
 import { buildListingPath } from "@/lib/listings/slug";
 import { MIN_LISTINGS_FOR_INDEXABLE_PAGE } from "@/lib/seo/indexation";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -49,7 +50,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .from(dealers)
     .leftJoin(
       listings,
-      and(eq(listings.dealerId, dealers.id), eq(listings.status, "active")),
+      and(eq(listings.dealerId, dealers.id), publicListingEligibility()),
     )
     .groupBy(dealers.slug)
     .having(sql`COUNT(${listings.id}) >= 1`);
@@ -75,7 +76,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .innerJoin(makes, eq(models.makeId, makes.id))
     .leftJoin(
       listings,
-      and(eq(listings.modelId, models.id), eq(listings.status, "active")),
+      and(eq(listings.modelId, models.id), publicListingEligibility()),
     )
     .where(eq(models.vertical, "car"))
     .groupBy(models.id, models.slug, models.name, makes.slug)
@@ -103,7 +104,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .from(cities)
     .leftJoin(
       listings,
-      and(eq(listings.cityId, cities.id), eq(listings.status, "active")),
+      and(eq(listings.cityId, cities.id), publicListingEligibility()),
     )
     .groupBy(cities.id, cities.slug, cities.name)
     .having(sql`COUNT(${listings.id}) >= ${MIN_LISTINGS_FOR_INDEXABLE_PAGE}`);
@@ -132,7 +133,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .innerJoin(models, eq(listings.modelId, models.id))
     .innerJoin(makes, eq(models.makeId, makes.id))
     .innerJoin(cities, eq(listings.cityId, cities.id))
-    .where(and(eq(listings.status, "active"), eq(listings.vertical, "car")))
+    .where(and(publicListingEligibility(), eq(listings.vertical, "car")))
     .groupBy(
       models.id,
       models.slug,
@@ -170,7 +171,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       updatedAt: listings.updatedAt,
     })
     .from(listings)
-    .where(eq(listings.status, "active"))
+    .where(publicListingEligibility())
     .orderBy(desc(listings.updatedAt))
     .limit(45000);
 

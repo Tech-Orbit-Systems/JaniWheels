@@ -15,6 +15,8 @@ import {
 } from "./verification-token";
 import { createSession } from "./session";
 import { allowAuthAttempt, AUTH_LIMITS, clientIp } from "@/lib/security/rate-limit";
+import { safeReturnPath } from "./return-path";
+import { logSafeError } from "@/lib/operations/safe-error";
 
 export interface VerifyEmailState {
   error?: string;
@@ -27,8 +29,7 @@ export interface ResendVerificationState {
 }
 
 function safeNext(value: FormDataEntryValue | null): string {
-  const next = typeof value === "string" ? value : "/";
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  return safeReturnPath(typeof value === "string" ? value : null);
 }
 
 export async function confirmEmailVerificationAction(
@@ -153,7 +154,7 @@ export async function resendEmailVerificationAction(
           requestedIp: clientIp(h) ?? undefined,
         });
       } catch (error) {
-        console.error("Email verification delivery failed", error);
+        logSafeError("auth.verification_delivery_failed", error);
       }
     }
   }

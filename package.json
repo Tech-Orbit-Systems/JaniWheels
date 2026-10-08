@@ -29,7 +29,7 @@
     "check:map-location": "node --import tsx scripts/check-map-location.ts",
     "check:branding-responsive": "node --import tsx scripts/check-branding-responsive.ts",
     "sweep": "node --conditions=react-server --import tsx scripts/sweep.ts",
-    "test:db": "node --conditions=react-server --import tsx --test tests/database.acceptance.test.ts tests/admin-bootstrap.acceptance.test.ts tests/alerts.acceptance.test.ts tests/retention.acceptance.test.ts tests/operations.acceptance.test.ts",
+    "test:db": "node --conditions=react-server --import tsx --test --test-concurrency=1 tests/database.acceptance.test.ts tests/admin-bootstrap.acceptance.test.ts tests/alerts.acceptance.test.ts tests/retention.acceptance.test.ts tests/operations.acceptance.test.ts",
     "test:load-smoke": "node --import tsx scripts/load-smoke.ts",
     "benchmark:browse": "node --import tsx scripts/benchmark-browse.ts",
     "retention:inventory": "node --import tsx scripts/retention-inventory.ts",

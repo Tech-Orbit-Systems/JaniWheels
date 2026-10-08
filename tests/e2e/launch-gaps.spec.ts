@@ -2,6 +2,7 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import postgres from "postgres";
+import {closeAccount,restoreAccount} from "../../src/lib/retention/core";
 
 const url = process.env.DATABASE_URL!;
 if (!/(?:_test|_acceptance)$/.test(new URL(url).pathname)) throw new Error("Isolated acceptance database required");
@@ -43,11 +44,23 @@ test("dealer totals, pagination and inactive inventory remain consistent", async
     await page.goto(`/dealers/${tag}?page=Infinity`);
     await expect(cards).toHaveCount(25);
     for (const row of inactive) expect((await page.request.get(`/auto-parts/${row.slug}-${row.id}`)).status()).toBe(404);
+    await page.goto('/');
+    await expect(page.locator(`a[href="/dealers/${tag}"]`)).toHaveCount(1);
+    await closeAccount(sql,owner.id);
+    await page.goto('/');
+    await expect(page.locator(`a[href="/dealers/${tag}"]`)).toHaveCount(0);
+    expect((await page.request.get(`/dealers/${tag}`)).status()).toBe(404);
+    await restoreAccount(sql,owner.id);
+    await page.goto('/');
+    await expect(page.locator(`a[href="/dealers/${tag}"]`)).toHaveCount(1);
     await sql`UPDATE users SET is_banned=true WHERE id=${owner.id}`;
     expect((await page.request.get(`/dealers/${tag}`)).status()).toBe(404);
+    await page.goto('/');
+    await expect(page.locator(`a[href="/dealers/${tag}"]`)).toHaveCount(0);
     await page.goto("/dealers");
     await expect(page.getByRole("link", { name: new RegExp(tag) })).toHaveCount(0);
   } finally {
+    await sql`DELETE FROM retention_receipts WHERE resource='account' AND resource_id=${owner.id}`;
     await sql`DELETE FROM listings WHERE seller_id=${owner.id}`;
     await sql`DELETE FROM dealers WHERE id=${dealer.id}`;
     await sql`DELETE FROM users WHERE id=${owner.id}`;

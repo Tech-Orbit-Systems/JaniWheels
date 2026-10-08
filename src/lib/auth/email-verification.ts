@@ -4,13 +4,14 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { emailVerificationTokens } from "@/db/schema/users";
 import { sendAccountVerificationEmail } from "@/lib/email/account-verification";
+import { safeReturnPath } from "./return-path";
 import {
   createEmailVerificationToken,
   emailVerificationExpiry,
 } from "./verification-token";
 
 function safeNext(value?: string): string {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : "/";
+  return safeReturnPath(value);
 }
 
 export async function issueEmailVerification(input: {

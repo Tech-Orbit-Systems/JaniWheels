@@ -68,7 +68,9 @@ continues under its existing audited manual process.
 
 Administrators have an all-status listing console and a user access console.
 Listing flag, approval, rejection, reinstate, removal and administrator-edit
-events are appended to `moderation_log`. Manual bans revoke all active sessions;
+events are appended to `moderation_log`. Manual bans revoke all active sessions
+and hide the seller's active inventory, contact actions, media and alert matches
+from public buyers. Unbanning only restores listings that remain active;
 self-ban and administrator-ban are blocked. A seller may fix and resubmit a
 rejected ad twice, while the third rejection permanently removes that ad.
 

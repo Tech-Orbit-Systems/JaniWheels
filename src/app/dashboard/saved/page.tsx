@@ -7,6 +7,7 @@ import { listings } from "@/db/schema/listings";
 import { cities } from "@/db/schema/geo";
 import { getCurrentUser } from "@/lib/auth/session";
 import { ListingCard } from "@/components/ListingCard";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 export const metadata: Metadata = { title: "Saved ads", robots: { index: false, follow: false } };
 export default async function SavedAdsPage() {
@@ -20,6 +21,6 @@ export default async function SavedAdsPage() {
     primaryImageKey: sql<string | null>`(SELECT storage_key FROM listing_images WHERE listing_id = ${listings.id} ORDER BY position LIMIT 1)`,
     vertical: listings.vertical,
   }).from(savedListings).innerJoin(listings, eq(savedListings.listingId, listings.id)).innerJoin(cities, eq(listings.cityId, cities.id))
-    .where(and(eq(savedListings.userId, user.id), eq(listings.status, "active"))).orderBy(desc(savedListings.createdAt));
+    .where(and(eq(savedListings.userId, user.id), publicListingEligibility())).orderBy(desc(savedListings.createdAt));
   return <main className="mx-auto w-full max-w-7xl px-4 py-8"><h1 className="text-2xl font-bold text-slate-950">Saved ads</h1><p className="mb-6 mt-1 text-sm text-slate-500">Your active favourites across cars, bikes and parts.</p>{rows.length ? <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{rows.map(row => <ListingCard key={row.id} row={row} vertical={row.vertical} initiallySaved />)}</ul> : <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-600">No saved ads yet. Tap Save on any listing.</div>}</main>;
 }

@@ -5,6 +5,7 @@ import { makes, models } from "@/db/schema/taxonomy";
 import { cities } from "@/db/schema/geo";
 import { dealers, users } from "@/db/schema/users";
 import type { FacetState } from "@/lib/seo/facets";
+import { publicListingEligibility } from "./public-eligibility";
 
 /**
  * Search over listings.
@@ -56,7 +57,7 @@ export interface SearchResult {
 export function buildWhere(state: FacetState): SQL[] {
   const clauses: SQL[] = [
     eq(listings.vertical, state.vertical),
-    eq(listings.status, "active"),
+    publicListingEligibility(),
   ];
 
   if (state.model) clauses.push(eq(listings.modelId, state.model.id));

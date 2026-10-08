@@ -7,6 +7,7 @@ import { cities } from "@/db/schema/geo";
 import { listings } from "@/db/schema/listings";
 import { abs, breadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 export const revalidate = 3600;
 
@@ -33,7 +34,7 @@ export default async function DealersIndexPage() {
     .innerJoin(cities, eq(dealers.cityId, cities.id))
     .leftJoin(
       listings,
-      and(eq(listings.dealerId, dealers.id), eq(listings.status, "active")),
+      and(eq(listings.dealerId, dealers.id), publicListingEligibility()),
     )
     .where(and(isNotNull(dealers.verifiedAt), eq(users.isBanned, false), isNull(users.closedAt)))
     .groupBy(

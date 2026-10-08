@@ -7,6 +7,7 @@ import { pendingUploads } from "@/db/schema/listings";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { allowPublicAction } from "@/lib/security/rate-limit";
 import { permitsMutationOrigin } from "@/lib/security/origin";
+import { logSafeError } from "@/lib/operations/safe-error";
 
 export const runtime = "nodejs";
 
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
       stored.push(result.image.key);
     } catch (error) {
       await removeStoredImage(result.image.key);
-      console.error("Upload ownership registration failed", error);
+      logSafeError("upload.ownership_registration_failed", error);
       errors.push(`${file.name}: Upload failed. Try again.`);
     }
   }

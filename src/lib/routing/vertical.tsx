@@ -25,6 +25,7 @@ import { savedListings } from "@/db/schema/analytics";
 import { and, eq } from "drizzle-orm";
 import { Suspense } from "react";
 import { BrowseLoading } from "@/components/BrowseLoading";
+import { logSafeError } from "@/lib/operations/safe-error";
 
 /**
  * Shared implementation for /used-cars, /used-bikes and /auto-parts.
@@ -145,13 +146,14 @@ export async function verticalMetadata(
     const listing = await getListingDetail(resolved.id, vertical);
     if (!listing) return { title: "Not found" };
 
-    const viewer = listing.status === "active" ? null : await getCurrentUser();
-    if (!canViewListingDetail(listing.status, listing.sellerId, viewer)) {
+    const sellerEligible = !listing.sellerBanned && !listing.sellerClosedAt && !listing.sellerAnonymizedAt;
+    const viewer = listing.status === "active" && sellerEligible ? null : await getCurrentUser();
+    if (!canViewListingDetail(listing.status, listing.sellerId, viewer, sellerEligible)) {
       return { title: "Not found" };
     }
 
     const url = buildListingPath(vertical, listing.slug, listing.id);
-    const isLive = listing.status === "active";
+    const isLive = listing.status === "active" && sellerEligible;
 
     return {
       title: `${listing.title} for sale in ${listing.cityName} | JaniWheels`,
@@ -214,7 +216,8 @@ export async function VerticalPage({
   if (!listing) notFound();
 
   const viewer = await getCurrentUser();
-  if (!canViewListingDetail(listing.status, listing.sellerId, viewer)) {
+  if (!canViewListingDetail(listing.status, listing.sellerId, viewer,
+    !listing.sellerBanned && !listing.sellerClosedAt && !listing.sellerAnonymizedAt)) {
     notFound();
   }
   const [saved] = viewer ? await db.select({ listingId: savedListings.listingId }).from(savedListings)
@@ -243,7 +246,7 @@ export async function VerticalPage({
     try {
       await incrementViewCount(listing.id);
     } catch (err) {
-      console.error("view count failed", err);
+      logSafeError("listing.view_count_failed", err);
     }
   });
 

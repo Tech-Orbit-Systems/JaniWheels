@@ -69,6 +69,7 @@ test("approved retention respects recovery, holds, cutoff, retries and restore r
     // Simulate old backup rows reappearing, then replay current deletion receipts.
     await sql`UPDATE users SET name='restored backup',email=${tag+'@example.invalid'},closed_at=NULL,anonymized_at=NULL WHERE id=${owner.id}`;
     await sql`UPDATE listings SET description='restored private text',redacted_at=NULL WHERE id=${listing.id}`;
+    await sql`DELETE FROM retention_receipts WHERE (resource='account' AND resource_id=${owner.id}) OR (resource='listing' AND resource_id=${listing.id})`;
     await replayLedger(sql,ledger,tag);
     assert.equal((await sql`SELECT email FROM users WHERE id=${owner.id}`)[0].email,null);
     assert.equal((await sql`SELECT description FROM listings WHERE id=${listing.id}`)[0].description,null);
@@ -133,6 +134,54 @@ test("calendar retention windows use closure/resolution dates and preserve alert
     await sql`DELETE FROM inspections WHERE id=${service.id}`;
     await sql`DELETE FROM listings WHERE id=${listing.id}`;
     await sql`DELETE FROM users WHERE id=${user.id}`;
+    await sql.end();
+  }
+});
+
+test("restore replay preserves later moderation and suppresses old pending alerts", async () => {
+  const sql = postgres(url,{max:2});
+  const tag = randomUUID();
+  const [city] = await sql`SELECT id FROM cities LIMIT 1`;
+  const [owner] = await sql`INSERT INTO users(email) VALUES (${tag+'@example.invalid'}) RETURNING id`;
+  const [listing] = await sql`INSERT INTO listings(vertical,seller_id,slug,title,price_pkr,city_id,status,expires_at)
+    VALUES ('part',${owner.id},${tag},'Replay listing',2500,${city.id},'active',NOW()+INTERVAL '1 day') RETURNING id`;
+  const [search] = await sql`INSERT INTO saved_searches(user_id,filters,vertical,alert_frequency)
+    VALUES (${owner.id},'{}','part','daily') RETURNING id`;
+  const [notification] = await sql`INSERT INTO saved_search_notifications(saved_search_id,listing_id,recipient_email,payload)
+    VALUES (${search.id},${listing.id},${tag+'@example.invalid'},'{}') RETURNING id`;
+  try {
+    await closeAccount(sql,owner.id);
+    const [closed] = await sql`SELECT closed_at,closure_state FROM users WHERE id=${owner.id}`;
+    await sql`UPDATE listings SET status='rejected',updated_at=NOW() WHERE id=${listing.id}`;
+    await restoreAccount(sql,owner.id);
+    assert.equal((await sql`SELECT status FROM listings WHERE id=${listing.id}`)[0].status,'rejected');
+    const ledger = await exportLedger(sql);
+    ledger.receipts = ledger.receipts.filter(row => row.resource === 'account' && row.resource_id === owner.id);
+
+    // A backup from during closure contains its close receipt and the later moderation decision.
+    await sql`UPDATE users SET closed_at=${closed.closed_at},closure_state=${sql.json(closed.closure_state)} WHERE id=${owner.id}`;
+    await sql`DELETE FROM retention_receipts WHERE resource='account' AND resource_id=${owner.id} AND action='restore'`;
+    await replayLedger(sql,ledger,tag);
+    assert.equal((await sql`SELECT status FROM listings WHERE id=${listing.id}`)[0].status,'rejected');
+    assert.equal((await sql`SELECT closed_at FROM users WHERE id=${owner.id}`)[0].closed_at,null);
+
+    // A pre-close backup needs the close and restore effects, including terminal alert suppression.
+    await sql`UPDATE users SET closed_at=NULL,closure_state=NULL WHERE id=${owner.id}`;
+    await sql`UPDATE listings SET status='active',updated_at=NOW() WHERE id=${listing.id}`;
+    await sql`UPDATE saved_searches SET alert_frequency='daily' WHERE id=${search.id}`;
+    await sql`UPDATE saved_search_notifications SET suppressed_at=NULL,last_error=NULL WHERE id=${notification.id}`;
+    await sql`DELETE FROM retention_receipts WHERE resource='account' AND resource_id=${owner.id}`;
+    await replayLedger(sql,ledger,tag);
+    await replayLedger(sql,ledger,tag);
+    assert.equal((await sql`SELECT status FROM listings WHERE id=${listing.id}`)[0].status,'active');
+    assert.ok((await sql`SELECT suppressed_at FROM saved_search_notifications WHERE id=${notification.id}`)[0].suppressed_at);
+    assert.equal((await sql`SELECT alert_frequency FROM saved_searches WHERE id=${search.id}`)[0].alert_frequency,'daily');
+  } finally {
+    await sql`DELETE FROM retention_runs WHERE operator=${tag}`;
+    await sql`DELETE FROM retention_receipts WHERE resource='account' AND resource_id=${owner.id}`;
+    await sql`DELETE FROM saved_searches WHERE id=${search.id}`;
+    await sql`DELETE FROM listings WHERE id=${listing.id}`;
+    await sql`DELETE FROM users WHERE id=${owner.id}`;
     await sql.end();
   }
 });

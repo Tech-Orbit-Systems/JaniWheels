@@ -14,7 +14,7 @@ export default async function ComparePage({ searchParams }: Props) {
   const raw = Array.isArray(sp.ids) ? sp.ids[0] : sp.ids;
   const ids = [...new Set((raw ?? "").split(",").map(Number).filter(id => Number.isSafeInteger(id) && id > 0))].slice(0, 3);
   const resolved = await Promise.all(ids.map(id => getListingDetail(id, vertical)));
-  const rows = resolved.filter((row): row is NonNullable<typeof row> => Boolean(row && row.status === "active" && row.vertical === vertical));
+  const rows = resolved.filter((row): row is NonNullable<typeof row> => Boolean(row && row.status === "active" && row.vertical === vertical && !row.sellerBanned && !row.sellerClosedAt && !row.sellerAnonymizedAt));
   const specs = vertical === "car"
     ? ["price", "year", "mileage", "engine", "transmission", "fuel", "body", "assembly", "colour", "registered", "owners"] as const
     : ["price", "year", "mileage", "engine", "fuel", "type", "condition", "range", "battery", "topSpeed", "documents"] as const;

@@ -11,6 +11,7 @@ import { users } from "@/db/schema/users";
 import { ListingCard } from "@/components/ListingCard";
 import { PAGE_SIZE } from "@/lib/listings/search";
 import { imageDeliveryUrl } from "@/lib/images/url";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 export const metadata: Metadata = {
   title: "Seller profile | JaniWheels",
@@ -31,7 +32,7 @@ export default async function SellerProfilePage({ params, searchParams }: { para
     .limit(1);
   if (!seller) notFound();
 
-  const where = and(eq(listings.sellerId, seller.id), eq(listings.status, "active"));
+  const where = and(eq(listings.sellerId, seller.id), publicListingEligibility());
   const [rows, [{ count }]] = await Promise.all([
     db.select({
       id: listings.id,

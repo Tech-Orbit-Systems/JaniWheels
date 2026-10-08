@@ -1,6 +1,6 @@
 # JaniWheels consolidated development context
 
-Last reconciled: 5 October 2026
+Last reconciled: 8 October 2026
 
 Workflow decision, 30 September 2026: completed and verified development is
 committed, pushed on its feature branch, and recorded in the master tracker
@@ -15,7 +15,10 @@ static checks, lint, build, route sweep, browser acceptance and production
 dependency audit. The included alert-key review fix uses a persisted UUID
 to prevent collisions between environments and passed both local verification
 and full CI. Agent self-review is recorded in `docs/PR6_REVIEW.md`; no additional
-blocking regression was identified. Always inspect the current PR commit's
+blocking regression was identified in that earlier self-review. The independent
+review of `e4170b2` subsequently found nine confirmed defects and one ban-policy
+risk. The fixes and regression evidence are recorded in `docs/PR6_REVIEW_RESPONSE.md`.
+Independent review of the updated commit remains required. Always inspect the current PR commit's
 checks before review or merge. The repository workbook under `docs/` is the
 current master tracker; older exported copies are historical snapshots.
 
@@ -23,8 +26,8 @@ Tracker reconciliation on 3 October corrected stale dashboard/roadmap/test
 entries and the excluded S3 provider's scope classification. Overall completion
 is an equal-weight average of feature estimates, not elapsed engineering effort
 or production launch approval. The workbook recalculates the 199 in-scope rows
-after each verified milestone: 156 completed, one feature-branch item awaiting review,
-35 partial/configuration items and seven pending. Twelve excluded rows do not
+after each verified milestone. The 8 October reconciliation has 157 completed,
+one feature-branch item awaiting review, 34 partial/configuration items and seven pending. Twelve excluded rows do not
 contribute. Reviewed estimates and their remaining acceptance gaps are recorded
 on the affected rows. The browser framework is complete awaiting PR review;
 broader coverage and live-device acceptance retain their own open gates.

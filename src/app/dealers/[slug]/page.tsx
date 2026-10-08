@@ -13,6 +13,7 @@ import { abs, breadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { PAGE_SIZE } from "@/lib/listings/search";
 import { displayPkPhone } from "@/lib/format";
 import { imageDeliveryUrl } from "@/lib/images/url";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 /**
  * Dealer storefront.
@@ -78,7 +79,7 @@ export default async function DealerPage({
 
   const requestedPage = Number(rawPage ?? 1);
   const [{ total }] = await db.select({ total: sql<number>`COUNT(*)::int` }).from(listings)
-    .where(and(eq(listings.dealerId, dealer.id), eq(listings.status, "active")));
+    .where(and(eq(listings.dealerId, dealer.id), publicListingEligibility()));
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pageCount) : 1;
 
@@ -108,7 +109,7 @@ export default async function DealerPage({
     .leftJoin(makes, eq(listings.makeId, makes.id))
     .leftJoin(models, eq(listings.modelId, models.id))
     .where(
-      and(eq(listings.dealerId, dealer.id), eq(listings.status, "active")),
+      and(eq(listings.dealerId, dealer.id), publicListingEligibility()),
     )
     .orderBy(desc(listings.publishedAt), desc(listings.id))
     .limit(PAGE_SIZE)

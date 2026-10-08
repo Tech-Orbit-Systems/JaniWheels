@@ -280,7 +280,7 @@ export async function exportLedger(sql: Sql): Promise<RetentionLedger> {
 export async function replayLedger(sql: Sql, ledger: RetentionLedger, operator: string) {
   if (ledger.version !== 1 || !Array.isArray(ledger.receipts) || !operator.trim() || !Number.isFinite(Date.parse(ledger.generatedAt)) || Date.parse(ledger.generatedAt)>Date.now()) throw new RetentionError("Invalid restore ledger.");
   for (const row of ledger.receipts) {
-    const actions: Record<string,string[]> = {account:["close","restore","redact"],listing:["redact"],inspection:["redact"],assistance:["redact"],report:["delete"],moderation:["delete"],alert:["redact"],lead:["delete"]};
+    const actions: Record<string,string[]> = {account:["close","restore","redact"],listing:["seller-delete","redact"],inspection:["redact"],assistance:["redact"],report:["delete"],moderation:["delete"],alert:["redact"],lead:["delete"]};
     if (!actions[row.resource]?.includes(row.action) || !Number.isSafeInteger(row.resource_id) || row.resource_id < 1 || !Number.isFinite(Date.parse(row.occurred_at)) || Date.parse(row.occurred_at)>Date.parse(ledger.generatedAt)) throw new RetentionError("Invalid restore ledger entry.");
   }
   return sql.begin(async tx => {
@@ -290,24 +290,33 @@ export async function replayLedger(sql: Sql, ledger: RetentionLedger, operator: 
     await tx`LOCK TABLE users,listings,inspections,sell_assistance_requests,listing_reports,moderation_log,saved_search_notifications,lead_events IN SHARE ROW EXCLUSIVE MODE`;
     for (const row of ledger.receipts) {
       const id = row.resource_id;
+      // Applied events belong to the backup state; replaying them would overwrite later moderation.
+      const [alreadyApplied] = await tx`SELECT id FROM retention_receipts WHERE resource=${row.resource} AND resource_id=${id} AND action=${row.action} AND occurred_at=${row.occurred_at}::text::timestamptz LIMIT 1`;
+      if (alreadyApplied) continue;
       if (row.resource === "account" && row.action === "close") {
         const [account] = await tx`SELECT closed_at,anonymized_at FROM users WHERE id=${id} FOR UPDATE`;
         if (account && !account.closed_at && !account.anonymized_at) {
           const listings = await tx`SELECT id,status FROM listings WHERE seller_id=${id}`;
           const searches = await tx`SELECT id,alert_frequency FROM saved_searches WHERE user_id=${id}`;
-          await tx`UPDATE users SET closure_state=${tx.json({listings:listings.map(l=>({id:l.id,status:l.status})),searches:searches.map(s=>({id:s.id,frequency:s.alert_frequency}))})} WHERE id=${id}`;
+          await tx`UPDATE users SET closed_at=${row.occurred_at}::text::timestamptz,closure_state=${tx.json({listings:listings.map(l=>({id:l.id,status:l.status})),searches:searches.map(s=>({id:s.id,frequency:s.alert_frequency}))})} WHERE id=${id}`;
+          await tx`UPDATE listings SET status='removed',updated_at=${row.occurred_at}::text::timestamptz WHERE seller_id=${id} AND redacted_at IS NULL`;
+          await tx`UPDATE saved_searches SET alert_frequency='off' WHERE user_id=${id}`;
+          await tx`UPDATE saved_search_notifications SET suppressed_at=${row.occurred_at}::text::timestamptz,last_error='Account closed'
+            WHERE saved_search_id IN (SELECT id FROM saved_searches WHERE user_id=${id}) AND delivered=false AND suppressed_at IS NULL`;
+          await tx`DELETE FROM sessions WHERE user_id=${id}`;
+          await tx`DELETE FROM email_verification_tokens WHERE user_id=${id}`;
+          await tx`DELETE FROM password_reset_tokens WHERE user_id=${id}`;
         }
-        await tx`UPDATE users SET closed_at=${row.occurred_at}::text::timestamptz WHERE id=${id}`;
-        await tx`UPDATE listings SET status='removed',updated_at=${row.occurred_at}::text::timestamptz WHERE seller_id=${id} AND redacted_at IS NULL`;
-        await tx`UPDATE saved_searches SET alert_frequency='off' WHERE user_id=${id}`;
-        await tx`DELETE FROM sessions WHERE user_id=${id}`;
-        await tx`DELETE FROM email_verification_tokens WHERE user_id=${id}`;
-        await tx`DELETE FROM password_reset_tokens WHERE user_id=${id}`;
       } else if (row.resource === "account" && row.action === "restore") {
         const [user] = await tx`SELECT id FROM users WHERE id=${id} AND closed_at IS NOT NULL AND anonymized_at IS NULL AND is_banned=false`;
         if (user) await restoreInTransaction(tx, id, true);
       } else if (row.resource === "account" && row.action === "redact") await redactAccount(tx, id, false);
-      else if (row.resource === "listing") await redactListing(tx, id, false);
+      else if (row.resource === "listing" && row.action === "seller-delete") {
+        await tx`UPDATE listings SET status=CASE WHEN status='rejected' THEN status ELSE 'removed' END,
+          seller_deleted_at=COALESCE(seller_deleted_at,${row.occurred_at}::text::timestamptz),
+          updated_at=GREATEST(updated_at,${row.occurred_at}::text::timestamptz)
+          WHERE id=${id} AND redacted_at IS NULL`;
+      } else if (row.resource === "listing") await redactListing(tx, id, false);
       else if (row.resource === "inspection" || row.resource === "assistance") await redactService(tx, row.resource, id, false);
       else if (row.resource === "alert") await tx`UPDATE saved_search_notifications SET recipient_email='',payload=NULL,last_error=NULL WHERE id=${id}`;
       else if (row.resource === "lead") await tx`DELETE FROM lead_events WHERE id=${id}`;

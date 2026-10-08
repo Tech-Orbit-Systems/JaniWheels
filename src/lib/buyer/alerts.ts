@@ -63,8 +63,10 @@ export async function deliverSavedSearchAlerts(send: typeof sendAlertEmail = sen
         .orderBy(asc(notifications.id)).limit(1).for("update", { of: notifications, skipLocked: true });
       if (!row) return null;
       const n = row.notification;
+      const [owner] = await tx.select({isBanned:users.isBanned,closedAt:users.closedAt,anonymizedAt:users.anonymizedAt})
+        .from(users).where(eq(users.id,row.listing.sellerId)).limit(1);
       const expiredRetry = n.firstAttemptAt && Date.now() - n.firstAttemptAt.getTime() >= 23 * 3600_000;
-      if (row.search.alertFrequency === "off" || row.user.isBanned || row.user.closedAt || !row.user.emailVerifiedAt || row.user.email !== n.recipientEmail || row.listing.status !== "active" || expiredRetry) {
+      if (row.search.alertFrequency === "off" || row.user.isBanned || row.user.closedAt || !row.user.emailVerifiedAt || row.user.email !== n.recipientEmail || row.listing.status !== "active" || row.listing.sellerDeletedAt || !owner || owner.isBanned || owner.closedAt || owner.anonymizedAt || expiredRetry) {
         await tx.update(notifications).set({ suppressedAt: new Date(), lastError: expiredRetry ? "Retry window expired; reconcile with provider before any resend" : "Recipient preference, eligibility or listing availability changed" }).where(eq(notifications.id, n.id));
         return { suppressed: true as const };
       }

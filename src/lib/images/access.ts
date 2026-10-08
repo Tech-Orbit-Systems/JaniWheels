@@ -6,13 +6,16 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { canViewListingDetail } from "@/lib/listings/visibility";
 
 export async function canReadStoredImage(key: string): Promise<boolean> {
-  const [listing] = await db.select({ status: listings.status, sellerId: listings.sellerId, sellerDeletedAt:listings.sellerDeletedAt })
+  const [listing] = await db.select({ status: listings.status, sellerId: listings.sellerId, sellerDeletedAt:listings.sellerDeletedAt,
+    sellerBanned:users.isBanned,sellerClosedAt:users.closedAt,sellerAnonymizedAt:users.anonymizedAt })
     .from(listingImages).innerJoin(listings, eq(listings.id, listingImages.listingId))
+    .innerJoin(users,eq(users.id,listings.sellerId))
     .where(eq(listingImages.storageKey, key)).limit(1);
-  if (listing?.status === "active" && !listing.sellerDeletedAt) return true;
+  const sellerEligible = Boolean(listing && !listing.sellerBanned && !listing.sellerClosedAt && !listing.sellerAnonymizedAt);
+  if (listing?.status === "active" && !listing.sellerDeletedAt && sellerEligible) return true;
   const user = await getCurrentUser();
   if (listing?.sellerDeletedAt) return Boolean(user?.isAdmin);
-  if (listing) return canViewListingDetail(listing.status, listing.sellerId, user);
+  if (listing) return canViewListingDetail(listing.status, listing.sellerId, user, sellerEligible);
 
   // Saved identity photos are intentionally public; unfinished uploads are not.
   const [avatar] = await db.select({ id: users.id }).from(users)

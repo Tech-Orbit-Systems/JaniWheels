@@ -5,6 +5,7 @@ import {mkdir,readFile,rm,writeFile} from "node:fs/promises";
 import {dirname,join} from "node:path";
 import postgres from "postgres";
 import sharp from "sharp";
+import {exportLedger,replayLedger} from "../../src/lib/retention/core";
 
 const url=process.env.DATABASE_URL!;
 if (!/(?:_test|_acceptance)$/.test(new URL(url).pathname)) throw new Error("Isolated acceptance database required");
@@ -30,7 +31,9 @@ function bucket(scope:string,id:number,max:number) {
   return sql`INSERT INTO rate_limit_buckets(key,hits,expires_at) VALUES (${key},${max},NOW()+INTERVAL '1 hour') ON CONFLICT(key) DO UPDATE SET hits=EXCLUDED.hits`;
 }
 async function cleanup(f:Awaited<ReturnType<typeof fixture>>) {
+  await sql`DELETE FROM retention_runs WHERE operator=${f.tag}`;
   await sql`DELETE FROM retention_holds WHERE resource='listing' AND resource_id=${f.listing.id}`;
+  await sql`DELETE FROM retention_receipts WHERE resource='listing' AND resource_id=${f.listing.id}`;
   await sql`DELETE FROM moderation_log WHERE listing_id=${f.listing.id}`;
   await sql`DELETE FROM listings WHERE id=${f.listing.id}`;
   await sql`DELETE FROM sessions WHERE user_id IN (${f.owner.id},${f.admin.id})`;
@@ -80,12 +83,22 @@ test('autonomy seller lifecycle blocks stale actions and preserves deleted photo
     await expect.poll(async()=>(await sql`SELECT status FROM listings WHERE id=${f.listing.id}`)[0].status).toBe('sold');
     await page.unrouteAll({behavior:'wait'});
     await page.goto('/dashboard');
-    expect((await page.request.get(`/used-cars/${f.listing.slug}-${f.listing.id}`,{headers:{cookie:''}})).status()).toBe(404);
+    expect((await page.request.get(`/used-cars/${f.listing.slug}-${f.listing.id}`,{headers:{cookie:''},maxRetries:2})).status()).toBe(404);
     expect(await (await page.request.get(`/api/recently-viewed?ids=${f.listing.id}`)).json()).toEqual({rows:[]});
     expect(await (await page.request.get('/sitemap.xml')).text()).not.toContain(`${f.listing.slug}-${f.listing.id}`);
     await row().getByRole('button',{name:'Delete ad',exact:true}).click();
     await row().getByRole('button',{name:'Yes, delete'}).click();
     await expect.poll(async()=>(await sql`SELECT seller_deleted_at FROM listings WHERE id=${f.listing.id}`)[0].seller_deleted_at).toBeTruthy();
+    const [receipt]=await sql`SELECT action FROM retention_receipts WHERE resource='listing' AND resource_id=${f.listing.id}`;
+    expect(receipt.action).toBe('seller-delete');
+    const ledger=await exportLedger(sql);
+    ledger.receipts=ledger.receipts.filter(r=>r.resource==='listing' && r.resource_id===f.listing.id);
+    await sql`UPDATE listings SET status='active',seller_deleted_at=NULL WHERE id=${f.listing.id}`;
+    await sql`DELETE FROM retention_receipts WHERE resource='listing' AND resource_id=${f.listing.id}`;
+    await replayLedger(sql,ledger,f.tag);
+    await replayLedger(sql,ledger,f.tag);
+    expect((await sql`SELECT status,seller_deleted_at FROM listings WHERE id=${f.listing.id}`)[0]).toMatchObject({status:'removed'});
+    expect((await page.request.get(`/used-cars/${f.listing.slug}-${f.listing.id}`,{headers:{cookie:''},maxRetries:2})).status()).toBe(404);
     await page.request.post(sold.url,{data:sold.data,headers:sold.headers,maxRedirects:0});
     expect((await sql`SELECT status FROM listings WHERE id=${f.listing.id}`)[0].status).toBe('removed');
     expect((await sql`SELECT count(*)::int n FROM listing_images WHERE listing_id=${f.listing.id}`)[0].n).toBe(1);
@@ -95,6 +108,100 @@ test('autonomy seller lifecycle blocks stale actions and preserves deleted photo
     await login(page,f.admin.email,'/admin/listings');
     const adminCookie=(await page.context().cookies()).map(c=>`${c.name}=${c.value}`).join('; ');
     expect((await page.request.get(`/uploads/${f.key}`,{headers:{cookie:adminCookie}})).status()).toBe(200);
+  } finally {await cleanup(f);}
+});
+
+test('autonomy reactivation respects the shared individual quota',async({page})=>{
+  const f=await fixture();
+  const replacements:number[]=[];
+  try {
+    await sql`UPDATE listings SET status='sold' WHERE id=${f.listing.id}`;
+    for(let i=0;i<3;i++) {
+      const [row]=await sql`INSERT INTO listings SELECT r.* FROM listings l CROSS JOIN LATERAL jsonb_populate_record(NULL::listings,to_jsonb(l)||jsonb_build_object('id',nextval('listings_id_seq'),'title','Quota replacement','slug','quota-replacement','status','active','photo_count',0)) r WHERE l.id=${f.listing.id} RETURNING id`;
+      replacements.push(row.id);
+    }
+    await login(page,f.owner.email);
+    const row=()=>page.getByRole('listitem').filter({hasText:f.tag});
+    await row().getByRole('button',{name:'Reactivate for 30 days'}).click();
+    await expect(page.getByRole('alert').filter({hasText:'You already have 3 live ads'})).toBeVisible();
+    expect((await sql`SELECT status FROM listings WHERE id=${f.listing.id}`)[0].status).toBe('sold');
+    await sql`UPDATE listings SET status='sold' WHERE id=${replacements[0]}`;
+    await page.goto('/dashboard');
+    await row().getByRole('button',{name:'Reactivate for 30 days'}).click();
+    await expect.poll(async()=>(await sql`SELECT status FROM listings WHERE id=${f.listing.id}`)[0].status).toBe('active');
+    expect((await sql`SELECT count(*)::int n FROM listings WHERE seller_id=${f.owner.id} AND status IN ('active','pending_review')`)[0].n).toBe(3);
+  } finally {
+    if(replacements.length) await sql`DELETE FROM listings WHERE id IN ${sql(replacements)}`;
+    await cleanup(f);
+  }
+});
+
+test('autonomy rejected-ad resubmission respects the shared quota',async({page})=>{
+  const f=await fixture();
+  const replacements:number[]=[];
+  try {
+    await sql`UPDATE listings SET status='rejected' WHERE id=${f.listing.id}`;
+    const [before]=await sql`SELECT price_pkr FROM listings WHERE id=${f.listing.id}`;
+    for(let i=0;i<3;i++) {
+      const [row]=await sql`INSERT INTO listings SELECT r.* FROM listings l CROSS JOIN LATERAL jsonb_populate_record(NULL::listings,to_jsonb(l)||jsonb_build_object('id',nextval('listings_id_seq'),'title','Resubmission quota replacement','slug','resubmission-quota-replacement','status','active','photo_count',0)) r WHERE l.id=${f.listing.id} RETURNING id`;
+      replacements.push(row.id);
+    }
+    await login(page,f.owner.email,`/dashboard/listings/${f.listing.id}/edit`);
+    await page.locator('input[name="pricePkr"]').fill('3650000');
+    await page.getByRole('button',{name:'Save and resubmit ad'}).click();
+    await expect(page.getByText('You already have 3 live ads. Mark one as sold, or upgrade to a dealer account.')).toBeVisible();
+    await expect(page.locator('input[name="pricePkr"]')).toHaveValue('3650000');
+    await expect(page.locator('select[name="variantId"]')).not.toHaveValue('');
+    expect((await sql`SELECT status,price_pkr FROM listings WHERE id=${f.listing.id}`)[0]).toMatchObject({status:'rejected',price_pkr:before.price_pkr});
+    await sql`UPDATE listings SET status='sold' WHERE id=${replacements[0]}`;
+    await page.getByRole('button',{name:'Save and resubmit ad'}).click();
+    await expect(page).toHaveURL(/\/dashboard\?updated=1$/);
+    expect((await sql`SELECT status,price_pkr FROM listings WHERE id=${f.listing.id}`)[0]).toMatchObject({status:'pending_review',price_pkr:3650000});
+  } finally {
+    if(replacements.length) await sql`DELETE FROM listings WHERE id IN ${sql(replacements)}`;
+    await cleanup(f);
+  }
+});
+
+test('autonomy banned inventory hides detail media contact and discovery until unban',async({page})=>{
+  const f=await fixture();
+  const phone='+92300'+String(f.owner.id).padStart(7,'0');
+  const path=`/used-cars/${f.listing.slug}-${f.listing.id}`;
+  try {
+    await sql`UPDATE users SET phone=${phone} WHERE id=${f.owner.id}`;
+    await page.goto(path);
+    const action=await capture(page,()=>page.getByRole('button',{name:/Show number/}).click());
+    await sql`UPDATE users SET is_banned=true WHERE id=${f.owner.id}`;
+    expect((await page.request.get(path,{headers:{cookie:''}})).status()).toBe(404);
+    expect((await page.request.get(`/uploads/${f.key}`,{headers:{cookie:''}})).status()).toBe(404);
+    expect((await page.request.head(`/uploads/${f.key}`,{headers:{cookie:''}})).status()).toBe(404);
+    expect(await (await page.request.get(`/api/recently-viewed?ids=${f.listing.id}`)).json()).toEqual({rows:[]});
+    expect(await (await page.request.get('/sitemap.xml')).text()).not.toContain(`${f.listing.slug}-${f.listing.id}`);
+    const contact=await page.request.post(action.url,{data:action.data,headers:action.headers});
+    const body=await contact.text();
+    expect(body).toContain('This listing is no longer available.');
+    expect(body).not.toContain(phone);
+    await sql`UPDATE users SET is_banned=false WHERE id=${f.owner.id}`;
+    expect((await page.request.get(path,{headers:{cookie:''}})).status()).toBe(200);
+    await sql`UPDATE listings SET status='removed' WHERE id=${f.listing.id}`;
+    await sql`UPDATE users SET is_banned=true WHERE id=${f.owner.id}`;
+    await sql`UPDATE users SET is_banned=false WHERE id=${f.owner.id}`;
+    expect((await page.request.get(path,{headers:{cookie:''}})).status()).toBe(404);
+  } finally {await cleanup(f);}
+});
+
+test('autonomy authenticated return paths stay on the local website',async({page})=>{
+  const f=await fixture();
+  try {
+    await login(page,f.owner.email);
+    const cookie=(await page.context().cookies()).map(c=>`${c.name}=${c.value}`).join('; ');
+    for(const target of ['/\\attacker.example/review','//attacker.example','/%5cattacker.example','/safe/..//attacker.example']) {
+      const response=await page.request.get(`/login?next=${encodeURIComponent(target)}`,{headers:{cookie},maxRedirects:0});
+      expect(response.status()).toBe(307);
+      expect(response.headers().location).toBe('/');
+    }
+    const normal=await page.request.get('/login?next=%2Fdashboard%3Ftab%3Dads',{headers:{cookie},maxRedirects:0});
+    expect(normal.headers().location).toBe('/dashboard?tab=ads');
   } finally {await cleanup(f);}
 });
 

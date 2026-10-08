@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cities } from "@/db/schema/geo";
 import { listings } from "@/db/schema/listings";
 import { abs, serializeJsonLd } from "@/lib/seo/jsonld";
 import { InspectionForm } from "./InspectionForm";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 export const metadata: Metadata = {
   title: "Request a Vehicle Inspection | JaniWheels",
@@ -25,7 +26,7 @@ export default async function InspectionPage({
     const listingId = Number(rawListingId);
     if (!/^\d+$/.test(rawListingId) || !Number.isSafeInteger(listingId) || listingId < 1) notFound();
     const [listing] = await db.select({ id: listings.id, title: listings.title }).from(listings)
-      .where(and(eq(listings.id, listingId), eq(listings.vertical, "car"), eq(listings.status, "active"), isNull(listings.sellerDeletedAt)))
+      .where(and(eq(listings.id, listingId), eq(listings.vertical, "car"), publicListingEligibility()))
       .limit(1);
     if (!listing) notFound();
     linkedListing = listing;

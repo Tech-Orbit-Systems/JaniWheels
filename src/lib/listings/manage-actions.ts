@@ -19,7 +19,7 @@ import { makes, models, partCategories, variants } from "@/db/schema/taxonomy";
 import { getCurrentUser } from "@/lib/auth/session";
 import { moderationLog } from "@/db/schema/trust";
 import { claimUploadedImages, UploadOwnershipError } from "@/lib/images/ownership";
-import { retentionMediaDeletions } from "@/db/schema/retention";
+import { retentionMediaDeletions, retentionReceipts } from "@/db/schema/retention";
 import { listingEditHeld } from "./edit-protection";
 import { buildListingSlug, buildListingPath } from "./slug";
 import { listingCoordinates } from "./location";
@@ -31,6 +31,7 @@ import {
 } from "./validation";
 import type { SellState } from "./sell-actions";
 import { ACCOUNT_LIMITS, allowAccountAction } from "@/lib/security/rate-limit";
+import { assertListingQuota, ListingQuotaError, lockListingOwner } from "./quota";
 
 function num(value: FormDataEntryValue | null): number | undefined {
   if (value === null || value === "") return undefined;
@@ -205,11 +206,13 @@ export async function updateListingAction(
 
   try {
     await db.transaction(async (tx) => {
+      await lockListingOwner(tx, listing.sellerId);
       if (await listingEditHeld(tx,listingId)) throw new Error("LISTING_HELD");
       const [locked] = await tx.select({ sellerId: listings.sellerId, status: listings.status })
         .from(listings).where(eq(listings.id, listingId)).for("update").limit(1);
       const adminEdit = Boolean(user.isAdmin && locked?.sellerId !== user.id);
       if (!locked || (!adminEdit && locked.sellerId !== user.id) || locked.status === "removed") throw new Error("LISTING_UNAVAILABLE");
+      if (!adminEdit && locked.status === "rejected") await assertListingQuota(tx, locked.sellerId);
 
       const existing = await tx.select({ key: listingImages.storageKey })
         .from(listingImages).where(eq(listingImages.listingId, listingId));
@@ -361,6 +364,7 @@ export async function updateListingAction(
       if (removed.length) await tx.insert(retentionMediaDeletions).values(removed.map(storageKey=>({storageKey}))).onConflictDoNothing();
     });
   } catch (error) {
+    if (error instanceof ListingQuotaError) return { error: error.message };
     if (error instanceof UploadOwnershipError) return { error: error.message, fieldErrors: { imageKeys: error.message } };
     if (error instanceof Error && error.message === "INVALID_TAXONOMY") return { error: "Choose valid category and vehicle options." };
     if (error instanceof Error && error.message === "LISTING_UNAVAILABLE") return { error: "This ad can no longer be edited." };
@@ -390,8 +394,13 @@ export async function deleteListingAction(listingId: number): Promise<void> {
   if (!listing) return;
   if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) redirect("/dashboard?limited=1");
   // Ordinary ad deletion hides it; approved retention owns evidence/photo expiry.
-  await db.update(listings).set({status:"removed",sellerDeletedAt:new Date(),updatedAt:new Date()})
-    .where(and(eq(listings.id,listingId),eq(listings.sellerId,user.id),isNull(listings.sellerDeletedAt)));
+  await db.transaction(async tx => {
+    const deletedAt = new Date();
+    const [deleted] = await tx.update(listings).set({status:"removed",sellerDeletedAt:deletedAt,updatedAt:deletedAt})
+      .where(and(eq(listings.id,listingId),eq(listings.sellerId,user.id),isNull(listings.sellerDeletedAt)))
+      .returning({id:listings.id});
+    if (deleted) await tx.insert(retentionReceipts).values({resource:"listing",resourceId:listingId,action:"seller-delete",occurredAt:deletedAt});
+  });
   revalidatePath("/dashboard");
 }
 
@@ -401,10 +410,22 @@ export async function reactivateListingAction(listingId: number): Promise<void> 
   const listing = await ownedListing(user.id, listingId);
   if (!listing || (listing.status !== "sold" && listing.status !== "expired")) return;
   if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) redirect("/dashboard?limited=1");
-  const now = new Date();
-  await db.update(listings).set({
-    status: "active", soldAt: null, publishedAt: now,
-    expiresAt: new Date(now.getTime() + 30 * 86_400_000), updatedAt: now,
-  }).where(and(eq(listings.id, listingId), eq(listings.sellerId, user.id),inArray(listings.status,["sold","expired"]),isNull(listings.sellerDeletedAt),isNull(listings.redactedAt)));
+  try {
+    await db.transaction(async tx => {
+      await lockListingOwner(tx, user.id);
+      const [current] = await tx.select({status:listings.status,sellerDeletedAt:listings.sellerDeletedAt,redactedAt:listings.redactedAt})
+        .from(listings).where(and(eq(listings.id,listingId),eq(listings.sellerId,user.id))).for("update").limit(1);
+      if (!current || !["sold","expired"].includes(current.status) || current.sellerDeletedAt || current.redactedAt) return;
+      await assertListingQuota(tx, user.id);
+      const now = new Date();
+      await tx.update(listings).set({
+        status: "active", soldAt: null, publishedAt: now,
+        expiresAt: new Date(now.getTime() + 30 * 86_400_000), updatedAt: now,
+      }).where(eq(listings.id, listingId));
+    });
+  } catch (error) {
+    if (error instanceof ListingQuotaError) redirect("/dashboard?quota=1");
+    throw error;
+  }
   revalidatePath("/dashboard");
 }
