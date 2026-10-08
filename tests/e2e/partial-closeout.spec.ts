@@ -5,18 +5,19 @@ import {mkdir,readFile,rm,writeFile} from "node:fs/promises";
 import {dirname,join} from "node:path";
 import postgres from "postgres";
 import sharp from "sharp";
-import {exportLedger,replayLedger} from "../../src/lib/retention/core";
+import {closeAccount,exportLedger,replayLedger} from "../../src/lib/retention/core";
 
 const url=process.env.DATABASE_URL!;
 if (!/(?:_test|_acceptance)$/.test(new URL(url).pathname)) throw new Error("Isolated acceptance database required");
 const sql=postgres(url,{max:3});
 test.afterAll(async()=>{await sql.end();});
-async function fixture() {
+async function fixture(vertical:'car'|'bike'='car') {
   const tag=randomUUID();
   const [owner]=await sql`INSERT INTO users(name,email,email_verified_at,password_hash) SELECT 'Closeout seller',${tag+'@example.invalid'},NOW(),password_hash FROM users WHERE email='acceptance-seller@example.invalid' RETURNING id,email`;
   const [admin]=await sql`INSERT INTO users(name,email,email_verified_at,password_hash,is_admin) SELECT 'Closeout administrator',${tag+'-admin@example.invalid'},NOW(),password_hash,true FROM users WHERE email='acceptance-admin@example.invalid' RETURNING id,email`;
-  const [listing]=await sql`INSERT INTO listings SELECT r.* FROM listings l CROSS JOIN LATERAL jsonb_populate_record(NULL::listings,to_jsonb(l)||jsonb_build_object('id',nextval('listings_id_seq'),'seller_id',${owner.id}::integer,'dealer_id',NULL,'title',${tag}::text,'slug',${tag}::text,'status','active','seller_deleted_at',NULL,'redacted_at',NULL,'photo_count',1)) r WHERE l.vertical='car' AND l.status='active' AND l.variant_id IS NOT NULL ORDER BY l.id LIMIT 1 RETURNING id,slug`;
-  await sql`INSERT INTO car_details SELECT r.* FROM car_details c CROSS JOIN LATERAL jsonb_populate_record(NULL::car_details,to_jsonb(c)||jsonb_build_object('listing_id',${listing.id}::integer)) r WHERE c.listing_id=(SELECT id FROM listings WHERE vertical='car' AND status='active' AND variant_id IS NOT NULL ORDER BY id LIMIT 1)`;
+  const [listing]=await sql`INSERT INTO listings SELECT r.* FROM listings l CROSS JOIN LATERAL jsonb_populate_record(NULL::listings,to_jsonb(l)||jsonb_build_object('id',nextval('listings_id_seq'),'seller_id',${owner.id}::integer,'dealer_id',NULL,'title',${tag}::text,'slug',${tag}::text,'status','active','seller_deleted_at',NULL,'redacted_at',NULL,'photo_count',1)) r WHERE l.vertical=${vertical} AND l.status='active' AND l.variant_id IS NOT NULL ORDER BY l.id LIMIT 1 RETURNING id,slug`;
+  const detailTable=vertical==='car'?'car_details':'bike_details';
+  await sql`INSERT INTO ${sql(detailTable)} SELECT r.* FROM ${sql(detailTable)} c CROSS JOIN LATERAL jsonb_populate_record(NULL::${sql(detailTable)},to_jsonb(c)||jsonb_build_object('listing_id',${listing.id}::integer)) r WHERE c.listing_id=(SELECT id FROM listings WHERE vertical=${vertical} AND status='active' AND variant_id IS NOT NULL ORDER BY id LIMIT 1)`;
   const key=`202610/${tag.replaceAll('-','')}.webp`;
   const path=join(process.env.UPLOAD_DIR!,key);
   await mkdir(dirname(path),{recursive:true});
@@ -240,5 +241,63 @@ test('autonomy complaint hold rejects edit without changing details or photos',a
     await expect(page.getByText('This ad is under complaint review. Its details and photos cannot be changed until the review is released.')).toBeVisible();
     expect((await sql`SELECT price_pkr FROM listings WHERE id=${f.listing.id}`)[0].price_pkr).toBe(before.price_pkr);
     expect((await sql`SELECT count(*)::int n FROM listing_images WHERE listing_id=${f.listing.id}`)[0].n).toBe(1);
+  } finally {await cleanup(f);}
+});
+
+for(const vertical of ['car','bike'] as const) test(`${vertical} vehicle edit rejects inactive ancestors and forged variants`,async({page})=>{
+  const f=await fixture(vertical);
+  let makeId:number|undefined,modelId:number|undefined,variantId:number|undefined;
+  try {
+    const [original]=await sql`SELECT variant_id,price_pkr,make_id,model_id FROM listings WHERE id=${f.listing.id}`;
+    const [make]=await sql`INSERT INTO makes(vertical,slug,name) VALUES (${vertical},${f.tag},'Acceptance make') RETURNING id`;
+    makeId=make.id;
+    const [model]=await sql`INSERT INTO models(make_id,vertical,slug,name,full_slug) VALUES (${make.id},${vertical},${f.tag},'Acceptance model',${f.tag}) RETURNING id`;
+    modelId=model.id;
+    const [variant]=await sql`INSERT INTO variants(model_id,slug,name,fuel) SELECT ${model.id},${f.tag},'Acceptance variant',fuel FROM variants WHERE id=${original.variant_id} RETURNING id`;
+    variantId=variant.id;
+    await login(page,f.owner.email,`/dashboard/listings/${f.listing.id}/edit`);
+    const request=await capture(page,()=>page.getByRole('button',{name:'Save advertisement changes'}).click());
+    const originalBody=request.data.toString();
+    expect(originalBody).toMatch(/name="_1_variantId"\r?\n\r?\n\d+/);
+    const submit=(id:number)=>page.request.post(request.url,{data:Buffer.from(originalBody.replace(/(name="_1_variantId"\r?\n\r?\n)\d+/,(_,prefix:string)=>`${prefix}${id}`)),headers:request.headers});
+    for(const [table,id] of [['makes',make.id],['models',model.id],['variants',variant.id]] as const) {
+      await sql`UPDATE ${sql(table)} SET is_active=false WHERE id=${id}`;
+      const response=await submit(variant.id);
+      expect(response.status()).toBe(200);
+      expect(await response.text()).toContain('Choose valid category and vehicle options.');
+      expect((await sql`SELECT variant_id,price_pkr,make_id,model_id FROM listings WHERE id=${f.listing.id}`)[0]).toEqual(original);
+      await sql`UPDATE ${sql(table)} SET is_active=true WHERE id=${id}`;
+    }
+    const forged=await submit(2147483647);
+    expect(forged.status()).toBe(200);
+    expect(await forged.text()).toContain('Choose valid category and vehicle options.');
+    expect((await sql`SELECT variant_id,price_pkr,make_id,model_id FROM listings WHERE id=${f.listing.id}`)[0]).toEqual(original);
+    const valid=await submit(variant.id);
+    expect(valid.status()).toBe(303);
+    expect((await sql`SELECT variant_id,make_id,model_id FROM listings WHERE id=${f.listing.id}`)[0]).toMatchObject({variant_id:variant.id,make_id:make.id,model_id:model.id});
+  } finally {
+    await cleanup(f);
+    if(variantId) await sql`DELETE FROM variants WHERE id=${variantId}`;
+    if(modelId) await sql`DELETE FROM models WHERE id=${modelId}`;
+    if(makeId) await sql`DELETE FROM makes WHERE id=${makeId}`;
+  }
+});
+
+test('concurrent account closure and vehicle edit finish without deadlock',async({page})=>{
+  const f=await fixture();
+  try {
+    await login(page,f.owner.email,`/dashboard/listings/${f.listing.id}/edit`);
+    const request=await capture(page,()=>page.getByRole('button',{name:'Save advertisement changes'}).click());
+    const [edit,closure]=await Promise.allSettled([
+      page.request.post(request.url,{data:request.data,headers:request.headers,timeout:15000}),
+      closeAccount(sql,f.owner.id),
+    ]);
+    expect(edit.status).toBe('fulfilled');
+    expect(closure.status).toBe('fulfilled');
+    if(edit.status==='fulfilled') expect(edit.value.status()).toBeLessThan(500);
+    const [account]=await sql`SELECT closed_at FROM users WHERE id=${f.owner.id}`;
+    const [listing]=await sql`SELECT status FROM listings WHERE id=${f.listing.id}`;
+    expect(account.closed_at).toBeTruthy();
+    expect(listing.status).toBe('removed');
   } finally {await cleanup(f);}
 });

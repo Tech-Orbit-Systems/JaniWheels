@@ -35,6 +35,12 @@ The 15.5.27 patch passed local audit, checks, lint, production build, 103-URL sw
 
 [GitHub run 56](https://github.com/Tech-Orbit-Systems/JaniWheels/actions/runs/37753334311) passed on `df422a7`: 18 DB cases, checks, lint, build, 101 URLs with zero issues and 129 browser cases (127 passed, one passed on retry, one planned skip). The retry came from the mobile accessibility scanner selecting another test's temporary ad while its cleanup deleted it. The scanner now selects stable seeded demo inventory; it still asserts HTTP 200 and no axe violations, without adding retries or weakening assertions. The follow-up test-only commit must pass the full workflow again.
 
+## Fresh independent review of `5918a8a`
+
+The [8 October fresh re-review](https://github.com/Tech-Orbit-Systems/JaniWheels/pull/6#issuecomment-6057807061) found two remaining P2 blockers. Vehicle edits now reject a supplied variant unless its curated make, model and variant are all active and in the matching vertical; a nonexistent ID cannot fall back to ad-local labels. Edit transactions now acquire the retention advisory lock before the owner row lock, matching account closure's order. The offscreen lazy-image browser assertion scrolls the image into view before checking that it loaded.
+
+Focused desktop/mobile browser regressions passed for car and bike edits with inactive make/model/variant IDs, forged IDs, and valid curated edits, plus concurrent account closure and edit (6/6). The upload/media authorization test passed in both viewports after rebuilding with the acceptance site URL (2/2). The 18 isolated DB tests, `npm run check`, lint, production build (maximum First Load JS 128 KB), and 101-route sweep passed. The local Node runtime required a temporary user-info workaround and a bounded heap because of host memory errors; the first unbounded build and a broader parallel browser attempt failed from host memory pressure. These are not recorded as application passes. Full latest-head CI and independent re-review remain pending; WebKit, providers, deployment and production readiness remain unverified.
+
 ## Release gates
 
 Keep PR #6 open for independent review of the updated commit. Passing CI does not approve a merge. Live hosting/database/media/mail/Google configuration, backup restore rehearsal, external monitoring, representative staging load and real-device/screen-reader acceptance remain deployment and launch gates. Approved retention A and seller-badge B1 are unchanged.

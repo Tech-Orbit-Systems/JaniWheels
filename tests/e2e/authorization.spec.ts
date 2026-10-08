@@ -233,6 +233,7 @@ test("uploaded photos enforce read visibility and reject foreign publish and edi
 
     await page.goto(`/dashboard/listings/${listingId}/edit`);
     await expect(page.getByAltText("Ad photo 1")).toBeVisible();
+    await page.getByAltText("Ad photo 1").scrollIntoViewIfNeeded();
     await expect.poll(() => page.getByAltText("Ad photo 1").evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
     const edit = await captureAction(page, () => page.getByRole("button", { name: "Save advertisement changes" }).click());
     expect(edit.data.toString()).toContain(publishKey);

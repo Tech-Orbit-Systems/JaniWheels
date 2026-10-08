@@ -206,8 +206,8 @@ export async function updateListingAction(
 
   try {
     await db.transaction(async (tx) => {
-      await lockListingOwner(tx, listing.sellerId);
       if (await listingEditHeld(tx,listingId)) throw new Error("LISTING_HELD");
+      await lockListingOwner(tx, listing.sellerId);
       const [locked] = await tx.select({ sellerId: listings.sellerId, status: listings.status })
         .from(listings).where(eq(listings.id, listingId)).for("update").limit(1);
       const adminEdit = Boolean(user.isAdmin && locked?.sellerId !== user.id);
@@ -232,10 +232,11 @@ export async function updateListingAction(
           variantBodyType: variants.bodyType, modelId: models.id,
           modelName: models.name, modelBodyType: models.bodyType,
           makeId: makes.id, makeName: makes.name, vertical: makes.vertical,
+          makeActive: makes.isActive, modelActive: models.isActive, variantActive: variants.isActive,
         }).from(variants).innerJoin(models, eq(variants.modelId, models.id))
           .innerJoin(makes, eq(models.makeId, makes.id))
           .where(eq(variants.id, data.variantId)).limit(1) : [];
-        if (variant && variant.vertical !== "car") throw new Error("INVALID_TAXONOMY");
+        if (data.variantId && (!variant || variant.vertical !== "car" || !variant.makeActive || !variant.modelActive || !variant.variantActive)) throw new Error("INVALID_TAXONOMY");
         const makeName = variant?.makeName ?? data.customMakeName!;
         const modelName = variant?.modelName ?? data.customModelName!;
         const variantName = variant?.name ?? data.customVariantName;
@@ -268,10 +269,11 @@ export async function updateListingAction(
           transmission: variants.transmission, fuel: variants.fuel,
           modelId: models.id, modelName: models.name,
           makeId: makes.id, makeName: makes.name, vertical: makes.vertical,
+          makeActive: makes.isActive, modelActive: models.isActive, variantActive: variants.isActive,
         }).from(variants).innerJoin(models, eq(variants.modelId, models.id))
           .innerJoin(makes, eq(models.makeId, makes.id))
           .where(eq(variants.id, data.variantId)).limit(1) : [];
-        if (variant && variant.vertical !== "bike") throw new Error("INVALID_TAXONOMY");
+        if (data.variantId && (!variant || variant.vertical !== "bike" || !variant.makeActive || !variant.modelActive || !variant.variantActive)) throw new Error("INVALID_TAXONOMY");
         const makeName = variant?.makeName ?? data.customMakeName!;
         const modelName = variant?.modelName ?? data.customModelName!;
         const variantName = variant?.name ?? data.customVariantName;
