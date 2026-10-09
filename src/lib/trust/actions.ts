@@ -112,8 +112,7 @@ export async function reportListingAction(
 
   const outcome = await db.transaction(async (tx) => {
     // Serialize reports for the same ad so concurrent submissions cannot skip the threshold.
-    // Reciprocal reporters need FK KEY SHARE on each other's user rows.
-    const locked = await lockModerationListing(tx, parsed.data.listingId, "no key update");
+    const locked = await lockModerationListing(tx, parsed.data.listingId);
     const listing = locked?.listing;
     const owner = locked?.owner;
     if (!listing || !owner || listing.sellerDeletedAt || listing.redactedAt || listing.status !== "active" || owner.closedAt || owner.isBanned || owner.anonymizedAt) {
@@ -311,13 +310,13 @@ export async function updateInspectionAction(
 
 type ModerationTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-async function lockModerationListing(tx: ModerationTx, listingId: number, ownerLock: "update" | "no key update" = "update") {
+async function lockModerationListing(tx: ModerationTx, listingId: number) {
   const [candidate] = await tx.select({ sellerId: listings.sellerId })
     .from(listings).where(eq(listings.id, listingId)).limit(1);
   if (!candidate) return null;
-  // Closure locks the owner before its inventory; moderation must use that order too.
+  // Closure takes owner FOR UPDATE first; this lock preserves that order while allowing actor and reporter FK KEY SHARE.
   const [owner] = await tx.select({ closedAt: users.closedAt, isBanned: users.isBanned, anonymizedAt: users.anonymizedAt })
-    .from(users).where(eq(users.id, candidate.sellerId)).for(ownerLock).limit(1);
+    .from(users).where(eq(users.id, candidate.sellerId)).for("no key update").limit(1);
   if (!owner) return null;
   const [listing] = await tx.select({ sellerId: listings.sellerId, status: listings.status, sellerDeletedAt: listings.sellerDeletedAt, redactedAt: listings.redactedAt })
     .from(listings).where(eq(listings.id, listingId)).for("update").limit(1);

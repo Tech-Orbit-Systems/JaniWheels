@@ -363,6 +363,72 @@ for(const decision of ['approve','reinstate'] as const) for(const schedule of ['
   });
 }
 
+for(const decision of ['approve','reinstate'] as const) {
+  test(`reciprocal admin-owned ${decision} actions finish with one audit each`,async({page,browser})=>{
+    const a=await fixture();
+    const b=await fixture();
+    const contextB=await browser.newContext();
+    const pageB=await contextB.newPage();
+    let release!:()=>void;
+    let ready!:()=>void;
+    const gate=new Promise<void>(resolve=>{release=resolve;});
+    const held=new Promise<void>(resolve=>{ready=resolve;});
+    let blocker:Promise<unknown>|undefined;
+    let settled:Promise<PromiseSettledResult<Awaited<ReturnType<typeof page.request.post>>>[]>|undefined;
+    try {
+      await sql`UPDATE users SET is_admin=true WHERE id IN (${a.owner.id},${b.owner.id})`;
+      await sql`UPDATE listings SET status='pending_review' WHERE id IN (${a.listing.id},${b.listing.id})`;
+      await login(page,a.owner.email,'/admin/moderation');
+      const rowA=page.getByRole('listitem').filter({hasText:b.tag});
+      if(decision==='reinstate') await rowA.getByPlaceholder('Rejection reason (required to reject)').fill('Review completed safely');
+      const actionA=await capture(page,()=>rowA.getByRole('button',{name:decision==='approve'?'Approve':'Reinstate'}).click());
+      await login(pageB,b.owner.email,'/admin/moderation');
+      const rowB=pageB.getByRole('listitem').filter({hasText:a.tag});
+      if(decision==='reinstate') await rowB.getByPlaceholder('Rejection reason (required to reject)').fill('Review completed safely');
+      const actionB=await capture(pageB,()=>rowB.getByRole('button',{name:decision==='approve'?'Approve':'Reinstate'}).click());
+      blocker=sql.begin(async tx=>{
+        await tx`SELECT id FROM listings WHERE id IN (${a.listing.id},${b.listing.id}) ORDER BY id FOR UPDATE`;
+        ready();
+        await gate;
+      });
+      await held;
+      settled=Promise.allSettled([
+        page.request.post(actionA.url,{data:actionA.data,headers:actionA.headers,timeout:15000}),
+        pageB.request.post(actionB.url,{data:actionB.data,headers:actionB.headers,timeout:15000}),
+      ]);
+      await expect.poll(async()=>{
+        const [row]=await sql`SELECT count(*)::int n FROM pg_stat_activity
+          WHERE datname=current_database() AND wait_event_type='Lock'
+          AND query ILIKE '%FROM "listings"%' AND query ILIKE '%FOR UPDATE%'`;
+        return row.n;
+      },{timeout:10000}).toBeGreaterThanOrEqual(2);
+      release();
+      const results=await settled;
+      for(const result of results) {
+        expect(result.status).toBe('fulfilled');
+        if(result.status==='fulfilled') {
+          expect(result.value.status()).toBeLessThan(500);
+          expect(await result.value.text()).not.toMatch(/\d+:E\{"digest":"\d+"/);
+        }
+      }
+      for(const listing of [a.listing,b.listing]) {
+        const [state]=await sql`SELECT status FROM listings WHERE id=${listing.id}`;
+        const [audit]=await sql`SELECT count(*)::int n FROM moderation_log WHERE listing_id=${listing.id} AND action=${decision}`;
+        expect(state.status).toBe('active');
+        expect(audit.n).toBe(1);
+      }
+    } finally {
+      release?.();
+      await blocker?.catch(()=>{});
+      await settled?.catch(()=>{});
+      await contextB.close();
+      await sql`DELETE FROM moderation_log WHERE listing_id IN (${a.listing.id},${b.listing.id})`;
+      await cleanup(a);
+      await cleanup(b);
+    }
+  });
+}
+
 for(const existingCount of [3,4] as const) {
   test(`reciprocal authenticated reports serialize with ${existingCount} prior reports`,async({page,browser})=>{
     const a=await fixture();
