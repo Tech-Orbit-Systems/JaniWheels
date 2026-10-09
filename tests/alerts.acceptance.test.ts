@@ -71,7 +71,8 @@ test("saved alerts drain overflow, deduplicate, retry immutably and honor opt-ou
     assert.equal(failed.attempts, 1);
     assert.ok(failed.first_attempt_at && failed.next_attempt_at > new Date());
     await sql`UPDATE listings SET title='Changed after first send attempt' WHERE id=${failed.listing_id}`;
-    await sql`UPDATE saved_search_notifications SET next_attempt_at=NOW() WHERE id=${firstId}`;
+    // Give the retry a past due time across PostgreSQL and JavaScript clock precision.
+    await sql`UPDATE saved_search_notifications SET next_attempt_at=NOW()-INTERVAL '1 second' WHERE id=${firstId}`;
     await deliverSavedSearchAlerts(async (payload, key) => { assert.equal(key, firstKey); assert.deepEqual(payload, firstPayload); }, 1);
     assert.equal((await sql`SELECT delivered FROM saved_search_notifications WHERE id=${firstId}`)[0].delivered, true);
 
