@@ -19,7 +19,7 @@ export function ListingManagementButtons({
   if (confirmDelete) {
     return (
       <span className="flex flex-wrap items-center gap-2">
-        <span className="text-red-700">Delete this ad and its photos?</span>
+        <span className="text-red-700">Delete this ad? It will be hidden immediately. Photos are kept privately under our retention policy.</span>
         <button
           type="button"
           disabled={pending}

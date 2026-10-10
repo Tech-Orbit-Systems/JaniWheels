@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bikeDetails,
@@ -19,16 +19,20 @@ import { makes, models, partCategories, variants } from "@/db/schema/taxonomy";
 import { getCurrentUser } from "@/lib/auth/session";
 import { moderationLog } from "@/db/schema/trust";
 import { claimUploadedImages, UploadOwnershipError } from "@/lib/images/ownership";
-import { removeStoredImage } from "@/lib/images/storage";
+import { retentionMediaDeletions, retentionReceipts } from "@/db/schema/retention";
+import { listingEditHeld } from "./edit-protection";
 import { buildListingSlug, buildListingPath } from "./slug";
 import { listingCoordinates } from "./location";
 import {
   bikeListingSchema,
   carListingSchema,
+  optionalVariantId,
   partListingSchema,
   sanitizeDescription,
 } from "./validation";
 import type { SellState } from "./sell-actions";
+import { ACCOUNT_LIMITS, allowAccountAction } from "@/lib/security/rate-limit";
+import { assertListingQuota, ListingQuotaError, lockListingOwner } from "./quota";
 
 function num(value: FormDataEntryValue | null): number | undefined {
   if (value === null || value === "") return undefined;
@@ -100,7 +104,7 @@ function parseEdit(vertical: "car" | "bike" | "part", formData: FormData): Parse
   if (vertical === "car") {
     const parsed = carListingSchema.safeParse({
       ...common,
-      variantId: num(formData.get("variantId")),
+      variantId: optionalVariantId(formData.get("variantId")),
       customMakeName: text(formData.get("customMakeName")),
       customModelName: text(formData.get("customModelName")),
       customVariantName: text(formData.get("customVariantName")),
@@ -124,7 +128,7 @@ function parseEdit(vertical: "car" | "bike" | "part", formData: FormData): Parse
     const bikeType = String(formData.get("bikeType") ?? "motorcycle");
     const parsed = bikeListingSchema.safeParse({
       ...common,
-      variantId: num(formData.get("variantId")),
+      variantId: optionalVariantId(formData.get("variantId")),
       customMakeName: text(formData.get("customMakeName")),
       customModelName: text(formData.get("customModelName")),
       customVariantName: text(formData.get("customVariantName")),
@@ -194,19 +198,22 @@ export async function updateListingAction(
       .from(listings).where(eq(listings.id, listingId)).limit(1).then(([row]) => row?.sellerDeletedAt ? null : row)
     : await ownedListing(user.id, listingId);
   if (!listing || listing.status === "removed") return { error: "This ad cannot be edited." };
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) return {error:"Too many ad changes. Please wait and try again."};
 
   const parsed = parseEdit(listing.vertical, formData);
   if (!("vertical" in parsed)) return parsed;
   const location = await validateLocation(parsed.data.cityId, parsed.data.areaId);
   if (!location) return { error: "Choose a valid city and area.", fieldErrors: { cityId: "Choose a valid city and area." } };
 
-  let removedKeys: string[] = [];
   try {
-    removedKeys = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
+      if (await listingEditHeld(tx,listingId)) throw new Error("LISTING_HELD");
+      await lockListingOwner(tx, listing.sellerId);
       const [locked] = await tx.select({ sellerId: listings.sellerId, status: listings.status })
-        .from(listings).where(eq(listings.id, listingId)).limit(1);
+        .from(listings).where(eq(listings.id, listingId)).for("update").limit(1);
       const adminEdit = Boolean(user.isAdmin && locked?.sellerId !== user.id);
       if (!locked || (!adminEdit && locked.sellerId !== user.id) || locked.status === "removed") throw new Error("LISTING_UNAVAILABLE");
+      if (!adminEdit && locked.status === "rejected") await assertListingQuota(tx, locked.sellerId);
 
       const existing = await tx.select({ key: listingImages.storageKey })
         .from(listingImages).where(eq(listingImages.listingId, listingId));
@@ -226,10 +233,11 @@ export async function updateListingAction(
           variantBodyType: variants.bodyType, modelId: models.id,
           modelName: models.name, modelBodyType: models.bodyType,
           makeId: makes.id, makeName: makes.name, vertical: makes.vertical,
+          makeActive: makes.isActive, modelActive: models.isActive, variantActive: variants.isActive,
         }).from(variants).innerJoin(models, eq(variants.modelId, models.id))
           .innerJoin(makes, eq(models.makeId, makes.id))
           .where(eq(variants.id, data.variantId)).limit(1) : [];
-        if (variant && variant.vertical !== "car") throw new Error("INVALID_TAXONOMY");
+        if (data.variantId && (!variant || variant.vertical !== "car" || !variant.makeActive || !variant.modelActive || !variant.variantActive)) throw new Error("INVALID_TAXONOMY");
         const makeName = variant?.makeName ?? data.customMakeName!;
         const modelName = variant?.modelName ?? data.customModelName!;
         const variantName = variant?.name ?? data.customVariantName;
@@ -262,10 +270,11 @@ export async function updateListingAction(
           transmission: variants.transmission, fuel: variants.fuel,
           modelId: models.id, modelName: models.name,
           makeId: makes.id, makeName: makes.name, vertical: makes.vertical,
+          makeActive: makes.isActive, modelActive: models.isActive, variantActive: variants.isActive,
         }).from(variants).innerJoin(models, eq(variants.modelId, models.id))
           .innerJoin(makes, eq(models.makeId, makes.id))
           .where(eq(variants.id, data.variantId)).limit(1) : [];
-        if (variant && variant.vertical !== "bike") throw new Error("INVALID_TAXONOMY");
+        if (data.variantId && (!variant || variant.vertical !== "bike" || !variant.makeActive || !variant.modelActive || !variant.variantActive)) throw new Error("INVALID_TAXONOMY");
         const makeName = variant?.makeName ?? data.customMakeName!;
         const modelName = variant?.modelName ?? data.customModelName!;
         const variantName = variant?.name ?? data.customVariantName;
@@ -355,16 +364,17 @@ export async function updateListingAction(
         eq(pendingUploads.listingId, listingId),
         inArray(pendingUploads.storageKey, removed),
       ));
-      return removed;
+      if (removed.length) await tx.insert(retentionMediaDeletions).values(removed.map(storageKey=>({storageKey}))).onConflictDoNothing();
     });
   } catch (error) {
+    if (error instanceof ListingQuotaError) return { error: error.message };
     if (error instanceof UploadOwnershipError) return { error: error.message, fieldErrors: { imageKeys: error.message } };
     if (error instanceof Error && error.message === "INVALID_TAXONOMY") return { error: "Choose valid category and vehicle options." };
     if (error instanceof Error && error.message === "LISTING_UNAVAILABLE") return { error: "This ad can no longer be edited." };
+    if (error instanceof Error && error.message === "LISTING_HELD") return {error:"This ad is under complaint review. Its details and photos cannot be changed until the review is released."};
     throw error;
   }
 
-  await Promise.all(removedKeys.map((key) => removeStoredImage(key)));
   revalidatePath("/dashboard");
   revalidatePath(buildListingPath(listing.vertical, "updated", listingId));
   redirect(user.isAdmin && listing.sellerId !== user.id ? `/admin/listings?updated=${listingId}` : `/dashboard?updated=1`);
@@ -385,18 +395,15 @@ export async function deleteListingAction(listingId: number): Promise<void> {
   if (!user) redirect("/login?next=/dashboard");
   const listing = await ownedListing(user.id, listingId);
   if (!listing) return;
-
-  const keys = await db.transaction(async (tx) => {
-    const images = await tx.select({ key: listingImages.storageKey }).from(listingImages)
-      .where(eq(listingImages.listingId, listingId));
-    await tx.update(listings).set({
-      status: "removed", sellerDeletedAt: new Date(), updatedAt: new Date(), photoCount: 0,
-    }).where(and(eq(listings.id, listingId), eq(listings.sellerId, user.id)));
-    await tx.delete(listingImages).where(eq(listingImages.listingId, listingId));
-    await tx.delete(pendingUploads).where(eq(pendingUploads.listingId, listingId));
-    return images.map((image) => image.key);
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) redirect("/dashboard?limited=1");
+  // Ordinary ad deletion hides it; approved retention owns evidence/photo expiry.
+  await db.transaction(async tx => {
+    const deletedAt = new Date();
+    const [deleted] = await tx.update(listings).set({status:"removed",sellerDeletedAt:deletedAt,updatedAt:deletedAt})
+      .where(and(eq(listings.id,listingId),eq(listings.sellerId,user.id),isNull(listings.sellerDeletedAt)))
+      .returning({id:listings.id});
+    if (deleted) await tx.insert(retentionReceipts).values({resource:"listing",resourceId:listingId,action:"seller-delete",occurredAt:deletedAt});
   });
-  await Promise.all(keys.map((key) => removeStoredImage(key)));
   revalidatePath("/dashboard");
 }
 
@@ -405,10 +412,23 @@ export async function reactivateListingAction(listingId: number): Promise<void> 
   if (!user) redirect("/login?next=/dashboard");
   const listing = await ownedListing(user.id, listingId);
   if (!listing || (listing.status !== "sold" && listing.status !== "expired")) return;
-  const now = new Date();
-  await db.update(listings).set({
-    status: "active", soldAt: null, publishedAt: now,
-    expiresAt: new Date(now.getTime() + 30 * 86_400_000), updatedAt: now,
-  }).where(and(eq(listings.id, listingId), eq(listings.sellerId, user.id)));
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) redirect("/dashboard?limited=1");
+  try {
+    await db.transaction(async tx => {
+      await lockListingOwner(tx, user.id);
+      const [current] = await tx.select({status:listings.status,sellerDeletedAt:listings.sellerDeletedAt,redactedAt:listings.redactedAt})
+        .from(listings).where(and(eq(listings.id,listingId),eq(listings.sellerId,user.id))).for("update").limit(1);
+      if (!current || !["sold","expired"].includes(current.status) || current.sellerDeletedAt || current.redactedAt) return;
+      await assertListingQuota(tx, user.id);
+      const now = new Date();
+      await tx.update(listings).set({
+        status: "active", soldAt: null, publishedAt: now,
+        expiresAt: new Date(now.getTime() + 30 * 86_400_000), updatedAt: now,
+      }).where(eq(listings.id, listingId));
+    });
+  } catch (error) {
+    if (error instanceof ListingQuotaError) redirect("/dashboard?quota=1");
+    throw error;
+  }
   revalidatePath("/dashboard");
 }

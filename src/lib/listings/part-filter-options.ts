@@ -1,8 +1,9 @@
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cities } from "@/db/schema/geo";
 import { listings, partDetails } from "@/db/schema/listings";
 import { makes, partCategories } from "@/db/schema/taxonomy";
+import { publicListingEligibility } from "./public-eligibility";
 
 export async function getPartFilterOptions() {
   const [categoryRows, makeRows, cityRows, brandRows] = await Promise.all([
@@ -20,7 +21,7 @@ export async function getPartFilterOptions() {
     db.selectDistinct({ brand: partDetails.brand })
       .from(partDetails)
       .innerJoin(listings, eq(partDetails.listingId, listings.id))
-      .where(sql`${listings.status} = 'active' AND ${partDetails.brand} IS NOT NULL`)
+      .where(and(publicListingEligibility(), sql`${partDetails.brand} IS NOT NULL`))
       .orderBy(asc(partDetails.brand)),
   ]);
 

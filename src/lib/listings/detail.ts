@@ -20,6 +20,7 @@ import {
 import { cities, areas } from "@/db/schema/geo";
 import { users, dealers } from "@/db/schema/users";
 import type { Vertical } from "@/lib/seo/facets";
+import { publicListingEligibility } from "./public-eligibility";
 
 /**
  * Everything a detail page needs, in three queries rather than a dozen.
@@ -117,6 +118,9 @@ export const getListingDetail = cache(
         compatibleModelName: sql<string | null>`COALESCE(part_model.name, ${partDetails.customCompatibleModelName})`,
 
         sellerId: users.id,
+        sellerBanned: users.isBanned,
+        sellerClosedAt: users.closedAt,
+        sellerAnonymizedAt: users.anonymizedAt,
         sellerName: users.name,
         sellerPhone: users.phone,
         sellerSince: users.createdAt,
@@ -219,7 +223,7 @@ export const getSimilarListings = cache(
       .innerJoin(cities, eq(listings.cityId, cities.id))
       .where(
         and(
-          eq(listings.status, "active"),
+          publicListingEligibility(),
           eq(listings.modelId, listing.modelId),
           ne(listings.id, listing.id),
         ),

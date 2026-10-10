@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { randomBytes } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -17,6 +17,8 @@ import {
   shouldBanAfterFinalRemoval,
 } from "./moderation-policy";
 import { isInspectionStatus, validateInspectionUpdate } from "./inspection-policy";
+import { ACCOUNT_LIMITS, allowAccountAction, allowPublicAction } from "@/lib/security/rate-limit";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 /**
  * Trust actions: reporting bad listings, booking an inspection, and the
@@ -38,11 +40,12 @@ const REASONS = [
   "spam",
   "other",
 ] as const;
+const AUTO_HIDE_REPORT_THRESHOLD = 5;
 
 const reportSchema = z.object({
-  listingId: z.number().int().positive(),
-  reason: z.enum(REASONS),
-  comment: z.string().trim().max(1000).optional(),
+  listingId: z.number({ invalid_type_error: "Choose a valid ad." }).int("Choose a valid ad.").positive("Choose a valid ad."),
+  reason: z.enum(REASONS, { errorMap: () => ({ message: "Choose a reason." }) }),
+  comment: z.string().trim().max(1000, "Keep your comment under 1,000 characters.").optional(),
 });
 
 export interface ReportState {
@@ -77,6 +80,15 @@ export async function reportListingAction(
     });
   }
 
+  if (!await allowPublicAction(
+    "listing-report",
+    user ? `user:${user.id}` : `anon:${anonId}`,
+    await headers(),
+    { max: 5, sourceMax: 100, windowMs: 60 * 60_000 },
+  )) {
+    return { error: "Too many reports. Please try again later." };
+  }
+
   // One report per person per listing. Without this, a competitor can file
   // fifty reports and trip any automated threshold you set.
   const [existing] = await db
@@ -98,7 +110,14 @@ export async function reportListingAction(
     return { ok: true }; // idempotent; don't reveal that they already reported
   }
 
-  await db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
+    // Serialize reports for the same ad so concurrent submissions cannot skip the threshold.
+    const locked = await lockModerationListing(tx, parsed.data.listingId);
+    const listing = locked?.listing;
+    const owner = locked?.owner;
+    if (!listing || !owner || listing.sellerDeletedAt || listing.redactedAt || listing.status !== "active" || owner.closedAt || owner.isBanned || owner.anonymizedAt) {
+      return { error: "This ad is no longer available for reporting." };
+    }
     const [report] = await tx.insert(listingReports).values({
       listingId: parsed.data.listingId,
       reporterUserId: user?.id ?? null,
@@ -107,10 +126,13 @@ export async function reportListingAction(
       comment: parsed.data.comment ?? null,
     }).onConflictDoNothing().returning({ id: listingReports.id });
 
-    if (!report) return;
+    if (!report) return { ok: true };
 
-    // A report is a safety hold, not a removal: immediately hide only a
-    // currently public ad and let an administrator decide the outcome.
+    const [{ count: openReports }] = await tx.select({ count: sql<number>`COUNT(*)::int` })
+      .from(listingReports).where(and(eq(listingReports.listingId, parsed.data.listingId), eq(listingReports.status, "open")));
+    if (openReports < AUTO_HIDE_REPORT_THRESHOLD) return { ok: true };
+
+    // Five independent reports trigger a temporary safety hold for an administrator to review.
     const [hidden] = await tx
       .update(listings)
       .set({ status: "pending_review", updatedAt: new Date() })
@@ -127,18 +149,22 @@ export async function reportListingAction(
         listingId: parsed.data.listingId,
         userId: hidden.sellerId,
         action: "queue",
-        reason: "Automatically queued for review after a report.",
+        reason: `Automatically queued for review after ${AUTO_HIDE_REPORT_THRESHOLD} open reports.`,
         isAutomated: true,
       });
     }
+    return { ok: true, hidden: Boolean(hidden) };
   });
+
+  if (outcome.error) return outcome;
 
   revalidatePath("/admin/moderation");
   revalidatePath("/used-cars");
   revalidatePath("/used-bikes");
   revalidatePath("/auto-parts");
 
-  return { ok: true };
+  if ("hidden" in outcome && outcome.hidden) redirect("/report-concern?submitted=1");
+  return outcome;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,8 +172,8 @@ export async function reportListingAction(
 // ---------------------------------------------------------------------------
 
 const inspectionSchema = z.object({
-  cityId: z.number().int().positive("Choose a city."),
-  address: z.string().trim().min(5, "Where should the inspector go?").max(240),
+  cityId: z.number().int("Choose a city.").positive("Choose a city."),
+  address: z.string().trim().min(5, "Where should the inspector go?").max(240, "Address is too long."),
   // Every constraint needs its own message. Without one Zod emits its raw
   // internal text ("String must contain at least 10 character(s)") straight
   // into the UI, which reads like a crash rather than a correction.
@@ -155,7 +181,7 @@ const inspectionSchema = z.object({
     .string()
     .min(10, "Enter your mobile number, e.g. 0300 1234567.")
     .max(20, "That number is too long."),
-  listingId: z.number().int().positive().optional(),
+  listingId: z.number().int("Choose a valid car listing.").positive("Choose a valid car listing.").optional(),
 });
 
 export interface InspectionState {
@@ -169,16 +195,18 @@ export async function bookInspectionAction(
   _prev: InspectionState,
   formData: FormData,
 ): Promise<InspectionState> {
+  const listingIdRaw = formData.get("listingId");
   const user = await getCurrentUser();
-  if (!user) redirect("/login?next=/inspection");
-
-  const listingIdRaw = Number(formData.get("listingId"));
+  if (!user) {
+    const next = listingIdRaw === null ? "/inspection" : `/inspection?listingId=${encodeURIComponent(String(listingIdRaw))}`;
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
 
   const parsed = inspectionSchema.safeParse({
     cityId: Number(formData.get("cityId")),
     address: formData.get("address"),
     contactPhone: formData.get("contactPhone"),
-    listingId: Number.isSafeInteger(listingIdRaw) && listingIdRaw > 0 ? listingIdRaw : undefined,
+    listingId: listingIdRaw === null ? undefined : Number(listingIdRaw),
   });
 
   if (!parsed.success) {
@@ -197,7 +225,20 @@ export async function bookInspectionAction(
     };
   }
 
+  if (!await allowPublicAction(
+    "inspection-request", `user:${user.id}`, await headers(),
+    { max: 5, sourceMax: 100, windowMs: 24 * 60 * 60_000 },
+  )) {
+    return { error: "Too many inspection requests. Please try again tomorrow." };
+  }
+
   const row = await db.transaction(async (tx) => {
+    if (parsed.data.listingId) {
+      const [listing] = await tx.select({ id: listings.id }).from(listings)
+        .where(and(eq(listings.id, parsed.data.listingId), eq(listings.vertical, "car"), publicListingEligibility()))
+        .limit(1);
+      if (!listing) return null;
+    }
     const [created] = await tx.insert(inspections).values({
       listingId: parsed.data.listingId ?? null,
       requestedByUserId: user.id,
@@ -216,6 +257,7 @@ export async function bookInspectionAction(
     return created;
   });
 
+  if (!row) return { error: "This car listing is no longer available for inspection." };
   return { ok: true, reference: `INS-${row.id}` };
 }
 
@@ -227,6 +269,7 @@ export async function updateInspectionAction(
 ): Promise<InspectionAdminState> {
   const admin = await requireAdmin();
   const inspectionId = Number(formData.get("inspectionId"));
+  if (!await allowAccountAction("admin-write",admin.id,ACCOUNT_LIMITS.adminWrite)) return {error:"Too many administrative changes. Please wait and try again."};
   const nextRaw = String(formData.get("status") ?? "");
   const internalNote = String(formData.get("internalNote") ?? "").trim();
   const customerMessage = String(formData.get("customerMessage") ?? "").trim();
@@ -265,6 +308,22 @@ export async function updateInspectionAction(
 // Moderation
 // ---------------------------------------------------------------------------
 
+type ModerationTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function lockModerationListing(tx: ModerationTx, listingId: number) {
+  const [candidate] = await tx.select({ sellerId: listings.sellerId })
+    .from(listings).where(eq(listings.id, listingId)).limit(1);
+  if (!candidate) return null;
+  // Closure takes owner FOR UPDATE first; this lock preserves that order while allowing actor and reporter FK KEY SHARE.
+  const [owner] = await tx.select({ closedAt: users.closedAt, isBanned: users.isBanned, anonymizedAt: users.anonymizedAt })
+    .from(users).where(eq(users.id, candidate.sellerId)).for("no key update").limit(1);
+  if (!owner) return null;
+  const [listing] = await tx.select({ sellerId: listings.sellerId, status: listings.status, sellerDeletedAt: listings.sellerDeletedAt, redactedAt: listings.redactedAt })
+    .from(listings).where(eq(listings.id, listingId)).for("update").limit(1);
+  if (!listing || listing.sellerId !== candidate.sellerId) return null;
+  return { listing, owner };
+}
+
 async function requireAdmin() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/admin/moderation");
@@ -285,20 +344,24 @@ export async function moderateAction(
   reason?: string,
 ): Promise<{ ok: boolean; message: string }> {
   const admin = await requireAdmin();
+  if (!Number.isSafeInteger(listingId) || listingId<1 || !["approve","reject"].includes(action) || (reason!==undefined && typeof reason!=="string")) return {ok:false,message:"Invalid moderation decision."};
+  if (!await allowAccountAction("admin-write",admin.id,ACCOUNT_LIMITS.adminWrite)) return {ok:false,message:"Too many administrative changes. Please wait and try again."};
   const cleanReason = reason?.trim();
+  if (cleanReason && cleanReason.length>500) return {ok:false,message:"The moderation reason is too long."};
   if (action === "reject" && (!cleanReason || cleanReason.length < 3)) {
     return { ok: false, message: "Enter a rejection reason of at least 3 characters." };
   }
 
   const outcome = await db.transaction(async (tx) => {
-    const [listing] = await tx
-      .select({ sellerId: listings.sellerId, status: listings.status })
-      .from(listings)
-      .where(eq(listings.id, listingId))
-      .limit(1);
-    if (!listing) return { ok: false, message: "Listing not found." };
+    const locked = await lockModerationListing(tx, listingId);
+    if (!locked) return { ok: false, message: "Listing not found." };
+    const { listing, owner } = locked;
     if (listing.status === "removed") {
       return { ok: false, message: "This listing has already been permanently removed." };
+    }
+    if (listing.status!=="pending_review") return {ok:false,message:"Only an ad awaiting review can be approved or rejected."};
+    if (action === "approve" && (owner.closedAt || owner.isBanned || owner.anonymizedAt || listing.sellerDeletedAt)) {
+      return { ok: false, message: "This seller's ad cannot be published." };
     }
 
     if (action === "approve") {
@@ -352,6 +415,8 @@ export async function setAdminListingStateAction(
   reason?: string,
 ): Promise<{ ok: boolean; message: string }> {
   const admin = await requireAdmin();
+  if (!Number.isSafeInteger(listingId) || listingId<1 || !["flag","reinstate","remove"].includes(decision) || (reason!==undefined && typeof reason!=="string")) return {ok:false,message:"Invalid listing decision."};
+  if (!await allowAccountAction("admin-write",admin.id,ACCOUNT_LIMITS.adminWrite)) return {ok:false,message:"Too many administrative changes. Please wait and try again."};
   const cleanReason = reason?.trim();
   if (!cleanReason || cleanReason.length < 5) {
     return { ok: false, message: "Enter a reason of at least 5 characters." };
@@ -361,14 +426,14 @@ export async function setAdminListingStateAction(
   }
 
   const result = await db.transaction(async (tx) => {
-    const [listing] = await tx.select({
-      sellerId: listings.sellerId,
-      status: listings.status,
-      sellerDeletedAt: listings.sellerDeletedAt,
-    }).from(listings).where(eq(listings.id, listingId)).limit(1);
-    if (!listing || listing.sellerDeletedAt) return { ok: false, message: "Listing not found." };
+    const locked = await lockModerationListing(tx, listingId);
+    if (!locked || locked.listing.sellerDeletedAt) return { ok: false, message: "Listing not found." };
+    const { listing, owner } = locked;
 
     const nextStatus = decision === "reinstate" ? "active" : decision === "flag" ? "pending_review" : "removed";
+    if (decision === "reinstate" && (owner.closedAt || owner.isBanned || owner.anonymizedAt)) {
+      return { ok: false, message: "This seller's ad cannot be published." };
+    }
     if (decision === "reinstate" && listing.status === "removed") {
       return { ok: false, message: "Permanently removed ads cannot be reinstated." };
     }
@@ -413,6 +478,8 @@ export async function setUserBanAction(
   reason?: string,
 ): Promise<{ ok: boolean; message: string }> {
   const admin = await requireAdmin();
+  if (!Number.isSafeInteger(targetUserId) || targetUserId<1 || !["ban","unban"].includes(decision) || (reason!==undefined && typeof reason!=="string")) return {ok:false,message:"Invalid user access decision."};
+  if (!await allowAccountAction("admin-write",admin.id,ACCOUNT_LIMITS.adminWrite)) return {ok:false,message:"Too many administrative changes. Please wait and try again."};
   const cleanReason = reason?.trim();
   if (!cleanReason || cleanReason.length < 5) {
     return { ok: false, message: "Enter a reason of at least 5 characters." };
@@ -422,7 +489,7 @@ export async function setUserBanAction(
 
   const result = await db.transaction(async (tx) => {
     const [target] = await tx.select({ isAdmin: users.isAdmin, isBanned: users.isBanned })
-      .from(users).where(eq(users.id, targetUserId)).limit(1);
+      .from(users).where(eq(users.id, targetUserId)).for("update").limit(1);
     if (!target) return { ok: false, message: "User not found." };
     if (target.isAdmin) return { ok: false, message: "Administrator access cannot be changed here." };
     const shouldBan = decision === "ban";

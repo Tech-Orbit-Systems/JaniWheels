@@ -15,15 +15,18 @@ const config: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
 
   images: {
+    // Uploaded media bypasses the optimizer: it must not cache private responses.
+    localPatterns: [
+      { pathname: "/home/**" },
+      { pathname: "/janiwheels-logo.png" },
+      { pathname: "/placeholder-car.svg" },
+    ],
     // AVIF first — meaningful bandwidth win on the mid-range Android traffic
     // that will make up most of this site's sessions.
     formats: ["image/avif", "image/webp"],
     deviceSizes: [360, 414, 640, 768, 1024, 1280],
     imageSizes: [64, 96, 128, 256, 384],
-    remotePatterns: [
-      { protocol: "https", hostname: "imagedelivery.net" },
-      { protocol: "https", hostname: "**.r2.cloudflarestorage.com" },
-    ],
+    remotePatterns: [],
   },
 
   async headers() {

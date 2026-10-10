@@ -1,12 +1,109 @@
 # JaniWheels consolidated development context
 
-Last reconciled: 30 September 2026
+Last reconciled: 8 October 2026
 
 Workflow decision, 30 September 2026: completed and verified development is
 committed, pushed on its feature branch, and recorded in the master tracker
 without a separate permission request each time. Review and main-branch merge
 remain separate. The homepage vehicle-visual package was approved by the owner,
 committed as `936baee`, and pushed on `codex/homepage-visuals`.
+
+The homepage package was subsequently reviewed and merged through PR #5
+(`c1ef18d`). Stage 6.2 continues on `codex/launch-quality-system`, PR #6.
+GitHub run 43 passed for `0569081`, including migrations, database acceptance,
+static checks, lint, build, route sweep, browser acceptance and production
+dependency audit. The included alert-key review fix uses a persisted UUID
+to prevent collisions between environments and passed both local verification
+and full CI. Agent self-review is recorded in `docs/PR6_REVIEW.md`; no additional
+blocking regression was identified in that earlier self-review. The independent
+review of `e4170b2` subsequently found nine confirmed defects and one ban-policy
+risk. The fixes and regression evidence are recorded in `docs/PR6_REVIEW_RESPONSE.md`.
+Independent review of the updated commit remains required. Always inspect the current PR commit's
+checks before review or merge. The repository workbook under `docs/` is the
+current master tracker; older exported copies are historical snapshots.
+
+Tracker reconciliation on 3 October corrected stale dashboard/roadmap/test
+entries and the excluded S3 provider's scope classification. Overall completion
+is an equal-weight average of feature estimates, not elapsed engineering effort
+or production launch approval. The workbook recalculates the 199 in-scope rows
+after each verified milestone. The 8 October reconciliation has 157 completed,
+one feature-branch item awaiting review, 34 partial/configuration items and seven pending. Twelve excluded rows do not
+contribute. Reviewed estimates and their remaining acceptance gaps are recorded
+on the affected rows. The browser framework is complete awaiting PR review;
+broader coverage and live-device acceptance retain their own open gates.
+
+Owner approved B1 on 4 October: no ordinary-seller verification badge in V1;
+JW-053 is removed from scope by that decision. Dealer verification remains.
+Client approved retention decision A exactly as proposed on 4 October 2026.
+The retention milestone below records implementation and current acceptance.
+
+Saved-search matching now drains overflow and has an immutable, leased delivery
+worker with retry/backoff and eligibility checks. Nine DB acceptance tests
+include alert concurrency, opt-out, deduplication and retry-window controls.
+Live Resend configuration, scheduling and mailbox acceptance remain open.
+Approved account/report/service retention and deletion are implemented, with
+operator runbooks in `docs/RETENTION_DECISIONS.md`. The read-only inventory
+exports counts/dates only. Listing reactivation already exists; its
+local ownership/expiry acceptance now passes; production scheduling and full live lifecycle remain. Preserve these
+distinctions in future tracker updates, including numeric completion/status
+changes when supported, and keep dashboard/roadmap summaries synchronized.
+
+The acceptance suite now includes direct listing edit/sold/delete replay,
+administrator hide/remove/ban denial, matching owner/admin success controls,
+and upload-claim transaction rollback. Direct API replay on local HTTP must
+explicitly carry the current actor's session: the browser can accept a Secure
+cookie on loopback while its request client omits it. Request capture must
+wait until interception has actually aborted the request before removing the
+handler. Neither test accommodation changes production cookie behavior.
+
+The local media package now checks GET/HEAD visibility, blocks optimizer access
+to upload paths, and replays foreign photo keys through publish/edit actions
+with valid-owner controls. Private local images use cookie-bearing direct
+requests and no-store responses. Storage must live outside `public/`; the local
+development files were moved to `.uploads` and the private `.env` path updated.
+Cloudflare now uses private UUID uploads and server-only signed delivery through
+the same visibility endpoint. Mock-provider acceptance passes; live variant
+configuration and existing custom-ID migration remain launch gates. See
+`docs/PRIVATE_MEDIA.md` for limits and the required migration.
+
+Prior local baseline acceptance: 101 browser passes and one planned desktop skip,
+six database checks (five baseline plus admin-bootstrap acceptance), and a
+101-route sweep with no issues. Static checks,
+lint and production build pass; maximum First Load JS remains 128 KB.
+Eight new desktop/mobile cases cover dealer verify/revoke replay, service-admin
+role denial, invalid/terminal transitions, missing customer updates, customer
+privacy and expiry/reactivation. Full isolated acceptance used one worker;
+CI retains two workers. Three additional targeted browse-recovery tests now
+pass against the final build (104 browser passes in aggregate, not a single
+combined run). Cars, bikes and parts recover after a forced database-read
+failure; the targeted run also swept 103 URLs with zero issues. The test caught
+and fixed a stale error-boundary retry: the button now
+refreshes server data before reset. The recovery project runs after ordinary
+browser acceptance and restores its isolated table in cleanup.
+Remaining work includes live Cloudflare configuration/migration,
+provider/slow-network recovery, live alert delivery, retention policy/configuration,
+performance/load checks and live staging.
+
+The initial-admin operator tool is implemented in `scripts/bootstrap-admin.ts`
+with `docs/ADMIN_BOOTSTRAP.md`. Default dry run and explicit target database,
+verified/unbanned account checks, serialized first-admin grant, atomic audit,
+session revocation, failure rollback and idempotency have database acceptance.
+No production administrator was created. Deployment execution remains JW-049.
+
+Autonomous launch hardening, 3 October: runtime/launch environment validation,
+private Cloudflare delivery, alert queue/worker, dealer inventory totals and
+pagination, enlarged-text header/footer fixes, readiness endpoint, structured
+request-error events and retention inventory are implemented. See the master
+tracker for current verification and remaining live gates. Local measurements
+are recorded in `docs/LOCAL_QUERY_PLAN_REPORT.md` and `docs/LOCAL_LOAD_SMOKE.md`:
+10,000 rollback-only synthetic cars identified the newest-first index gap;
+100 local HTTP requests at concurrency five completed without failures.
+These measurements do not replace staging capacity or 500-user soak tests.
+
+One local full browser run passed 100 cases but hit Chrome
+`ERR_INSUFFICIENT_RESOURCES` during the mobile report flow; recovery dependencies
+therefore did not run. That run is not recorded as a full pass. Targeted retests
+and CI on the final pushed commit govern the completed package.
 
 Performance/content checkpoint, 9 September 2026: see
 `docs/PERFORMANCE_CONTENT_REVIEW.md`. Duplicate account queries and unnecessary
@@ -148,7 +245,8 @@ September 2026; comprehensive cross-route branding QA remains open.
 
 The following launch work remains after the functional package:
 
-- CI and a real automated unit/integration/E2E framework
+- Required CI branch protection and remaining authorization, rollback and
+  controlled-failure coverage in the existing DB/browser test framework
 - Staging environment and production-like smoke tests
 - Production PostgreSQL, durable image storage, email and alert delivery
 - Cron scheduling, backups, logs/error monitoring, and uptime monitoring
@@ -168,13 +266,13 @@ complete:
 - Complete the Google Maps browser acceptance test after billing is enabled;
   do not expose the configured key.
 
-## Tracker reconciliation issue
+## Historical tracker reconciliation
 
-The synced workbook named
-`JaniWheels_Complete_Feature_Development_Tracker.xlsx` is structurally intact
-but its data is stale. Its audit date is 16 August 2026, its Dashboard still
-names the homepage review as active, and its Roadmap marks packages that now
-exist in the repository as not started.
+The earlier synced workbook named
+`JaniWheels_Complete_Feature_Development_Tracker.xlsx` was structurally intact
+but had stale data from 16 August 2026. Its Dashboard still named the homepage
+review as active and its Roadmap marked implemented packages as not started.
+This was reconciled; use the maintained repository workbook for current status.
 
 The `Dev 2` history references tracker versions 18 through 34, with version 34
 created after the Google-auth startup repair. Those generated versions were not
@@ -184,7 +282,25 @@ September 2026. The reconciled workbook marks Stage 6.1 active, records Google
 authentication as complete, and adds approximate map-based location as a
 pending V1 feature.
 
-## Resolved sequencing decisions
+## Retention milestone — 5 October 2026
+
+Implemented account closure/recovery, public hiding, session revocation, alerts
+suppression, calendar-based redaction, approved early-deletion tooling, restricted
+complaint holds/review, anonymous usage aggregation, retryable media deletion and
+independent backup deletion ledger/replay with restore maintenance.
+Local verification: 9 DB tests, 4 targeted desktop/mobile retention browser tests,
+101-route sweep with zero issues, check/lint/build passed; maximum First Load JS
+128 KB. Fixed the browser-discovered raw SQL date/JSON codec conflict. Normal
+local database migrations are applied; production cleanup was not run.
+Current PR CI remains authoritative for full regression coverage. Production
+scheduler, provider deletion, actual 30-day backups and restore drill remain gates.
+
+Full GitHub run 46 passed on retention application `279bd8b`. Restore review then
+added sequence reservation above ledger IDs and a passing regression fixture so
+old deletion receipts cannot target new records after backup restoration. Current
+PR checks govern this additional fix; tracker score is 93.46% (display 93.5%).
+
+## Agreed sequencing
 
 1. Stage 6.1 legal/content starts before branding and final QA.
 2. Database acceptance runs alongside development.

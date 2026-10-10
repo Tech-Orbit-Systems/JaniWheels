@@ -10,6 +10,9 @@ import { normalizePkPhone } from "@/lib/format";
 import { issueEmailVerification } from "./email-verification";
 import { hashPassword, verifyPassword } from "./password";
 import { createSession, destroySession } from "./session";
+import { allowAuthAttempt, AUTH_LIMITS, clearRateLimit } from "@/lib/security/rate-limit";
+import { safeReturnPath } from "./return-path";
+import { logSafeError } from "@/lib/operations/safe-error";
 
 export type AuthMode = "sign_in" | "register";
 
@@ -31,13 +34,13 @@ const signInSchema = z.object({
     .string()
     .trim()
     .min(3, "Enter your email address or mobile number.")
-    .max(254),
-  password: z.string().min(1, "Enter your password.").max(128),
+    .max(254, "Email address or mobile number is too long."),
+  password: z.string().min(1, "Enter your password.").max(128, "Password is too long."),
 });
 
 const registerSchema = z.object({
-  name: z.string().trim().min(2, "Enter your full name.").max(100),
-  email: z.string().trim().email("Enter a valid email address.").max(254),
+  name: z.string().trim().min(2, "Enter your full name.").max(100, "Keep your name under 100 characters."),
+  email: z.string().trim().email("Enter a valid email address.").max(254, "Email address is too long."),
   password: passwordSchema,
 });
 
@@ -56,8 +59,7 @@ async function requestMeta() {
 }
 
 function safeNext(value: FormDataEntryValue | null): string {
-  const next = typeof value === "string" ? value : "/";
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  return safeReturnPath(typeof value === "string" ? value : null);
 }
 
 function issues(error: z.ZodError): Record<string, string> {
@@ -92,6 +94,9 @@ export async function authenticateAction(
     }
 
     const email = parsed.data.email.toLowerCase();
+    if (!await allowAuthAttempt("register", email, await headers(), AUTH_LIMITS.register)) {
+      return { mode, next, error: "Too many attempts. Please try again later." };
+    }
     const [existing] = await db
       .select({ id: users.id })
       .from(users)
@@ -125,7 +130,7 @@ export async function authenticateAction(
           next,
         });
       } catch (error) {
-        console.error("Registration verification delivery failed", error);
+        logSafeError("auth.registration_delivery_failed", error);
         return {
           mode,
           next,
@@ -167,6 +172,10 @@ export async function authenticateAction(
   const asEmail = parsed.data.identifier.includes("@");
   const email = asEmail ? parsed.data.identifier.toLowerCase() : null;
   const phone = asEmail ? null : normalizePkPhone(parsed.data.identifier);
+  const identity = email ?? phone ?? parsed.data.identifier.toLowerCase();
+  if (!await allowAuthAttempt("sign-in", identity, await headers(), AUTH_LIMITS.signIn)) {
+    return { mode, next, error: "Too many attempts. Please try again in 15 minutes." };
+  }
   const [account] = email || phone
     ? await db
         .select({
@@ -174,6 +183,8 @@ export async function authenticateAction(
           passwordHash: users.passwordHash,
           emailVerifiedAt: users.emailVerifiedAt,
           isBanned: users.isBanned,
+          closedAt: users.closedAt,
+          anonymizedAt: users.anonymizedAt,
         })
         .from(users)
         .where(email ? eq(users.email, email) : eq(users.phone, phone!))
@@ -184,7 +195,7 @@ export async function authenticateAction(
     parsed.data.password,
     account?.passwordHash ?? (await dummyHash),
   );
-  if (!account || !valid || account.isBanned) {
+  if (!account || !valid || account.isBanned || account.anonymizedAt || (account.closedAt && account.closedAt.getTime() + 30 * 86400_000 <= Date.now())) {
     return { mode, next, error: "Incorrect email, mobile number or password." };
   }
   if (asEmail && !account.emailVerifiedAt) {
@@ -195,12 +206,13 @@ export async function authenticateAction(
     };
   }
 
+  await clearRateLimit("sign-in", `identity:${identity}`, AUTH_LIMITS.signIn.windowMs);
   await db
     .update(users)
     .set({ lastSeenAt: new Date() })
     .where(eq(users.id, account.id));
   await createSession(account.id, await requestMeta());
-  redirect(next);
+  redirect(account.closedAt ? "/account/restore" : next);
 }
 
 export async function logoutAction(): Promise<void> {

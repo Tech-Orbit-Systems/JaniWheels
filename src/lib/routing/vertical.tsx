@@ -11,7 +11,7 @@ import {
 } from "@/lib/seo/facets";
 import { decideIndexation } from "@/lib/seo/indexation";
 import { dbResolver } from "@/lib/seo/resolver";
-import { abs, breadcrumbJsonLd, facetPageTitle, vehicleJsonLd } from "@/lib/seo/jsonld";
+import { abs, breadcrumbJsonLd, facetPageTitle, partProductJsonLd, serializeJsonLd, vehicleJsonLd } from "@/lib/seo/jsonld";
 import { buildListingPath, parseListingSlug } from "@/lib/listings/slug";
 import { getListingDetail, incrementViewCount } from "@/lib/listings/detail";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -23,6 +23,9 @@ import { RecentlyViewed } from "@/components/RecentlyViewed";
 import { db } from "@/db";
 import { savedListings } from "@/db/schema/analytics";
 import { and, eq } from "drizzle-orm";
+import { Suspense } from "react";
+import { BrowseLoading } from "@/components/BrowseLoading";
+import { logSafeError } from "@/lib/operations/safe-error";
 
 /**
  * Shared implementation for /used-cars, /used-bikes and /auto-parts.
@@ -143,13 +146,14 @@ export async function verticalMetadata(
     const listing = await getListingDetail(resolved.id, vertical);
     if (!listing) return { title: "Not found" };
 
-    const viewer = listing.status === "active" ? null : await getCurrentUser();
-    if (!canViewListingDetail(listing.status, listing.sellerId, viewer)) {
+    const sellerEligible = !listing.sellerBanned && !listing.sellerClosedAt && !listing.sellerAnonymizedAt;
+    const viewer = listing.status === "active" && sellerEligible ? null : await getCurrentUser();
+    if (!canViewListingDetail(listing.status, listing.sellerId, viewer, sellerEligible)) {
       return { title: "Not found" };
     }
 
     const url = buildListingPath(vertical, listing.slug, listing.id);
-    const isLive = listing.status === "active";
+    const isLive = listing.status === "active" && sellerEligible;
 
     return {
       title: `${listing.title} for sale in ${listing.cityName} | JaniWheels`,
@@ -200,8 +204,11 @@ export async function VerticalPage({
   if (!resolved) notFound();
 
   if (resolved.kind === "browse") {
+    if (resolved.needsReorder) permanentRedirect(buildPath(resolved.state));
     return (
-      <BrowseView state={resolved.state} needsReorder={resolved.needsReorder} />
+      <Suspense fallback={<BrowseLoading label={NOUN[vertical]} />}>
+        <BrowseView state={resolved.state} />
+      </Suspense>
     );
   }
 
@@ -209,7 +216,8 @@ export async function VerticalPage({
   if (!listing) notFound();
 
   const viewer = await getCurrentUser();
-  if (!canViewListingDetail(listing.status, listing.sellerId, viewer)) {
+  if (!canViewListingDetail(listing.status, listing.sellerId, viewer,
+    !listing.sellerBanned && !listing.sellerClosedAt && !listing.sellerAnonymizedAt)) {
     notFound();
   }
   const [saved] = viewer ? await db.select({ listingId: savedListings.listingId }).from(savedListings)
@@ -238,7 +246,7 @@ export async function VerticalPage({
     try {
       await incrementViewCount(listing.id);
     } catch (err) {
-      console.error("view count failed", err);
+      logSafeError("listing.view_count_failed", err);
     }
   });
 
@@ -284,7 +292,7 @@ export async function VerticalPage({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(
+            __html: serializeJsonLd(
               vehicleJsonLd({
                 id: listing.id,
                 url: buildListingPath(vertical, listing.slug, listing.id),
@@ -309,9 +317,27 @@ export async function VerticalPage({
           }}
         />
       )}
+      {vertical === "part" && listing.status === "active" && listing.partCondition && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: serializeJsonLd(partProductJsonLd({
+              url: buildListingPath(vertical, listing.slug, listing.id),
+              title: listing.title,
+              description: listing.description,
+              pricePkr: listing.pricePkr,
+              condition: listing.partCondition as "new" | "used" | "refurbished",
+              brand: listing.partBrand,
+              category: listing.partCategoryName,
+              cityName: listing.cityName,
+              imageUrls: listing.images.map((image) => `/uploads/${image.key}`),
+            })),
+          }}
+        />
+      )}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd(crumbs)) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd(crumbs)) }}
       />
 
       <Breadcrumbs crumbs={crumbs} />

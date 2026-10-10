@@ -41,7 +41,7 @@ export function DealerVerificationActions({
         type="button"
         disabled={pending}
         onClick={() => run(verified ? "revoke" : "verify")}
-        className={`rounded px-3 py-2 text-xs font-medium text-white disabled:opacity-60 ${verified ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
+        className={`rounded px-3 py-2 text-xs font-medium text-white disabled:opacity-60 ${verified ? "bg-red-700 hover:bg-red-800" : "bg-emerald-700 hover:bg-emerald-800"}`}
       >
         {pending ? "Saving…" : verified ? "Revoke verification" : "Verify dealer"}
       </button>

@@ -26,6 +26,7 @@ export function SortSelect({ state }: { state: FacetState }) {
     <label className="flex items-center gap-2 text-sm text-slate-600">
       <span className="hidden sm:inline">Sort by</span>
       <select
+        aria-label="Sort by"
         value={state.sort ?? "recent"}
         onChange={(e) =>
           router.push(buildPath({ ...state, sort: e.target.value, page: 1 }))

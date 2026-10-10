@@ -8,7 +8,7 @@ function contains(path: string, terms: string[]) {
 
 checks.push(["vehicle browse filters are wired", contains("src/components/BrowseView.tsx", ["VehicleFilters", "SaveSearchForm"])]);
 checks.push(["listing cards expose save and compare", contains("src/components/ListingCard.tsx", ["BuyerListingActions", "initiallySaved"])]);
-checks.push(["saved ads are owner-scoped and active-only", contains("src/app/dashboard/saved/page.tsx", ["savedListings.userId", 'listings.status, "active"'])]);
+checks.push(["saved ads are owner-scoped and publicly eligible", contains("src/app/dashboard/saved/page.tsx", ["savedListings.userId", "publicListingEligibility()"])]);
 checks.push(["saved searches are owner-scoped and renameable", contains("src/lib/buyer/actions.ts", ["savedSearches.userId", "updateSavedSearchAction", "deleteSavedSearchAction", "name })"])]);
 checks.push(["comparison is limited to three active vehicles", contains("src/app/compare/page.tsx", ["slice(0, 3)", 'row.status === "active"'])]);
 checks.push(["alert matches are retry-safe", contains("src/db/schema/analytics.ts", ["saved_search_notifications_match_uq", "savedSearchId", "listingId"])]);

@@ -2,17 +2,21 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { headers } from "next/headers";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { carDetails, listings } from "@/db/schema/listings";
 import { dealers } from "@/db/schema/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { requirePostingPhone } from "@/lib/auth/seller-readiness";
-import { bikeListingSchema, carListingSchema, partListingSchema, sanitizeDescription } from "./validation";
-import { publishBikeListing, publishCarListing, publishPartListing } from "./publish";
+import { bikeListingSchema, carListingSchema, optionalVariantId, partListingSchema, sanitizeDescription } from "./validation";
+import { ListingInputError, publishBikeListing, publishCarListing, publishPartListing } from "./publish";
 import { buildListingPath } from "./slug";
 import { UploadOwnershipError } from "@/lib/images/ownership";
+import { listingEditHeld } from "./edit-protection";
+import { assertListingQuota, ListingQuotaError, lockListingOwner } from "./quota";
+import { ACCOUNT_LIMITS, allowAccountAction, allowPublicAction } from "@/lib/security/rate-limit";
 
 export interface SellState {
   error?: string;
@@ -20,8 +24,12 @@ export interface SellState {
   notice?: string;
 }
 
-/** Free listings a private seller may have live at once. */
-const FREE_ACTIVE_LIMIT = 3;
+async function allowListingPublication(userId: number): Promise<boolean> {
+  return allowPublicAction(
+    "listing-publication", `user:${userId}`, await headers(),
+    { max: 20, sourceMax: 200, windowMs: 24 * 60 * 60_000 },
+  );
+}
 
 function num(v: FormDataEntryValue | null): number | undefined {
   if (v === null || v === "") return undefined;
@@ -48,7 +56,7 @@ export async function createCarListingAction(
   requirePostingPhone(user);
 
   const parsed = carListingSchema.safeParse({
-    variantId: num(formData.get("variantId")),
+    variantId: optionalVariantId(formData.get("variantId")),
     customMakeName: optionalText(formData.get("customMakeName")),
     customModelName: optionalText(formData.get("customModelName")),
     customVariantName: optionalText(formData.get("customVariantName")),
@@ -66,7 +74,9 @@ export async function createCarListingAction(
     assembly: formData.get("assembly") ?? "local",
     color: (formData.get("color") as string) || undefined,
     ownerCount: num(formData.get("ownerCount")),
+    lastTokenPaidYear: num(formData.get("lastTokenPaidYear")),
     hasAuctionSheet: formData.get("hasAuctionSheet") === "on",
+    auctionGrade: optionalText(formData.get("auctionGrade")),
     isNegotiable: formData.get("isNegotiable") === "on",
     description: (formData.get("description") as string) || undefined,
     featureIds: formData
@@ -92,22 +102,9 @@ export async function createCarListingAction(
     .where(eq(dealers.userId, user.id))
     .limit(1);
 
-  /** Prevent individuals from operating unreviewed dealer-scale inventory. */
-  if (!dealer) {
-    const [{ active }] = await db
-      .select({ active: sql<number>`COUNT(*)::int` })
-      .from(listings)
-      .where(
-        sql`${listings.sellerId} = ${user.id} AND ${listings.status} IN ('active','pending_review')`,
-      );
-
-    if (active >= FREE_ACTIVE_LIMIT) {
-      return {
-        error: `You already have ${FREE_ACTIVE_LIMIT} live ads. Mark one as sold, or upgrade to a dealer account.`,
-      };
-    }
+  if (!await allowListingPublication(user.id)) {
+    return { error: "Too many ads posted today. Please try again tomorrow." };
   }
-
   let result;
   try {
     result = await publishCarListing(user.id, parsed.data, {
@@ -119,6 +116,8 @@ export async function createCarListingAction(
         : "individual",
     });
   } catch (error) {
+    if (error instanceof ListingQuotaError) return { error: error.message };
+    if (error instanceof ListingInputError) return { error: "Please fix the highlighted fields.", fieldErrors: { [error.field]: error.message } };
     if (error instanceof UploadOwnershipError) {
       return { error: error.message, fieldErrors: { imageKeys: error.message } };
     }
@@ -181,12 +180,8 @@ export async function createPartListingAction(
 
   const [dealer] = await db.select({ id: dealers.id, verifiedAt: dealers.verifiedAt })
     .from(dealers).where(eq(dealers.userId, user.id)).limit(1);
-  if (!dealer) {
-    const [{ active }] = await db.select({ active: sql<number>`COUNT(*)::int` }).from(listings)
-      .where(sql`${listings.sellerId} = ${user.id} AND ${listings.status} IN ('active','pending_review')`);
-    if (active >= FREE_ACTIVE_LIMIT) {
-      return { error: `You already have ${FREE_ACTIVE_LIMIT} live ads. Mark one as sold, or upgrade to a dealer account.` };
-    }
+  if (!await allowListingPublication(user.id)) {
+    return { error: "Too many ads posted today. Please try again tomorrow." };
   }
   let result;
   try {
@@ -195,6 +190,8 @@ export async function createPartListingAction(
       publisher: dealer ? (dealer.verifiedAt ? "verified_dealer" : "unverified_dealer") : "individual",
     });
   } catch (error) {
+    if (error instanceof ListingQuotaError) return { error: error.message };
+    if (error instanceof ListingInputError) return { error: "Please fix the highlighted fields.", fieldErrors: { [error.field]: error.message } };
     if (error instanceof UploadOwnershipError) {
       return { error: error.message, fieldErrors: { imageKeys: error.message } };
     }
@@ -215,7 +212,7 @@ export async function createBikeListingAction(
   const bikeType = String(formData.get("bikeType") ?? "motorcycle");
   const isElectric = bikeType.startsWith("electric-");
   const parsed = bikeListingSchema.safeParse({
-    variantId: num(formData.get("variantId")),
+    variantId: optionalVariantId(formData.get("variantId")),
     customMakeName: optionalText(formData.get("customMakeName")),
     customModelName: optionalText(formData.get("customModelName")),
     customVariantName: optionalText(formData.get("customVariantName")),
@@ -268,14 +265,9 @@ export async function createBikeListingAction(
 
   const [dealer] = await db.select({ id: dealers.id, verifiedAt: dealers.verifiedAt })
     .from(dealers).where(eq(dealers.userId, user.id)).limit(1);
-  if (!dealer) {
-    const [{ active }] = await db.select({ active: sql<number>`COUNT(*)::int` }).from(listings)
-      .where(sql`${listings.sellerId} = ${user.id} AND ${listings.status} IN ('active','pending_review')`);
-    if (active >= FREE_ACTIVE_LIMIT) {
-      return { error: `You already have ${FREE_ACTIVE_LIMIT} live ads. Mark one as sold, or upgrade to a dealer account.` };
-    }
+  if (!await allowListingPublication(user.id)) {
+    return { error: "Too many ads posted today. Please try again tomorrow." };
   }
-
   let result;
   try {
     result = await publishBikeListing(user.id, parsed.data, {
@@ -283,6 +275,8 @@ export async function createBikeListingAction(
       publisher: dealer ? (dealer.verifiedAt ? "verified_dealer" : "unverified_dealer") : "individual",
     });
   } catch (error) {
+    if (error instanceof ListingQuotaError) return { error: error.message };
+    if (error instanceof ListingInputError) return { error: "Please fix the highlighted fields.", fieldErrors: { [error.field]: error.message } };
     if (error instanceof UploadOwnershipError) {
       return { error: error.message, fieldErrors: { imageKeys: error.message } };
     }
@@ -303,11 +297,12 @@ export async function markSoldAction(listingId: number): Promise<void> {
     .limit(1);
 
   if (!row || row.sellerId !== user.id) return;
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) redirect("/dashboard?limited=1");
 
   await db
     .update(listings)
     .set({ status: "sold", soldAt: new Date(), updatedAt: new Date() })
-    .where(eq(listings.id, listingId));
+    .where(and(eq(listings.id, listingId),eq(listings.sellerId,user.id),eq(listings.status,"active"),isNull(listings.sellerDeletedAt),isNull(listings.redactedAt)));
 
   revalidatePath("/dashboard");
 }
@@ -327,11 +322,24 @@ export async function resubmitRejectedListingAction(listingId: number): Promise<
   if (row.status !== "rejected") {
     return { error: "Only a rejected listing can be resubmitted for review." };
   }
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) return {error:"Too many ad changes. Please wait and try again."};
 
-  await db
-    .update(listings)
-    .set({ status: "pending_review", updatedAt: new Date() })
-    .where(eq(listings.id, listingId));
+  try {
+    const changed = await db.transaction(async tx => {
+      await lockListingOwner(tx, user.id);
+      const [current] = await tx.select({id:listings.id}).from(listings)
+        .where(and(eq(listings.id,listingId),eq(listings.sellerId,user.id),eq(listings.status,"rejected"),isNull(listings.sellerDeletedAt),isNull(listings.redactedAt)))
+        .for("update").limit(1);
+      if (!current) return false;
+      await assertListingQuota(tx, user.id);
+      await tx.update(listings).set({status:"pending_review",updatedAt:new Date()}).where(eq(listings.id,listingId));
+      return true;
+    });
+    if (!changed) return {error:"This rejected listing can no longer be changed."};
+  } catch(error) {
+    if(error instanceof ListingQuotaError) return {error:error.message};
+    throw error;
+  }
   revalidatePath("/dashboard");
   return { notice: "Your corrected ad has been submitted for another review." };
 }
@@ -344,10 +352,10 @@ export async function correctRejectedListingAction(
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/dashboard");
   const parsed = z.object({
-    pricePkr: z.number().int().min(50_000),
-    mileageKm: z.number().int().min(0),
-    description: z.string().trim().max(5000).optional(),
-    color: z.string().trim().max(80).optional(),
+    pricePkr: z.number().int("Enter a whole price in PKR.").min(50_000, "Price looks too low."),
+    mileageKm: z.number().int("Enter whole kilometres.").min(0, "Mileage cannot be negative."),
+    description: z.string().trim().max(5000, "Description is too long.").optional(),
+    color: z.string().trim().max(80, "Keep the color under 80 characters.").optional(),
     isNegotiable: z.boolean(),
   }).safeParse({
     pricePkr: num(formData.get("pricePkr")),
@@ -364,17 +372,31 @@ export async function correctRejectedListingAction(
     return { error: "This rejected listing can no longer be changed." };
   }
   const { text: description } = sanitizeDescription(parsed.data.description ?? "");
-  await db.transaction(async (tx) => {
-    await tx.update(listings).set({
-      pricePkr: parsed.data.pricePkr,
-      mileageKm: parsed.data.mileageKm,
-      description: description || null,
-      isNegotiable: parsed.data.isNegotiable,
-      status: "pending_review",
-      updatedAt: new Date(),
-    }).where(eq(listings.id, listingId));
-    await tx.update(carDetails).set({ color: parsed.data.color || null }).where(eq(carDetails.listingId, listingId));
-  });
+  if (!await allowAccountAction("listing-write",user.id,ACCOUNT_LIMITS.listingWrite)) return {error:"Too many ad changes. Please wait and try again."};
+  let changed: boolean;
+  try {
+    changed = await db.transaction(async (tx) => {
+      if (await listingEditHeld(tx,listingId)) return false;
+      await lockListingOwner(tx, user.id);
+      const [current] = await tx.select({sellerId:listings.sellerId,status:listings.status,sellerDeletedAt:listings.sellerDeletedAt}).from(listings).where(eq(listings.id,listingId)).for("update").limit(1);
+      if (!current || current.sellerId!==user.id || current.status!=="rejected" || current.sellerDeletedAt) return false;
+      await assertListingQuota(tx, user.id);
+      await tx.update(listings).set({
+        pricePkr: parsed.data.pricePkr,
+        mileageKm: parsed.data.mileageKm,
+        description: description || null,
+        isNegotiable: parsed.data.isNegotiable,
+        status: "pending_review",
+        updatedAt: new Date(),
+      }).where(eq(listings.id, listingId));
+      await tx.update(carDetails).set({ color: parsed.data.color || null }).where(eq(carDetails.listingId, listingId));
+      return true;
+    });
+  } catch (error) {
+    if (error instanceof ListingQuotaError) return {error:error.message};
+    throw error;
+  }
+  if (!changed) return {error:"This rejected listing can no longer be changed."};
   revalidatePath("/dashboard");
   revalidatePath("/admin/moderation");
   redirect("/dashboard");

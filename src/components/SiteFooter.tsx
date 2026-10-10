@@ -35,7 +35,7 @@ const socialLinks = [
 export function SiteFooter({ siteName }: { siteName: string }) {
   return (
     <footer className="mt-20 border-t border-white/10 bg-[#101214] text-zinc-300">
-      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-[1.35fr_1fr_1fr_1fr]">
+      <div className="mx-auto grid w-full max-w-7xl gap-10 break-words px-4 py-12 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.35fr)_repeat(3,minmax(0,1fr))]">
         <div>
           <BrandLogo className="mb-5" />
           <p className="max-w-sm text-sm leading-6 text-zinc-400">
@@ -70,7 +70,7 @@ export function SiteFooter({ siteName }: { siteName: string }) {
       </div>
 
       <div className="border-t border-white/10">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-zinc-300 sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} {siteName}. All rights reserved.</p>
           <p>
             Developed by{" "}

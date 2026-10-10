@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import Image from "@/components/StoredImage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cities } from "@/db/schema/geo";
 import { listingImages, listings } from "@/db/schema/listings";
@@ -11,6 +11,7 @@ import { users } from "@/db/schema/users";
 import { ListingCard } from "@/components/ListingCard";
 import { PAGE_SIZE } from "@/lib/listings/search";
 import { imageDeliveryUrl } from "@/lib/images/url";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 export const metadata: Metadata = {
   title: "Seller profile | JaniWheels",
@@ -27,11 +28,11 @@ export default async function SellerProfilePage({ params, searchParams }: { para
   const [seller] = await db
     .select({ id: users.id, name: users.name, avatarUrl: users.avatarUrl, createdAt: users.createdAt, type: users.type })
     .from(users)
-    .where(and(eq(users.id, sellerId), eq(users.type, "individual"), eq(users.isBanned, false)))
+    .where(and(eq(users.id, sellerId), eq(users.type, "individual"), eq(users.isBanned, false), isNull(users.closedAt)))
     .limit(1);
   if (!seller) notFound();
 
-  const where = and(eq(listings.sellerId, seller.id), eq(listings.status, "active"));
+  const where = and(eq(listings.sellerId, seller.id), publicListingEligibility());
   const [rows, [{ count }]] = await Promise.all([
     db.select({
       id: listings.id,

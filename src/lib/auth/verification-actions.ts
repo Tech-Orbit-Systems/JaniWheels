@@ -14,6 +14,9 @@ import {
   isPlausibleEmailVerificationToken,
 } from "./verification-token";
 import { createSession } from "./session";
+import { allowAuthAttempt, AUTH_LIMITS, clientIp } from "@/lib/security/rate-limit";
+import { safeReturnPath } from "./return-path";
+import { logSafeError } from "@/lib/operations/safe-error";
 
 export interface VerifyEmailState {
   error?: string;
@@ -26,17 +29,7 @@ export interface ResendVerificationState {
 }
 
 function safeNext(value: FormDataEntryValue | null): string {
-  const next = typeof value === "string" ? value : "/";
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/";
-}
-
-function clientIp(h: Headers): string | undefined {
-  return (
-    h.get("cf-connecting-ip") ??
-    h.get("x-real-ip") ??
-    h.get("x-forwarded-for")?.split(",")[0].trim() ??
-    undefined
-  );
+  return safeReturnPath(typeof value === "string" ? value : null);
 }
 
 export async function confirmEmailVerificationAction(
@@ -47,6 +40,9 @@ export async function confirmEmailVerificationAction(
   const next = safeNext(formData.get("next"));
   if (!isPlausibleEmailVerificationToken(token)) {
     return { error: "This verification link is invalid or has expired." };
+  }
+  if (!await allowAuthAttempt("email-verification-confirm", hashEmailVerificationToken(token), await headers(), AUTH_LIMITS.tokenAction)) {
+    return { error: "Too many attempts. Please try again in 15 minutes." };
   }
 
   const account = await db.transaction(async (tx) => {
@@ -98,7 +94,7 @@ export async function confirmEmailVerificationAction(
   const h = await headers();
   await createSession(account.id, {
     userAgent: h.get("user-agent") ?? undefined,
-    ip: clientIp(h),
+    ip: clientIp(h) ?? undefined,
   });
   redirect(next);
 }
@@ -111,7 +107,7 @@ export async function resendEmailVerificationAction(
     .string()
     .trim()
     .email("Enter a valid email address.")
-    .max(254)
+    .max(254, "Email address is too long.")
     .safeParse(formData.get("email"));
   if (!parsed.success) {
     return {
@@ -121,6 +117,9 @@ export async function resendEmailVerificationAction(
   }
 
   const email = parsed.data.toLowerCase();
+  if (!await allowAuthAttempt("verification-resend", email, await headers(), AUTH_LIMITS.emailRequest)) {
+    return { sent: true };
+  }
   const [account] = await db
     .select({
       id: users.id,
@@ -152,10 +151,10 @@ export async function resendEmailVerificationAction(
           userId: account.id,
           email: account.email,
           name: account.name,
-          requestedIp: clientIp(h),
+          requestedIp: clientIp(h) ?? undefined,
         });
       } catch (error) {
-        console.error("Email verification delivery failed", error);
+        logSafeError("auth.verification_delivery_failed", error);
       }
     }
   }

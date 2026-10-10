@@ -60,9 +60,17 @@ from `dealers.verified_at`, and every approval, revocation or automatic review
 reset is appended to `moderation_log`. Verified profiles return to review when
 the owner changes business identity details or the public logo.
 
+Owner decision B1, approved 4 October 2026: ordinary sellers do not receive a
+"Verified Seller" badge in V1. Email verification does not establish identity,
+phone verification or vehicle ownership. Individual-seller manual verification
+(tracker JW-053) is removed from V1 by this owner decision; dealer verification
+continues under its existing audited manual process.
+
 Administrators have an all-status listing console and a user access console.
 Listing flag, approval, rejection, reinstate, removal and administrator-edit
-events are appended to `moderation_log`. Manual bans revoke all active sessions;
+events are appended to `moderation_log`. Manual bans revoke all active sessions
+and hide the seller's active inventory, contact actions, media and alert matches
+from public buyers. Unbanning only restores listings that remain active;
 self-ban and administrator-ban are blocked. A seller may fix and resubmit a
 rejected ad twice, while the third rejection permanently removes that ad.
 
@@ -79,6 +87,19 @@ follow-up and final sold/cancelled states. Customer-visible updates and private
 staff notes are retained in an append-only event history. V1 does not provide
 automatic valuation, buy the vehicle, guarantee a buyer/price/timeline, collect
 payment or manage ownership transfer.
+
+## Approved retention policy
+
+Client decision A was approved exactly as proposed on 4 October 2026. Account
+closure immediately hides profiles and listings, stops alerts and revokes all
+sessions. Authenticated recovery lasts 30 days; afterward personal data is
+redacted except necessary held complaint evidence. Inactive listings/photos and
+closed manual service cases retain personal content for 12 calendar months;
+resolved reports retain necessary evidence for 24 months. Raw usage/contact
+events and terminal alert payloads expire after 90 days. Complaint holds require
+an accountable person and 90-day review, with no automatic release. Inactivity
+alone never closes an account. See `RETENTION_DECISIONS.md` for operator commands,
+30-day backup expiry and mandatory deletion replay before restored service opens.
 
 ## SEO model
 

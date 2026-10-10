@@ -6,6 +6,7 @@ import { cities } from "@/db/schema/geo";
 import { makes, models } from "@/db/schema/taxonomy";
 import { dealers, users } from "@/db/schema/users";
 import { parseRecentlyViewedQuery } from "@/lib/listings/recently-viewed";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
     .leftJoin(makes, eq(listings.makeId, makes.id))
     .leftJoin(models, eq(listings.modelId, models.id))
     .leftJoin(primaryImage, eq(primaryImage.listingId, listings.id))
-    .where(and(eq(listings.status, "active"), inArray(listings.id, ids)));
+    .where(and(publicListingEligibility(), inArray(listings.id, ids)));
 
   const position = new Map(ids.map((id, index) => [id, index]));
   rows.sort((a, b) => (position.get(a.id) ?? ids.length) - (position.get(b.id) ?? ids.length));

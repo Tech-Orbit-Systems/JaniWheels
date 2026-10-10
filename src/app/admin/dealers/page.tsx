@@ -90,7 +90,7 @@ export default async function AdminDealersPage() {
                   <p className="mt-1 text-xs text-slate-500">Owner: {dealer.ownerName ?? "Unnamed"} · {dealer.ownerPhone ? displayPkPhone(dealer.ownerPhone) : "No mobile number"}{dealer.ownerEmail ? ` · ${dealer.ownerEmail}` : ""}</p>
                   {(dealer.landline || dealer.whatsapp) && <p className="mt-1 text-xs text-slate-500">Showroom: {dealer.landline ?? "No landline"}{dealer.whatsapp ? ` · WhatsApp ${displayPkPhone(dealer.whatsapp)}` : ""}</p>}
                   {dealer.about && <p className="mt-2 line-clamp-3 max-w-3xl text-sm text-slate-700">{dealer.about}</p>}
-                  <p className="mt-2 text-xs text-slate-400">Registered {relativeTime(dealer.createdAt)}</p>
+                  <p className="mt-2 text-xs text-slate-600">Registered {relativeTime(dealer.createdAt)}</p>
                 </div>
                 <DealerVerificationActions dealerId={dealer.id} verified={Boolean(dealer.verifiedAt)} />
               </li>
@@ -112,7 +112,7 @@ export default async function AdminDealersPage() {
                   <span className="ml-2 text-slate-600">{labelAction(entry.action)}</span>
                   {entry.reason && <p className="mt-1 text-xs text-slate-500">{entry.reason}</p>}
                 </div>
-                <p className="text-xs text-slate-400">{entry.isAutomated ? "Automatic review reset" : `Admin #${entry.moderatorId}`} · {relativeTime(entry.createdAt)}</p>
+                <p className="text-xs text-slate-600">{entry.isAutomated ? "Automatic review reset" : `Admin #${entry.moderatorId}`} · {relativeTime(entry.createdAt)}</p>
               </li>
             ))}
           </ol>

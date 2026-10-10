@@ -215,7 +215,7 @@ export async function RelatedLinks({ state }: { state: FacetState }) {
                   className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:border-slate-300 hover:text-blue-700"
                 >
                   {l.label}
-                  <span className="text-slate-400">{l.count}</span>
+                  <span className="text-slate-600">{l.count}</span>
                 </Link>
               </li>
             ))}

@@ -11,7 +11,8 @@
 
 import { buildPath, parseRange, type FacetState } from "../src/lib/seo/facets";
 import { decideIndexation } from "../src/lib/seo/indexation";
-import { facetPageTitle } from "../src/lib/seo/jsonld";
+import { facetPageTitle, partProductJsonLd, serializeJsonLd } from "../src/lib/seo/jsonld";
+import { isProductionDeployment } from "../src/app/robots";
 
 let passed = 0;
 const failures: string[] = [];
@@ -25,6 +26,28 @@ function check(name: string, actual: unknown, expected: unknown) {
     failures.push(`${name}\n    expected: ${e}\n    actual:   ${a}`);
   }
 }
+
+check("production deployment is crawlable", isProductionDeployment("production", "production"), true);
+check("preview production build is blocked", isProductionDeployment("preview", "production"), false);
+check("development production build is blocked", isProductionDeployment("development", "production"), false);
+check("self-hosted production is crawlable", isProductionDeployment(undefined, "production"), true);
+check("local development is blocked", isProductionDeployment(undefined, "development"), false);
+
+const partMarkup = partProductJsonLd({
+  url: "/auto-parts/brake-pads-23",
+  title: "Brake pads",
+  pricePkr: 2500,
+  condition: "refurbished",
+  brand: "Example",
+  category: "Brakes",
+  cityName: "Lahore",
+  imageUrls: ["/uploads/example.webp"],
+});
+check("parts use Product schema", partMarkup["@type"], "Product");
+check("parts use PKR offer price", [partMarkup.offers.price, partMarkup.offers.priceCurrency], [2500, "PKR"]);
+check("parts map condition to schema URL", partMarkup.offers.itemCondition, "https://schema.org/RefurbishedCondition");
+check("parts do not claim marketplace checkout", "shippingDetails" in partMarkup.offers, false);
+check("JSON-LD cannot close its script", serializeJsonLd({ name: "</script><script>alert(1)</script>" }).includes("</script>"), false);
 
 const corolla = { id: 1, slug: "corolla", name: "Corolla", makeSlug: "toyota" };
 const toyota = { id: 2, slug: "toyota", name: "Toyota" };

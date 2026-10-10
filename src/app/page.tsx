@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { imageDeliveryUrl } from "@/lib/images/url";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -18,13 +19,14 @@ import { db } from "@/db";
 import { cities } from "@/db/schema/geo";
 import { listings as listingRows } from "@/db/schema/listings";
 import { makes, models, partCategories } from "@/db/schema/taxonomy";
-import { dealers } from "@/db/schema/users";
+import { dealers, users } from "@/db/schema/users";
 import { HomeListingTabs } from "@/components/HomeListingTabs";
 import { HomeSearch } from "@/components/HomeSearch";
 import { searchListings } from "@/lib/listings/search";
 import { buildPath } from "@/lib/seo/facets";
 import { abs } from "@/lib/seo/jsonld";
 import { RecentlyViewed } from "@/components/RecentlyViewed";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 export const revalidate = 300;
 
@@ -98,12 +100,13 @@ export default async function HomePage() {
         activeListingCount: sql<number>`COUNT(${listingRows.id})::int`,
       })
       .from(dealers)
+      .innerJoin(users, eq(users.id, dealers.userId))
       .innerJoin(cities, eq(dealers.cityId, cities.id))
       .leftJoin(
         listingRows,
-        and(eq(listingRows.dealerId, dealers.id), eq(listingRows.status, "active")),
+        and(eq(listingRows.dealerId, dealers.id), publicListingEligibility()),
       )
-      .where(isNotNull(dealers.verifiedAt))
+      .where(and(isNotNull(dealers.verifiedAt), eq(users.isBanned, false), isNull(users.closedAt)))
       .groupBy(
         dealers.id,
         dealers.slug,
@@ -235,7 +238,7 @@ export default async function HomePage() {
                         // Dealer logos can use the configured local or remote provider.
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={dealer.logoUrl}
+                          src={imageDeliveryUrl(dealer.logoUrl, 160)}
                           alt=""
                           className="size-12 rounded-xl border border-zinc-200 object-cover"
                         />

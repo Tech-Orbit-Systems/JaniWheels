@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { dealers } from "@/db/schema/users";
+import { dealers, users } from "@/db/schema/users";
 import { cities } from "@/db/schema/geo";
 import { listings } from "@/db/schema/listings";
-import { abs, breadcrumbJsonLd } from "@/lib/seo/jsonld";
+import { abs, breadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 export const revalidate = 3600;
 
@@ -29,12 +30,13 @@ export default async function DealersIndexPage() {
       liveCount: sql<number>`COUNT(${listings.id})::int`,
     })
     .from(dealers)
+    .innerJoin(users, eq(users.id, dealers.userId))
     .innerJoin(cities, eq(dealers.cityId, cities.id))
     .leftJoin(
       listings,
-      and(eq(listings.dealerId, dealers.id), eq(listings.status, "active")),
+      and(eq(listings.dealerId, dealers.id), publicListingEligibility()),
     )
-    .where(isNotNull(dealers.verifiedAt))
+    .where(and(isNotNull(dealers.verifiedAt), eq(users.isBanned, false), isNull(users.closedAt)))
     .groupBy(
       dealers.id,
       dealers.slug,
@@ -60,7 +62,7 @@ export default async function DealersIndexPage() {
     <main className="mx-auto w-full max-w-7xl px-4 py-6">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd(crumbs)) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd(crumbs)) }}
       />
 
       <Breadcrumbs crumbs={crumbs} />

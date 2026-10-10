@@ -3,13 +3,16 @@
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { listings } from "@/db/schema/listings";
 import { users } from "@/db/schema/users";
 import { leadEvents } from "@/db/schema/analytics";
 import { getCurrentUser } from "@/lib/auth/session";
 import { displayPkPhone } from "@/lib/format";
+import { allowPublicAction } from "@/lib/security/rate-limit";
+import { logSafeError } from "@/lib/operations/safe-error";
+import { publicListingEligibility } from "./public-eligibility";
 
 /**
  * PHONE REVEAL
@@ -55,6 +58,10 @@ export async function revealPhoneAction(
       id: listings.id,
       status: listings.status,
       phone: users.phone,
+      sellerBanned: users.isBanned,
+      sellerClosedAt: users.closedAt,
+      sellerAnonymizedAt: users.anonymizedAt,
+      sellerDeletedAt: listings.sellerDeletedAt,
     })
     .from(listings)
     .innerJoin(users, eq(listings.sellerId, users.id))
@@ -62,7 +69,7 @@ export async function revealPhoneAction(
     .limit(1);
 
   if (!row) return { ok: false, error: "Listing not found." };
-  if (row.status !== "active") {
+  if (row.status !== "active" || row.sellerBanned || row.sellerClosedAt || row.sellerAnonymizedAt || row.sellerDeletedAt) {
     return { ok: false, error: "This listing is no longer available." };
   }
   if (!row.phone) {
@@ -72,6 +79,12 @@ export async function revealPhoneAction(
   const user = await getCurrentUser();
   const anon = user ? null : await anonId();
   const h = await headers();
+  if (!await allowPublicAction(
+    "seller-contact", user ? `user:${user.id}` : `anon:${anon}`,
+    h, { max: 60, sourceMax: 300, windowMs: 60 * 60_000 },
+  )) {
+    return { ok: false, error: "Too many contact requests. Please try again later." };
+  }
 
   // Logging must never break the reveal. A buyer who clicks and gets an error
   // because the analytics insert failed is a lead you actually lost.
@@ -82,7 +95,7 @@ export async function revealPhoneAction(
         userId: user?.id ?? null,
         anonId: anon,
         type: "phone_reveal",
-        source,
+        source: /^(detail|search|compare|dealer)$/.test(source) ? source : "detail",
         referrer: h.get("referer")?.slice(0, 500) ?? null,
       });
 
@@ -92,7 +105,7 @@ export async function revealPhoneAction(
         .where(eq(listings.id, listingId));
     });
   } catch (err) {
-    console.error("lead_event insert failed", err);
+    logSafeError("lead.phone_record_failed", err);
   }
 
   return { ok: true, phone: displayPkPhone(row.phone) };
@@ -103,18 +116,25 @@ export async function logLeadAction(
   type: "whatsapp_click",
   source = "detail",
 ): Promise<void> {
+  const [available] = await db.select({id:listings.id}).from(listings)
+    .where(and(eq(listings.id,listingId),publicListingEligibility())).limit(1);
+  if (!available || type !== "whatsapp_click") return;
   const user = await getCurrentUser();
   const anon = user ? null : await anonId();
 
   try {
+    if (!await allowPublicAction(
+      "seller-contact", user ? `user:${user.id}` : `anon:${anon}`,
+      await headers(), { max: 60, sourceMax: 300, windowMs: 60 * 60_000 },
+    )) return;
     await db.insert(leadEvents).values({
       listingId,
       userId: user?.id ?? null,
       anonId: anon,
       type,
-      source,
+      source: /^(detail|search|compare|dealer)$/.test(source) ? source : "detail",
     });
   } catch (err) {
-    console.error("lead_event insert failed", err);
+    logSafeError("lead.click_record_failed", err);
   }
 }

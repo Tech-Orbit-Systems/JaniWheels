@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { organizationJsonLd, websiteJsonLd } from "@/lib/seo/jsonld";
+import { organizationJsonLd, serializeJsonLd, websiteJsonLd } from "@/lib/seo/jsonld";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 
@@ -37,12 +37,12 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(organizationJsonLd()),
+            __html: serializeJsonLd(organizationJsonLd()),
           }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteJsonLd()) }}
         />
 
         <a

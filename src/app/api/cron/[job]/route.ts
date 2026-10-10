@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { listings, pendingUploads } from "@/db/schema/listings";
 import { emailVerificationTokens, passwordResetTokens, sessions } from "@/db/schema/users";
-import { users } from "@/db/schema/users";
-import { savedSearchNotifications, savedSearches } from "@/db/schema/analytics";
-import { searchListings } from "@/lib/listings/search";
-import type { FacetState } from "@/lib/seo/facets";
+import { queueSavedSearchAlerts, deliverSavedSearchAlerts } from "@/lib/buyer/alerts";
 import { removeStoredImage } from "@/lib/images/storage";
+import { rateLimitBuckets } from "@/db/schema/security";
+import { sqlClient } from "@/db";
+import { drainMediaDeletions, runRetention } from "@/lib/retention/core";
+import { logSafeError } from "@/lib/operations/safe-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,22 +72,45 @@ const JOBS = {
       .where(sql`${emailVerificationTokens.expiresAt} < NOW() - INTERVAL '24 hours' OR ${emailVerificationTokens.usedAt} IS NOT NULL`)
       .returning({ id: emailVerificationTokens.id });
 
-    const abandoned = await db
-      .delete(pendingUploads)
-      .where(sql`${pendingUploads.claimedAt} IS NULL AND ${pendingUploads.createdAt} < NOW() - INTERVAL '24 hours'`)
-      .returning({ key: pendingUploads.storageKey });
+    const oldRateLimits = await db.delete(rateLimitBuckets)
+      .where(sql`${rateLimitBuckets.expiresAt} < NOW() - INTERVAL '24 hours'`)
+      .returning({ key: rateLimitBuckets.key });
 
-    let imagesRemoved = 0;
-    for (const upload of abandoned) {
-      if (await removeStoredImage(upload.key)) imagesRemoved++;
-    }
+    // Lock each old upload before touching storage so a concurrent publish
+    // cannot claim an image while cleanup is deleting it.
+    const uploads = await db.transaction(async (tx) => {
+      const abandoned = await tx.select({ key: pendingUploads.storageKey })
+        .from(pendingUploads)
+        .where(sql`${pendingUploads.claimedAt} IS NULL AND ${pendingUploads.createdAt} < NOW() - INTERVAL '24 hours'`)
+        .orderBy(asc(pendingUploads.createdAt))
+        .limit(25)
+        .for("update", { skipLocked: true });
+      let removed = 0;
+      let failed = 0;
+      for (const upload of abandoned) {
+        try {
+          if (await removeStoredImage(upload.key)) {
+            await tx.delete(pendingUploads).where(eq(pendingUploads.storageKey, upload.key));
+            removed++;
+          } else {
+            failed++;
+          }
+        } catch (error) {
+          logSafeError("cron.abandoned_upload_cleanup_failed", error);
+          failed++;
+        }
+      }
+      return { checked: abandoned.length, removed, failed };
+    });
 
     return {
       sessions: dead.length,
       passwordResetTokens: resetTokens.length,
       emailVerificationTokens: verificationTokens.length,
-      abandonedUploads: abandoned.length,
-      imagesRemoved,
+      rateLimitBuckets: oldRateLimits.length,
+      abandonedUploadsChecked: uploads.checked,
+      abandonedUploadsRemoved: uploads.removed,
+      imageCleanupFailures: uploads.failed,
     };
   },
 
@@ -95,23 +119,17 @@ const JOBS = {
    * The unique match key makes retries safe. A production email adapter can
    * deliver pending rows without coupling marketplace search to a vendor.
    */
-  "saved-search-alerts": async () => {
-    const searches = await db.select({ search: savedSearches, email: users.email })
-      .from(savedSearches).innerJoin(users, eq(savedSearches.userId, users.id))
-      .where(and(ne(savedSearches.alertFrequency, "off"), sql`${users.email} IS NOT NULL`, sql`(${savedSearches.alertFrequency} = 'instant' OR ${savedSearches.lastNotifiedAt} IS NULL OR ${savedSearches.lastNotifiedAt} < NOW() - INTERVAL '23 hours')`));
-    let queued = 0;
-    for (const { search, email } of searches) {
-      const stored = search.filters as { state?: FacetState };
-      if (!stored.state || !email) continue;
-      const result = await searchListings({ ...stored.state, page: 1, sort: "recent" });
-      const newRows = result.rows.filter(row => !search.lastNotifiedAt || (row.publishedAt && new Date(row.publishedAt) > search.lastNotifiedAt));
-      if (newRows.length) {
-        const inserted = await db.insert(savedSearchNotifications).values(newRows.map(row => ({ savedSearchId: search.id, listingId: row.id, recipientEmail: email }))).onConflictDoNothing().returning({ id: savedSearchNotifications.id });
-        queued += inserted.length;
-      }
-      await db.update(savedSearches).set({ lastNotifiedAt: new Date() }).where(eq(savedSearches.id, search.id));
-    }
-    return { searchesChecked: searches.length, notificationsQueued: queued };
+  "saved-search-alerts": queueSavedSearchAlerts,
+  "deliver-search-alerts": () => deliverSavedSearchAlerts(),
+  "retention-cleanup": async () => {
+    if (process.env.RETENTION_ENABLED!=="true") return { configured:false };
+    if (!process.env.RETENTION_DATABASE_NAME || decodeURIComponent(new URL(process.env.DATABASE_URL!).pathname.slice(1))!==process.env.RETENTION_DATABASE_NAME) throw new Error("Retention database confirmation does not match");
+    return runRetention(sqlClient,{apply:true,cutoff:new Date(),operator:"authenticated-retention-cron",limit:25});
+  },
+  "retention-media": async () => {
+    if (process.env.RETENTION_ENABLED!=="true") return {configured:false};
+    if (!process.env.RETENTION_DATABASE_NAME || decodeURIComponent(new URL(process.env.DATABASE_URL!).pathname.slice(1))!==process.env.RETENTION_DATABASE_NAME) throw new Error("Retention database confirmation does not match");
+    return drainMediaDeletions(sqlClient,removeStoredImage,25);
   },
 } as const;
 
@@ -126,7 +144,7 @@ export async function POST(
   }
 
   const { job } = await params;
-  if (!(job in JOBS)) {
+  if (!Object.hasOwn(JOBS, job)) {
     return NextResponse.json(
       { error: "Unknown job", available: Object.keys(JOBS) },
       { status: 404 },
@@ -136,6 +154,7 @@ export async function POST(
   const started = Date.now();
   try {
     const result = await JOBS[job as JobName]();
+    console.info(JSON.stringify({event:"cron.completed",job,ok:true,durationMs:Date.now()-started,result}));
     return NextResponse.json({
       job,
       ok: true,
@@ -143,9 +162,10 @@ export async function POST(
       result,
     });
   } catch (err) {
-    console.error(`cron job ${job} failed`, err);
+    console.error(JSON.stringify({event:"cron.failed",job,ok:false,durationMs:Date.now()-started}));
+    logSafeError("cron.job_failed", err);
     return NextResponse.json(
-      { job, ok: false, error: err instanceof Error ? err.message : "failed" },
+      { job, ok: false, error: "The scheduled job failed. Check the operator logs." },
       { status: 500 },
     );
   }

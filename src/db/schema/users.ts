@@ -9,6 +9,7 @@ import {
   index,
   uniqueIndex,
   bigserial,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { sellerTypeEnum } from "./enums";
@@ -43,6 +44,9 @@ export const users = pgTable(
      * inventing an RBAC layer for it would be architecture for its own sake.
      */
     isAdmin: boolean("is_admin").notNull().default(false),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    anonymizedAt: timestamp("anonymized_at", { withTimezone: true }),
+    closureState: jsonb("closure_state"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -103,6 +107,7 @@ export const sessions = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     userAgent: text("user_agent"),
+    recoveryOnly: boolean("recovery_only").notNull().default(false),
     ip: text("ip"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

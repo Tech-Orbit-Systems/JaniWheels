@@ -5,6 +5,9 @@ import { removeStoredImage, MAX_UPLOAD_BYTES } from "@/lib/images/storage";
 import { db } from "@/db";
 import { pendingUploads } from "@/db/schema/listings";
 import { and, eq, gt, sql } from "drizzle-orm";
+import { allowPublicAction } from "@/lib/security/rate-limit";
+import { permitsMutationOrigin } from "@/lib/security/origin";
+import { logSafeError } from "@/lib/operations/safe-error";
 
 export const runtime = "nodejs";
 
@@ -23,8 +26,14 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   }
-  if (request.headers.get("sec-fetch-site") === "cross-site") {
+  if (!permitsMutationOrigin(request,process.env.NEXT_PUBLIC_SITE_URL)) {
     return NextResponse.json({ error: "Cross-site uploads are not allowed." }, { status: 403 });
+  }
+  if (!await allowPublicAction(
+    "image-upload", `user:${user.id}`, request.headers,
+    { max: 30, sourceMax: 300, windowMs: 60 * 60_000 },
+  )) {
+    return NextResponse.json({ error: "Hourly upload request limit reached. Please try again later." }, { status: 429 });
   }
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > MAX_REQUEST_BYTES) {
@@ -75,7 +84,7 @@ export async function POST(request: Request) {
       stored.push(result.image.key);
     } catch (error) {
       await removeStoredImage(result.image.key);
-      console.error("Upload ownership registration failed", error);
+      logSafeError("upload.ownership_registration_failed", error);
       errors.push(`${file.name}: Upload failed. Try again.`);
     }
   }

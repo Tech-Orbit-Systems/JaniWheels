@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image from "@/components/StoredImage";
 import { useActionState } from "react";
 import {
   removeDealerLogoAction,
@@ -108,7 +108,9 @@ function LogoForm({ dealer }: { dealer: Dealer }) {
       </div>
       <Message state={state} />
       <form action={action} className="space-y-3">
-        <input name="logo" type="file" required accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif" className="block w-full text-sm text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:font-medium" />
+        <label className="block text-sm font-medium text-slate-700">Choose dealer logo
+          <input name="logo" type="file" required accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif" className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:font-medium" />
+        </label>
         <button type="submit" disabled={pending} className="w-full rounded bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
           {pending ? "Uploading…" : dealer.logoUrl ? "Replace logo" : "Upload logo"}
         </button>
@@ -133,8 +135,10 @@ const input = "w-full rounded border border-slate-300 bg-white px-3 py-2.5 text-
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700">{label}</label>
-      <div className="mt-1">{children}</div>
+      <label className="block">
+        <span className="block text-sm font-medium text-slate-700">{label}</span>
+        <span className="mt-1 block">{children}</span>
+      </label>
       {error && <p role="alert" className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

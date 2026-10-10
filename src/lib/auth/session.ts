@@ -38,6 +38,8 @@ export async function createSession(
   userId: number,
   meta: { userAgent?: string; ip?: string } = {},
 ): Promise<void> {
+  const [account] = await db.select({ closedAt: users.closedAt, anonymizedAt: users.anonymizedAt, isBanned: users.isBanned }).from(users).where(eq(users.id, userId));
+  if (!account || account.isBanned || account.anonymizedAt || (account.closedAt && account.closedAt.getTime() + 30 * 86_400_000 <= Date.now())) throw new Error("ACCOUNT_UNAVAILABLE");
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000);
 
@@ -46,6 +48,7 @@ export async function createSession(
     userId,
     expiresAt,
     userAgent: meta.userAgent?.slice(0, 500) ?? null,
+    recoveryOnly: Boolean(account.closedAt),
     ip: meta.ip ?? null,
   });
 
@@ -63,7 +66,7 @@ export async function createSession(
  * Request-cached: several server components per render ask "who is this?"
  * and without the cache that is a database round trip each time.
  */
-export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
+export const getSessionAccount = cache(async () => {
   const jar = await cookies();
   const token = jar.get(COOKIE_NAME)?.value;
   if (!token) return null;
@@ -76,6 +79,9 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
       type: users.type,
       isAdmin: users.isAdmin,
       isBanned: users.isBanned,
+      closedAt: users.closedAt,
+      anonymizedAt: users.anonymizedAt,
+      recoveryOnly: sessions.recoveryOnly,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
@@ -87,15 +93,14 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     )
     .limit(1);
 
-  if (!row || row.isBanned) return null;
+  if (!row || row.isBanned || row.anonymizedAt) return null;
+  return row;
+});
 
-  return {
-    id: row.id,
-    phone: row.phone,
-    name: row.name,
-    type: row.type,
-    isAdmin: row.isAdmin,
-  };
+export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
+  const row = await getSessionAccount();
+  if (!row || row.closedAt || row.recoveryOnly) return null;
+  return { id: row.id, phone: row.phone, name: row.name, type: row.type, isAdmin: row.isAdmin };
 });
 
 export async function requireUser(): Promise<SessionUser> {

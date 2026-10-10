@@ -138,7 +138,7 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
       </FormSection>
 
       <FormSection icon={Camera} title="Photos" hint="Add clear left, right, front, rear, meter and document/label photos.">
-        <input type="file" accept="image/*" multiple onChange={(e) => upload(e.target.files)} className="block w-full rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-bold file:text-white" />
+        <input type="file" aria-label="Choose bike photos" accept="image/*" multiple onChange={(e) => upload(e.target.files)} className="block w-full rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-bold file:text-white" />
         {uploading && <p className="text-sm text-slate-500">Uploading…</p>}{uploadError && <ErrorText>{uploadError}</ErrorText>}{error("imageKeys") && <ErrorText>{error("imageKeys")}</ErrorText>}
         {imageKeys.length > 0 && <p className="text-sm font-bold text-blue-700">{imageKeys.length} photo{imageKeys.length === 1 ? "" : "s"} added</p>}
         {imageKeys.map((key) => <input key={key} type="hidden" name="imageKeys" value={key} />)}

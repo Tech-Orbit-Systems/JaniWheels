@@ -110,6 +110,8 @@ export const listings = pgTable(
     publishedAt: timestamp("published_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     soldAt: timestamp("sold_at", { withTimezone: true }),
+    retentionInactiveAt: timestamp("retention_inactive_at", { withTimezone: true }),
+    redactedAt: timestamp("redacted_at", { withTimezone: true }),
     /** Seller deletion is a soft delete so trust/moderation history survives. */
     sellerDeletedAt: timestamp("seller_deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -134,6 +136,8 @@ export const listings = pgTable(
       t.publishedAt,
     ),
     index("listings_city_idx").on(t.vertical, t.status, t.cityId, t.publishedAt),
+    // Unfiltered newest-first browse cannot use the make/model index ordering.
+    index("listings_recent_idx").on(t.vertical, t.status, t.publishedAt.desc().nullsFirst(), t.id.desc().nullsFirst()),
     index("listings_price_idx").on(t.vertical, t.status, t.pricePkr),
     index("listings_year_idx").on(t.vertical, t.status, t.year),
     index("listings_seller_idx").on(t.sellerId),

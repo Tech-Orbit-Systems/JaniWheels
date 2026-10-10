@@ -20,7 +20,7 @@ checks.push(["reset tokens expire after thirty minutes", resetExpiry(0).getTime(
 checks.push(["forgot-password response prevents account enumeration", contains("src/lib/auth/reset-actions.ts", ["The response never reveals", "return { sent: true }"]) ]);
 checks.push(["reset consumption is single-use and revokes sessions", contains("src/lib/auth/reset-actions.ts", ["isNull(passwordResetTokens.usedAt)", "gt(passwordResetTokens.expiresAt", "tx.delete(sessions)"]) ]);
 checks.push(["contact changes require the current password", contains("src/lib/account/actions.ts", ["contactChanged", "verifyPassword(parsed.data.currentPassword", "Confirm your current password"]) ]);
-checks.push(["public seller page exposes active listings only", contains("src/app/sellers/[id]/page.tsx", ['eq(listings.status, "active")', 'eq(users.type, "individual")']) ]);
+checks.push(["public seller page exposes eligible active listings only", contains("src/app/sellers/[id]/page.tsx", ['publicListingEligibility()', 'eq(users.type, "individual")']) ]);
 checks.push(["production reset email uses configured authenticated delivery", contains("src/lib/email/password-reset.ts", ["RESEND_API_KEY", "EMAIL_FROM", "https://api.resend.com/emails", "Idempotency-Key"]) ]);
 
 let failures = 0;

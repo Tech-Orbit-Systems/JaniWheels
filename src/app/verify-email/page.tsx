@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { VerifyEmailForm } from "./VerifyEmailForm";
+import { safeReturnPath } from "@/lib/auth/return-path";
 
 export const metadata: Metadata = {
   title: "Verify email | JaniWheels",
@@ -12,7 +13,7 @@ export default async function VerifyEmailPage({
   searchParams: Promise<{ token?: string; next?: string }>;
 }) {
   const { token = "", next: rawNext } = await searchParams;
-  const next = rawNext?.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
+  const next = safeReturnPath(rawNext);
   return (
     <main className="mx-auto w-full max-w-md px-4 py-12">
       <div className="rounded-xl border border-slate-200 bg-white p-6">

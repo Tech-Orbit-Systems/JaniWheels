@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import Image from "@/components/StoredImage";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { dealers, users } from "@/db/schema/users";
 import { listings, listingImages } from "@/db/schema/listings";
 import { cities } from "@/db/schema/geo";
 import { makes, models } from "@/db/schema/taxonomy";
 import { ListingCard } from "@/components/ListingCard";
-import { abs, breadcrumbJsonLd } from "@/lib/seo/jsonld";
+import { abs, breadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { PAGE_SIZE } from "@/lib/listings/search";
 import { displayPkPhone } from "@/lib/format";
 import { imageDeliveryUrl } from "@/lib/images/url";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 /**
  * Dealer storefront.
@@ -39,7 +41,7 @@ async function getDealer(slug: string) {
     .from(dealers)
     .innerJoin(cities, eq(dealers.cityId, cities.id))
     .innerJoin(users, eq(dealers.userId, users.id))
-    .where(eq(dealers.slug, slug))
+    .where(and(eq(dealers.slug, slug), eq(users.isBanned, false), isNull(users.closedAt)))
     .limit(1);
 
   return row ?? null;
@@ -75,7 +77,11 @@ export default async function DealerPage({
   const dealer = await getDealer(slug);
   if (!dealer) notFound();
 
-  const page = Math.max(1, Number(rawPage ?? 1) || 1);
+  const requestedPage = Number(rawPage ?? 1);
+  const [{ total }] = await db.select({ total: sql<number>`COUNT(*)::int` }).from(listings)
+    .where(and(eq(listings.dealerId, dealer.id), publicListingEligibility()));
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, pageCount) : 1;
 
   const rows = await db
     .select({
@@ -103,9 +109,9 @@ export default async function DealerPage({
     .leftJoin(makes, eq(listings.makeId, makes.id))
     .leftJoin(models, eq(listings.modelId, models.id))
     .where(
-      and(eq(listings.dealerId, dealer.id), eq(listings.status, "active")),
+      and(eq(listings.dealerId, dealer.id), publicListingEligibility()),
     )
-    .orderBy(desc(listings.publishedAt))
+    .orderBy(desc(listings.publishedAt), desc(listings.id))
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE);
 
@@ -120,7 +126,7 @@ export default async function DealerPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
+          __html: serializeJsonLd({
             "@context": "https://schema.org",
             "@type": "AutoDealer",
             name: dealer.businessName,
@@ -137,7 +143,7 @@ export default async function DealerPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbJsonLd(crumbs)),
+          __html: serializeJsonLd(breadcrumbJsonLd(crumbs)),
         }}
       />
 
@@ -180,7 +186,7 @@ export default async function DealerPage({
       </div>
 
       <h2 className="mb-3 text-lg font-semibold text-slate-900">
-        {rows.length} active {rows.length === 1 ? "ad" : "ads"}
+        {total} active {total === 1 ? "ad" : "ads"}
       </h2>
 
       {rows.length === 0 ? (
@@ -194,6 +200,11 @@ export default async function DealerPage({
           ))}
         </ul>
       )}
+      {pageCount > 1 && <nav aria-label="Dealer inventory pages" className="mt-8 flex flex-wrap items-center justify-center gap-4">
+        {page > 1 && <Link className="rounded border px-4 py-2" href={`/dealers/${dealer.slug}?page=${page - 1}`} rel="prev">Previous</Link>}
+        <span>Page {page} of {pageCount}</span>
+        {page < pageCount && <Link className="rounded border px-4 py-2" href={`/dealers/${dealer.slug}?page=${page + 1}`} rel="next">Next</Link>}
+      </nav>}
     </main>
   );
 }

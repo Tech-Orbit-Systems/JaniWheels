@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image from "@/components/StoredImage";
 import Link from "next/link";
 import { useActionState } from "react";
 import {
@@ -73,7 +73,9 @@ function AvatarForm({ account }: { account: { name: string; avatarUrl: string | 
         {account.avatarUrl && <form action={removeAvatarAction}><button className="text-sm font-medium text-red-700 hover:underline">Remove photo</button></form>}
       </div>
       <form action={action} className="space-y-3">
-        <input name="avatar" type="file" required accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif" className="block w-full text-sm text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:font-medium" />
+        <label className="block text-sm font-medium text-slate-700">Choose profile photo
+          <input name="avatar" type="file" required accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif" className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:font-medium" />
+        </label>
         <Status state={state} />
         <button disabled={pending} className="rounded border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60">{pending ? "Uploading…" : "Upload photo"}</button>
       </form>
@@ -82,7 +84,7 @@ function AvatarForm({ account }: { account: { name: string; avatarUrl: string | 
 }
 
 function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: React.ReactNode }) {
-  return <div><label className="block text-sm font-medium text-slate-700">{label}</label>{children}{hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>;
+  return <div><label className="block text-sm font-medium text-slate-700">{label}{children}</label>{hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>;
 }
 
 function Status({ state }: { state: AccountFormState }) {

@@ -12,15 +12,15 @@ const GOOGLE_JWKS = createRemoteJWKSet(
 );
 
 const claimsSchema = z.object({
-  sub: z.string().min(1),
-  email: z.string().email(),
+  sub: z.string().min(1, "Google account ID is missing."),
+  email: z.string().email("Google account email is invalid."),
   email_verified: z.literal(true),
-  name: z.string().trim().min(1).max(100).optional(),
+  name: z.string().trim().min(1, "Google account name is empty.").max(100, "Google account name is too long.").optional(),
   hd: z.string().optional(),
 });
 
 const tokenResponseSchema = z.object({
-  id_token: z.string().min(1),
+  id_token: z.string().min(1, "Google sign-in token is missing."),
 });
 
 export class GoogleAuthError extends Error {
@@ -115,6 +115,7 @@ export async function resolveGoogleAccount(
       .select({
         userId: authAccounts.userId,
         isBanned: users.isBanned,
+        closedAt: users.closedAt,
       })
       .from(authAccounts)
       .innerJoin(users, eq(users.id, authAccounts.userId))
@@ -127,7 +128,7 @@ export async function resolveGoogleAccount(
       .limit(1);
 
     if (linked) {
-      if (linked.isBanned) throw new GoogleAuthError("account_blocked");
+      if (linked.isBanned || (linked.closedAt && linked.closedAt.getTime()+30*86400_000<=Date.now())) throw new GoogleAuthError("account_blocked");
       await tx
         .update(authAccounts)
         .set({ providerEmail: email, updatedAt: new Date() })
@@ -145,13 +146,13 @@ export async function resolveGoogleAccount(
     }
 
     const [sameEmail] = await tx
-      .select({ id: users.id, isBanned: users.isBanned })
+      .select({ id: users.id, isBanned: users.isBanned, closedAt: users.closedAt })
       .from(users)
       .where(eq(users.email, email))
       .limit(1);
 
     if (sameEmail) {
-      if (sameEmail.isBanned) throw new GoogleAuthError("account_blocked");
+      if (sameEmail.isBanned || (sameEmail.closedAt && sameEmail.closedAt.getTime()+30*86400_000<=Date.now())) throw new GoogleAuthError("account_blocked");
       if (!authoritative) throw new GoogleAuthError("account_exists");
       await tx.insert(authAccounts).values({
         userId: sameEmail.id,

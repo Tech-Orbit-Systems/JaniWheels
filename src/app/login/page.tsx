@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
+import { safeReturnPath } from "@/lib/auth/return-path";
 import { LoginForm } from "./LoginForm";
 
 export const metadata: Metadata = {
@@ -20,7 +21,7 @@ export default async function LoginPage({
 }) {
   const user = await getCurrentUser();
   const { next, mode: rawMode, reset, google } = await searchParams;
-  const target = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const target = safeReturnPath(next);
   const mode = rawMode === "register" ? "register" : "sign_in";
 
   if (user) redirect(target);

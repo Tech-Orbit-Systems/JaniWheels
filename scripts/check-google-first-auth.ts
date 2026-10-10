@@ -5,8 +5,22 @@ import {
   hashEmailVerificationToken,
   isPlausibleEmailVerificationToken,
 } from "../src/lib/auth/verification-token";
+import { safeReturnPath } from "../src/lib/auth/return-path";
 
 const checks: Array<[string, boolean]> = [];
+checks.push(["return targets remain on this site", [
+  "/dashboard?x=1#ads",
+  "/login",
+].every(path => safeReturnPath(path) === path) && [
+  "/\\attacker.example/review",
+  "//attacker.example/review",
+  "/%5cattacker.example/review",
+  "/%2f%2fattacker.example/review",
+  "/safe/..//attacker.example/review",
+  "/safe/%2e%2e//attacker.example/review",
+  "/%0d%0aLocation:evil",
+  "https://attacker.example/review",
+].every(path => safeReturnPath(path) === "/")]);
 function source(path: string) {
   return fs.readFileSync(path, "utf8");
 }

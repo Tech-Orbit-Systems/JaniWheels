@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { displayPkPhone } from "@/lib/format";
 import { imageDeliveryUrl } from "@/lib/images/url";
 import { ProfileForms } from "./ProfileForms";
+import { AccountClosure } from "@/components/AccountClosure";
 
 export const metadata: Metadata = { title: "Account settings | JaniWheels", robots: { index: false, follow: false } };
 
@@ -31,6 +32,7 @@ export default async function ProfilePage({
         </p>
       )}
       <ProfileForms account={{ name: account.name ?? "JaniWheels user", email: account.email, phone: account.phone ? displayPkPhone(account.phone) : "", hasPassword: Boolean(account.passwordHash), avatarUrl: account.avatarUrl, avatarSrc: account.avatarUrl ? imageDeliveryUrl(account.avatarUrl, 192) : null }} />
+      <AccountClosure />
     </main>
   );
 }

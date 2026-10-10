@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { savedListings, savedSearches } from "@/db/schema/analytics";
 import { listings } from "@/db/schema/listings";
 import { getCurrentUser } from "@/lib/auth/session";
+import { publicListingEligibility } from "@/lib/listings/public-eligibility";
 
 export type BuyerActionResult = { ok: boolean; authenticated: boolean; saved?: boolean; message?: string };
 
@@ -15,7 +16,7 @@ export async function toggleSavedListingAction(listingId: number): Promise<Buyer
   if (!user) return { ok: false, authenticated: false };
   if (!Number.isSafeInteger(listingId) || listingId < 1) return { ok: false, authenticated: true, message: "Invalid listing." };
   const [listing] = await db.select({ id: listings.id }).from(listings)
-    .where(and(eq(listings.id, listingId), eq(listings.status, "active"))).limit(1);
+    .where(and(eq(listings.id, listingId), publicListingEligibility())).limit(1);
   if (!listing) return { ok: false, authenticated: true, message: "This ad is no longer available." };
   const [existing] = await db.select({ listingId: savedListings.listingId }).from(savedListings)
     .where(and(eq(savedListings.userId, user.id), eq(savedListings.listingId, listingId))).limit(1);
@@ -28,11 +29,11 @@ export async function toggleSavedListingAction(listingId: number): Promise<Buyer
 }
 
 const searchSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-  vertical: z.enum(["car", "bike", "part"]),
-  path: z.string().startsWith("/").max(1000),
-  filters: z.string().max(5000),
-  alertFrequency: z.enum(["off", "daily", "instant"]),
+  name: z.string().trim().min(2, "Enter a search name.").max(80, "Search name is too long."),
+  vertical: z.enum(["car", "bike", "part"], { message: "Choose a marketplace." }),
+  path: z.string().startsWith("/", "Choose a valid search page.").max(1000, "Search page is too long."),
+  filters: z.string().max(5000, "Search filters are too long."),
+  alertFrequency: z.enum(["off", "daily", "instant"], { message: "Choose an alert frequency." }),
 });
 
 export async function saveSearchAction(formData: FormData): Promise<void> {

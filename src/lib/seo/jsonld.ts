@@ -14,6 +14,11 @@ import type { FacetState } from "./facets";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? "JaniWheels";
 
+export function serializeJsonLd(value: unknown): string {
+  // A seller-controlled title must never close the surrounding script element.
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 export function abs(path: string): string {
   return path.startsWith("http") ? path : `${SITE_URL}${path}`;
 }
@@ -87,6 +92,49 @@ export function vehicleJsonLd(l: VehicleListingLd) {
               addressCountry: "PK",
             },
           }
+        : undefined,
+    },
+  };
+}
+
+export interface PartListingLd {
+  url: string;
+  title: string;
+  description?: string | null;
+  pricePkr: number;
+  condition: "new" | "used" | "refurbished";
+  brand?: string | null;
+  category?: string | null;
+  cityName?: string | null;
+  imageUrls: string[];
+}
+
+export function partProductJsonLd(part: PartListingLd) {
+  const url = abs(part.url);
+  const condition = {
+    new: "NewCondition",
+    used: "UsedCondition",
+    refurbished: "RefurbishedCondition",
+  }[part.condition];
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "@id": url,
+    name: part.title,
+    description: part.description ?? undefined,
+    image: part.imageUrls.slice(0, 8).map(abs),
+    category: part.category ?? undefined,
+    brand: part.brand ? { "@type": "Brand", name: part.brand } : undefined,
+    offers: {
+      "@type": "Offer",
+      "@id": `${url}#offer`,
+      url,
+      price: part.pricePkr,
+      priceCurrency: "PKR",
+      itemCondition: `https://schema.org/${condition}`,
+      availability: "https://schema.org/InStock",
+      availableAtOrFrom: part.cityName
+        ? { "@type": "Place", address: { "@type": "PostalAddress", addressLocality: part.cityName, addressCountry: "PK" } }
         : undefined,
     },
   };

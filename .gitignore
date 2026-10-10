@@ -1,6 +1,10 @@
 node_modules/
 .next/
 .next-build/
+.acceptance-uploads/
+.acceptance-mail/
+playwright-report/
+test-results/
 dev.log
 out/
 build/
@@ -21,3 +25,4 @@ tsconfig.tsbuildinfo
 # generated sitemaps written to disk by the nightly job
 /public/sitemaps/
 /public/uploads/
+/.uploads/

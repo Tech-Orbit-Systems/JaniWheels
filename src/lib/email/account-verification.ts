@@ -1,5 +1,7 @@
 import "server-only";
 
+import { captureAcceptanceEmailLink } from "./acceptance-sink";
+
 interface VerificationEmail {
   to: string;
   name: string | null;
@@ -24,6 +26,7 @@ function escapeHtml(value: string): string {
 export async function sendAccountVerificationEmail(
   message: VerificationEmail,
 ): Promise<void> {
+  if (await captureAcceptanceEmailLink("verification", message.to, message.verificationUrl)) return;
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
   if (!apiKey || !from) {

@@ -62,17 +62,24 @@ changing routes or interactive behaviour.
 
 ## Current V1 gaps
 
-- Cars, bikes and parts seller flows, owner edit/delete and image management
-  are implemented; final DB/browser acceptance is deferred.
-- Favourites, comparison, recently viewed and saved-search UI are implemented;
-  production alert delivery still needs provider configuration.
-- Google-first authentication, verified email registration, account profiles,
-  password reset, dealer settings and manual dealer verification are
-  implemented; provider configuration and final DB/browser acceptance are
-  deferred.
-- Inspection and Sell My Car Assistance request administration,
-  customer-visible updates and append-only follow-up histories are implemented;
-  inspection workforce, valuation and transaction tooling remain out of scope.
-- Admin listing moderation, audited administrator edits and user ban/unban
-  controls are implemented; final DB/browser acceptance is deferred.
-- Production branding, mobile navigation and full launch QA are pending.
+- Core seller, buyer, account, dealer, moderation and manual-service workflows
+  have local DB/browser acceptance. Use the master tracker and current PR checks
+  for exact coverage; production/provider and real-device acceptance remain.
+- Saved-search matching and delivery now have overflow, retry and concurrency
+  acceptance; live email configuration, scheduling and mailbox checks remain.
+- Cloudflare private UUID delivery has mock-provider checks; live variants,
+  existing custom-ID migration and provider lifecycle acceptance remain.
+- Runtime/launch validation, admin bootstrap, readiness and structured error
+  events are implemented. Hosting, production DB, backups and external
+  monitoring still need deployment configuration.
+- Homepage branding, mobile navigation and enlarged-text/tablet checks are
+  implemented. Real-device/screen-reader, HTTPS and production load acceptance
+  remain. Inspection workforce, valuation and transaction tooling are excluded.
+- Client approved decision A exactly on 4 October 2026: account recovery 30 days,
+  inactive ads/closed services 12 months, resolved complaints 24 months,
+  detailed analytics and terminal alert PII 90 days, backups 30 days and
+  evidence holds reviewed every 90 days. Follow docs/RETENTION_DECISIONS.md.
+  Never delete held evidence or resume a restored backup before deletion replay.
+  Owner approved B1 on 4 October 2026: no ordinary
+  seller verification badge in V1. Existing manual dealer verification remains.
+  See docs/RETENTION_DECISIONS.md and docs/PROJECT.md.
