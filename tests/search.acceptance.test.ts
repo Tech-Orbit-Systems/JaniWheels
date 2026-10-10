@@ -51,59 +51,104 @@ async function vehicleSeed(vertical: "car" | "bike") {
   return row;
 }
 
+async function contrastingPair(sourceId: number, facet: "assembly" | "fuel", selected: string, excluded: string): Promise<[number, number]> {
+  const tag = Math.random().toString(36).slice(2);
+  const ids: number[] = [];
+  try {
+    for (const [label, value] of [["selected", selected], ["excluded", excluded]] as const) {
+      const slug = `acceptance-${facet}-${label}-${tag}`;
+      const title = `Acceptance ${facet} ${label} ${tag}`;
+      const [row] = facet === "assembly"
+        ? await sql`INSERT INTO listings(vertical,seller_id,slug,title,description,price_pkr,city_id,status,make_id,model_id,variant_id,year,mileage_km,transmission,fuel,body_type,engine_cc,assembly,published_at,expires_at)
+          SELECT vertical,seller_id,${slug},${title},description,price_pkr,city_id,'active',make_id,model_id,variant_id,year,mileage_km,transmission,fuel,body_type,engine_cc,${value}::assembly,NOW(),NOW()+INTERVAL '30 days'
+          FROM listings WHERE id=${sourceId} RETURNING id`
+        : await sql`INSERT INTO listings(vertical,seller_id,slug,title,description,price_pkr,city_id,status,make_id,model_id,variant_id,year,mileage_km,transmission,fuel,body_type,engine_cc,assembly,published_at,expires_at)
+          SELECT vertical,seller_id,${slug},${title},description,price_pkr,city_id,'active',make_id,model_id,variant_id,year,mileage_km,transmission,${value}::fuel,body_type,engine_cc,assembly,NOW(),NOW()+INTERVAL '30 days'
+          FROM listings WHERE id=${sourceId} RETURNING id`;
+      ids.push(Number(row.id));
+    }
+    return ids as [number, number];
+  } catch (error) {
+    for (const id of ids) await sql`DELETE FROM listings WHERE id=${id}`;
+    throw error;
+  }
+}
+
+async function removePair(ids: [number, number]) {
+  for (const id of ids) await sql`DELETE FROM listings WHERE id=${id}`;
+}
+
 test("car facets and combinations return exact seeded IDs and counts", async () => {
   const r = await vehicleSeed("car");
-  const base: FacetState = { vertical: "car" };
-  const make = { id: r.make_id, slug: r.make_slug, name: r.make_name };
-  const model = { id: r.model_id, slug: r.model_slug, name: r.model_name, makeSlug: r.make_slug };
-  const city = { id: r.city_id, slug: r.city_slug, name: r.city_name };
-  const province = { id: r.province_id, slug: r.province_slug, name: r.province_name };
-  const cases: Case[] = [
-    { name: "make", state: { ...base, make }, clause: "l.make_id=$2", values: [r.make_id] },
-    { name: "model", state: { ...base, model }, clause: "l.model_id=$2", values: [r.model_id] },
-    { name: "city", state: { ...base, city }, clause: "l.city_id=$2", values: [r.city_id] },
-    { name: "province", state: { ...base, province }, clause: "c.province_id=$2", values: [r.province_id] },
-    { name: "body", state: { ...base, bodyType: r.body_type }, clause: "l.body_type::text=$2", values: [r.body_type] },
-    { name: "transmission", state: { ...base, transmission: r.transmission }, clause: "l.transmission::text=$2", values: [r.transmission] },
-    { name: "fuel", state: { ...base, fuel: r.fuel }, clause: "l.fuel::text=$2", values: [r.fuel] },
-    { name: "assembly", state: { ...base, assembly: r.assembly }, clause: "l.assembly::text=$2", values: [r.assembly] },
-    { name: "origin", state: { ...base, origin: r.origin }, clause: "k.country_of_origin=$2", values: [r.origin] },
-    { name: "year bounds", state: { ...base, year: { min: r.year, max: r.year } }, clause: "l.year BETWEEN $2 AND $3", values: [r.year, r.year] },
-    { name: "price bounds", state: { ...base, price: { min: r.price_pkr, max: r.price_pkr } }, clause: "l.price_pkr BETWEEN $2 AND $3", values: [r.price_pkr, r.price_pkr] },
-    { name: "mileage bounds", state: { ...base, mileage: { min: r.mileage_km, max: r.mileage_km } }, clause: "l.mileage_km BETWEEN $2 AND $3", values: [r.mileage_km, r.mileage_km] },
-    { name: "engine bounds", state: { ...base, engine: { min: r.engine_cc, max: r.engine_cc } }, clause: "l.engine_cc BETWEEN $2 AND $3", values: [r.engine_cc, r.engine_cc] },
-    { name: "combined car facets", state: { ...base, model, city, bodyType: r.body_type, transmission: r.transmission, fuel: r.fuel, assembly: r.assembly, price: { min: r.price_pkr, max: r.price_pkr } }, clause: "l.model_id=$2 AND l.city_id=$3 AND l.body_type::text=$4 AND l.transmission::text=$5 AND l.fuel::text=$6 AND l.assembly::text=$7 AND l.price_pkr BETWEEN $8 AND $9", values: [r.model_id, r.city_id, r.body_type, r.transmission, r.fuel, r.assembly, r.price_pkr, r.price_pkr] },
-  ];
-  const features = await sql`SELECT f.slug FROM listing_features lf JOIN features f ON f.id=lf.feature_id WHERE lf.listing_id=${r.id} ORDER BY f.slug LIMIT 2`;
-  assert.equal(features.length, 2, "seed should exercise feature intersection");
-  const featureSlugs = features.map(row => String(row.slug));
-  cases.push({ name: "both requested features", state: { ...base, feature: featureSlugs }, clause: "EXISTS (SELECT 1 FROM listing_features lf JOIN features f ON f.id=lf.feature_id WHERE lf.listing_id=l.id AND f.slug=$2) AND EXISTS (SELECT 1 FROM listing_features lf JOIN features f ON f.id=lf.feature_id WHERE lf.listing_id=l.id AND f.slug=$3)", values: featureSlugs });
-  for (const item of cases) await assertCase(item);
-  const noMatch = await searchListings({ ...base, year: { min: 1900, max: 1900 } });
-  assert.equal(noMatch.total, 0);
-  assert.deepEqual(noMatch.rows, []);
+  const selected = String(r.assembly);
+  const pair = await contrastingPair(r.id, "assembly", selected, selected === "local" ? "imported" : "local");
+  try {
+    const filtered = await expectedIds("car", "l.assembly::text=$2", [selected]);
+    assert.ok(filtered.includes(pair[0]) && !filtered.includes(pair[1]), "car assembly fixture must exclude its contrasting row");
+    assert.notDeepEqual(filtered, await expectedIds("car"), "car assembly must reduce the eligible set");
+    const base: FacetState = { vertical: "car" };
+    const make = { id: r.make_id, slug: r.make_slug, name: r.make_name };
+    const model = { id: r.model_id, slug: r.model_slug, name: r.model_name, makeSlug: r.make_slug };
+    const city = { id: r.city_id, slug: r.city_slug, name: r.city_name };
+    const province = { id: r.province_id, slug: r.province_slug, name: r.province_name };
+    const cases: Case[] = [
+      { name: "make", state: { ...base, make }, clause: "l.make_id=$2", values: [r.make_id] },
+      { name: "model", state: { ...base, model }, clause: "l.model_id=$2", values: [r.model_id] },
+      { name: "city", state: { ...base, city }, clause: "l.city_id=$2", values: [r.city_id] },
+      { name: "province", state: { ...base, province }, clause: "c.province_id=$2", values: [r.province_id] },
+      { name: "body", state: { ...base, bodyType: r.body_type }, clause: "l.body_type::text=$2", values: [r.body_type] },
+      { name: "transmission", state: { ...base, transmission: r.transmission }, clause: "l.transmission::text=$2", values: [r.transmission] },
+      { name: "fuel", state: { ...base, fuel: r.fuel }, clause: "l.fuel::text=$2", values: [r.fuel] },
+      { name: "assembly", state: { ...base, assembly: r.assembly }, clause: "l.assembly::text=$2", values: [r.assembly] },
+      { name: "origin", state: { ...base, origin: r.origin }, clause: "k.country_of_origin=$2", values: [r.origin] },
+      { name: "year bounds", state: { ...base, year: { min: r.year, max: r.year } }, clause: "l.year BETWEEN $2 AND $3", values: [r.year, r.year] },
+      { name: "price bounds", state: { ...base, price: { min: r.price_pkr, max: r.price_pkr } }, clause: "l.price_pkr BETWEEN $2 AND $3", values: [r.price_pkr, r.price_pkr] },
+      { name: "mileage bounds", state: { ...base, mileage: { min: r.mileage_km, max: r.mileage_km } }, clause: "l.mileage_km BETWEEN $2 AND $3", values: [r.mileage_km, r.mileage_km] },
+      { name: "engine bounds", state: { ...base, engine: { min: r.engine_cc, max: r.engine_cc } }, clause: "l.engine_cc BETWEEN $2 AND $3", values: [r.engine_cc, r.engine_cc] },
+      { name: "combined car facets", state: { ...base, model, city, bodyType: r.body_type, transmission: r.transmission, fuel: r.fuel, assembly: r.assembly, price: { min: r.price_pkr, max: r.price_pkr } }, clause: "l.model_id=$2 AND l.city_id=$3 AND l.body_type::text=$4 AND l.transmission::text=$5 AND l.fuel::text=$6 AND l.assembly::text=$7 AND l.price_pkr BETWEEN $8 AND $9", values: [r.model_id, r.city_id, r.body_type, r.transmission, r.fuel, r.assembly, r.price_pkr, r.price_pkr] },
+    ];
+    const features = await sql`SELECT f.slug FROM listing_features lf JOIN features f ON f.id=lf.feature_id WHERE lf.listing_id=${r.id} ORDER BY f.slug LIMIT 2`;
+    assert.equal(features.length, 2, "seed should exercise feature intersection");
+    const featureSlugs = features.map(row => String(row.slug));
+    cases.push({ name: "both requested features", state: { ...base, feature: featureSlugs }, clause: "EXISTS (SELECT 1 FROM listing_features lf JOIN features f ON f.id=lf.feature_id WHERE lf.listing_id=l.id AND f.slug=$2) AND EXISTS (SELECT 1 FROM listing_features lf JOIN features f ON f.id=lf.feature_id WHERE lf.listing_id=l.id AND f.slug=$3)", values: featureSlugs });
+    for (const item of cases) await assertCase(item);
+    const noMatch = await searchListings({ ...base, year: { min: 1900, max: 1900 } });
+    assert.equal(noMatch.total, 0);
+    assert.deepEqual(noMatch.rows, []);
+  } finally {
+    await removePair(pair);
+  }
 });
 
 test("bike facets and combinations return exact seeded IDs and counts", async () => {
   const r = await vehicleSeed("bike");
-  const base: FacetState = { vertical: "bike" };
-  const make = { id: r.make_id, slug: r.make_slug, name: r.make_name };
-  const model = { id: r.model_id, slug: r.model_slug, name: r.model_name, makeSlug: r.make_slug };
-  const city = { id: r.city_id, slug: r.city_slug, name: r.city_name };
-  const province = { id: r.province_id, slug: r.province_slug, name: r.province_name };
-  const cases: Case[] = [
-    { name: "bike make", state: { ...base, make }, clause: "l.make_id=$2", values: [r.make_id] },
-    { name: "bike model", state: { ...base, model }, clause: "l.model_id=$2", values: [r.model_id] },
-    { name: "bike city", state: { ...base, city }, clause: "l.city_id=$2", values: [r.city_id] },
-    { name: "bike province", state: { ...base, province }, clause: "c.province_id=$2", values: [r.province_id] },
-    { name: "bike fuel", state: { ...base, fuel: r.fuel }, clause: "l.fuel::text=$2", values: [r.fuel] },
-    { name: "bike year", state: { ...base, year: { min: r.year, max: r.year } }, clause: "l.year BETWEEN $2 AND $3", values: [r.year, r.year] },
-    { name: "bike price", state: { ...base, price: { min: r.price_pkr, max: r.price_pkr } }, clause: "l.price_pkr BETWEEN $2 AND $3", values: [r.price_pkr, r.price_pkr] },
-    { name: "bike mileage", state: { ...base, mileage: { min: r.mileage_km, max: r.mileage_km } }, clause: "l.mileage_km BETWEEN $2 AND $3", values: [r.mileage_km, r.mileage_km] },
-    { name: "bike engine", state: { ...base, engine: { min: r.engine_cc, max: r.engine_cc } }, clause: "l.engine_cc BETWEEN $2 AND $3", values: [r.engine_cc, r.engine_cc] },
-    { name: "combined bike facets", state: { ...base, model, city, fuel: r.fuel, year: { min: r.year, max: r.year }, price: { min: r.price_pkr, max: r.price_pkr } }, clause: "l.model_id=$2 AND l.city_id=$3 AND l.fuel::text=$4 AND l.year=$5 AND l.price_pkr=$6", values: [r.model_id, r.city_id, r.fuel, r.year, r.price_pkr] },
-  ];
-  for (const item of cases) await assertCase(item);
+  const selected = String(r.fuel);
+  const pair = await contrastingPair(r.id, "fuel", selected, selected === "petrol" ? "electric" : "petrol");
+  try {
+    const filtered = await expectedIds("bike", "l.fuel::text=$2", [selected]);
+    assert.ok(filtered.includes(pair[0]) && !filtered.includes(pair[1]), "bike fuel fixture must exclude its contrasting row");
+    assert.notDeepEqual(filtered, await expectedIds("bike"), "bike fuel must reduce the eligible set");
+    const base: FacetState = { vertical: "bike" };
+    const make = { id: r.make_id, slug: r.make_slug, name: r.make_name };
+    const model = { id: r.model_id, slug: r.model_slug, name: r.model_name, makeSlug: r.make_slug };
+    const city = { id: r.city_id, slug: r.city_slug, name: r.city_name };
+    const province = { id: r.province_id, slug: r.province_slug, name: r.province_name };
+    const cases: Case[] = [
+      { name: "bike make", state: { ...base, make }, clause: "l.make_id=$2", values: [r.make_id] },
+      { name: "bike model", state: { ...base, model }, clause: "l.model_id=$2", values: [r.model_id] },
+      { name: "bike city", state: { ...base, city }, clause: "l.city_id=$2", values: [r.city_id] },
+      { name: "bike province", state: { ...base, province }, clause: "c.province_id=$2", values: [r.province_id] },
+      { name: "bike fuel", state: { ...base, fuel: r.fuel }, clause: "l.fuel::text=$2", values: [r.fuel] },
+      { name: "bike year", state: { ...base, year: { min: r.year, max: r.year } }, clause: "l.year BETWEEN $2 AND $3", values: [r.year, r.year] },
+      { name: "bike price", state: { ...base, price: { min: r.price_pkr, max: r.price_pkr } }, clause: "l.price_pkr BETWEEN $2 AND $3", values: [r.price_pkr, r.price_pkr] },
+      { name: "bike mileage", state: { ...base, mileage: { min: r.mileage_km, max: r.mileage_km } }, clause: "l.mileage_km BETWEEN $2 AND $3", values: [r.mileage_km, r.mileage_km] },
+      { name: "bike engine", state: { ...base, engine: { min: r.engine_cc, max: r.engine_cc } }, clause: "l.engine_cc BETWEEN $2 AND $3", values: [r.engine_cc, r.engine_cc] },
+      { name: "combined bike facets", state: { ...base, model, city, fuel: r.fuel, year: { min: r.year, max: r.year }, price: { min: r.price_pkr, max: r.price_pkr } }, clause: "l.model_id=$2 AND l.city_id=$3 AND l.fuel::text=$4 AND l.year=$5 AND l.price_pkr=$6", values: [r.model_id, r.city_id, r.fuel, r.year, r.price_pkr] },
+    ];
+    for (const item of cases) await assertCase(item);
+  } finally {
+    await removePair(pair);
+  }
 });
 
 test("every sort and three pages preserve exact order without duplicates", async () => {

@@ -10,7 +10,7 @@ const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl || !/(?:_test|_acceptance)$/.test(new URL(databaseUrl).pathname.slice(1))) {
   throw new Error("Local backlog browser checks require an isolated test database");
 }
-const sql = postgres(databaseUrl, { max: 1 });
+const sql = postgres(databaseUrl, { max: 3 });
 test.afterAll(async () => { await sql.end(); });
 
 async function signIn(page: Page, email: string, next = "/dashboard") {
@@ -79,22 +79,39 @@ test("car, bike and part details show correct metadata, specs and a delivered ph
   const uploadDir = process.env.UPLOAD_DIR;
   if (!uploadDir) throw new Error("UPLOAD_DIR is required for detail acceptance");
   for (const [vertical, base, heading] of [["car", "used-cars", "Car details"], ["bike", "used-bikes", "Bike details"], ["part", "auto-parts", "Part details"]] as const) {
-    const [listing] = await sql`SELECT id,slug,title,year FROM listings WHERE vertical=${vertical} AND status='active' ORDER BY id DESC LIMIT 1`;
-    expect(listing?.id).toBeGreaterThan(0);
+    const tag = randomBytes(8).toString("hex");
+    const [owner] = await sql`INSERT INTO users(email,name,email_verified_at) VALUES (${`detail-${tag}@example.invalid`},'Detail fixture seller',NOW()) RETURNING id`;
+    let listingId: number | undefined;
     const key = `202610/${randomBytes(16).toString("hex")}.webp`;
     const file = join(uploadDir, key);
-    const bytes = await sharp({ create: { width: 32, height: 24, channels: 3, background: "#557799" } }).webp().toBuffer();
-    await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, bytes);
     try {
-      await sql`INSERT INTO listing_images(listing_id,storage_key,position,width,height) VALUES (${listing.id},${key},-1,32,24)`;
+      const [source] = await sql`SELECT id FROM listings WHERE vertical=${vertical} AND status='active' AND seller_deleted_at IS NULL ORDER BY id LIMIT 1`;
+      expect(source?.id).toBeGreaterThan(0);
+      const title = `Acceptance ${vertical} ${tag}`;
+      const slug = `acceptance-${vertical}-${tag}`;
+      const [listing] = await sql`INSERT INTO listings(vertical,seller_id,slug,title,description,price_pkr,city_id,status,make_id,model_id,variant_id,year,mileage_km,transmission,fuel,body_type,engine_cc,assembly,published_at,expires_at,photo_count)
+        SELECT vertical,${owner.id},${slug},${title},description,price_pkr,city_id,'active',make_id,model_id,variant_id,year,mileage_km,transmission,fuel,body_type,engine_cc,assembly,NOW(),NOW()+INTERVAL '30 days',1
+        FROM listings WHERE id=${source.id} RETURNING id,slug,title,year`;
+      listingId = listing.id;
+      if (vertical === "car") await sql`INSERT INTO car_details(listing_id) VALUES (${listing.id})`;
+      if (vertical === "bike") await sql`INSERT INTO bike_details(listing_id) VALUES (${listing.id})`;
+      if (vertical === "part") await sql`INSERT INTO part_details(listing_id,category_id,condition,brand)
+        SELECT ${listing.id},category_id,condition,${`FixtureBrand${tag}`} FROM part_details WHERE listing_id=${source.id}`;
+      const bytes = await sharp({ create: { width: 32, height: 24, channels: 3, background: "#557799" } }).webp().toBuffer();
+      await mkdir(dirname(file), { recursive: true });
+      await writeFile(file, bytes);
+      await sql`INSERT INTO listing_images(listing_id,storage_key,position,width,height) VALUES (${listing.id},${key},0,32,24)`;
       const path = `/${base}/${listing.slug}-${listing.id}`;
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1, name: listing.title })).toBeVisible();
       await expect(page.getByRole("heading", { name: heading })).toBeVisible();
       expect(await page.title()).toContain(listing.title);
       await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(`${path.replaceAll("/", "\\/")}$`));
-      if (vertical !== "part") await expect(page.getByText("Model Year")).toBeVisible();
+      if (vertical === "part") {
+        await expect(page.getByText("Brand", { exact: true }).locator("..").locator("dd")).toHaveText(`FixtureBrand${tag}`);
+      } else {
+        await expect(page.getByText("Model Year", { exact: true }).locator("..").locator("dd")).toHaveText(String(listing.year));
+      }
       const image = page.getByRole("img", { name: listing.title }).first();
       await expect(image).toHaveAttribute("src", `/uploads/${key}`);
       await image.scrollIntoViewIfNeeded();
@@ -103,7 +120,8 @@ test("car, bike and part details show correct metadata, specs and a delivered ph
       expect(delivered.status()).toBe(200);
       expect(delivered.headers()["content-type"]).toContain("image/webp");
     } finally {
-      await sql`DELETE FROM listing_images WHERE storage_key=${key}`;
+      if (listingId) await sql`DELETE FROM listings WHERE id=${listingId}`;
+      await sql`DELETE FROM users WHERE id=${owner.id}`;
       await rm(file, { force: true });
     }
   }
@@ -132,6 +150,77 @@ test("two sellers registering the same dealer name receive unique permanent slug
     await expect(page).toHaveURL(/\/dashboard\/dealer(?:\?|$)/);
     expect((await sql`SELECT count(*)::int n FROM dealers WHERE user_id IN (${accounts[0].id},${accounts[1].id})`)[0].n).toBe(2);
   } finally {
+    await sql`DELETE FROM sessions WHERE user_id IN (${accounts[0].id},${accounts[1].id})`;
+    await sql`DELETE FROM dealers WHERE user_id IN (${accounts[0].id},${accounts[1].id})`;
+    await sql`DELETE FROM users WHERE id IN (${accounts[0].id},${accounts[1].id})`;
+  }
+});
+
+test("concurrent same-name dealer registration claims distinct slugs without a server error", async ({ page, browser }) => {
+  const tag = `Concurrent Motors ${randomBytes(5).toString("hex")}`;
+  const root = tag.toLowerCase().replaceAll(" ", "-");
+  const [seed] = await sql`SELECT password_hash FROM users WHERE email='acceptance-seller@example.invalid'`;
+  const accounts = await sql`INSERT INTO users(email,name,password_hash,email_verified_at) VALUES
+    (${root+'-a@example.invalid'},'Concurrent Dealer A',${seed.password_hash},NOW()),
+    (${root+'-b@example.invalid'},'Concurrent Dealer B',${seed.password_hash},NOW()) RETURNING id,email`;
+  const secondContext = await browser.newContext({ baseURL: process.env.ACCEPTANCE_BASE_URL ?? "http://127.0.0.1:3101" });
+  const secondPage = await secondContext.newPage();
+  let release: (() => void) | undefined;
+  let blocker: Promise<unknown> | undefined;
+  let firstSubmit: Promise<void> | undefined;
+  let secondSubmit: Promise<void> | undefined;
+  try {
+    await signIn(page, accounts[0].email, "/dealers/register");
+    await signIn(secondPage, accounts[1].email, "/dealers/register");
+    for (const entry of [page, secondPage]) {
+      await entry.locator('input[name="businessName"]').fill(tag);
+      await entry.locator('select[name="cityId"]').selectOption({ index: 1 });
+    }
+    let ready!: () => void;
+    const held = new Promise<void>(resolve => { ready = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    let blockerPid = 0;
+    blocker = sql.begin(async tx => {
+      const [backend] = await tx`SELECT pg_backend_pid() pid`;
+      blockerPid = backend.pid;
+      await tx`SELECT id FROM users WHERE id=${accounts[0].id} FOR UPDATE`;
+      ready();
+      await gate;
+    });
+    await held;
+    firstSubmit = page.getByRole("button", { name: "Create dealer account" }).click();
+    await expect.poll(async () => {
+      const [row] = await sql`SELECT count(*)::int n FROM pg_stat_activity
+        WHERE datname=current_database() AND wait_event_type='Lock'
+          AND ${blockerPid}=ANY(pg_blocking_pids(pid)) AND query ILIKE '%insert into "dealers"%'`;
+      return row.n;
+    }, { timeout: 15000 }).toBeGreaterThan(0);
+    secondSubmit = secondPage.getByRole("button", { name: "Create dealer account" }).click();
+    await expect.poll(async () => {
+      const [row] = await sql`SELECT count(*)::int n FROM pg_stat_activity
+        WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE '%insert into "dealers"%'`;
+      return row.n;
+    }, { timeout: 15000 }).toBeGreaterThanOrEqual(2);
+    release!();
+    await Promise.all([blocker, firstSubmit, secondSubmit]);
+    await expect(page).toHaveURL(/\/dashboard\/dealer(?:\?|$)/);
+    await expect(secondPage).toHaveURL(/\/dashboard\/dealer(?:\?|$)/);
+    const rows = await sql`SELECT d.user_id,d.slug,u.type FROM dealers d JOIN users u ON u.id=d.user_id
+      WHERE u.id IN (${accounts[0].id},${accounts[1].id}) ORDER BY d.slug`;
+    expect(rows.map(row => row.slug)).toEqual([root, `${root}-2`]);
+    expect(rows.map(row => row.user_id).sort()).toEqual(accounts.map(account => account.id).sort());
+    expect(rows.map(row => row.type)).toEqual(["dealer", "dealer"]);
+    for (const entry of [page, secondPage]) {
+      await entry.goto("/dealers/register");
+      await expect(entry).toHaveURL(/\/dashboard\/dealer(?:\?|$)/);
+    }
+    expect((await sql`SELECT count(*)::int n FROM dealers WHERE user_id IN (${accounts[0].id},${accounts[1].id})`)[0].n).toBe(2);
+  } finally {
+    release?.();
+    await blocker?.catch(() => {});
+    await firstSubmit?.catch(() => {});
+    await secondSubmit?.catch(() => {});
+    await secondContext.close();
     await sql`DELETE FROM sessions WHERE user_id IN (${accounts[0].id},${accounts[1].id})`;
     await sql`DELETE FROM dealers WHERE user_id IN (${accounts[0].id},${accounts[1].id})`;
     await sql`DELETE FROM users WHERE id IN (${accounts[0].id},${accounts[1].id})`;
