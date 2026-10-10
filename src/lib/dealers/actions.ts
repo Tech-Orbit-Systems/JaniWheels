@@ -38,23 +38,6 @@ function fieldIssues(error: z.ZodError): Record<string, string> {
   return result;
 }
 
-/** Slugs are permanent once a storefront is indexed, so make them unique up front. */
-async function uniqueSlug(base: string): Promise<string> {
-  const root = slugify(base, { lower: true, strict: true }) || "dealer";
-  let candidate = root;
-  let n = 2;
-
-  for (;;) {
-    const [taken] = await db
-      .select({ id: dealers.id })
-      .from(dealers)
-      .where(eq(dealers.slug, candidate))
-      .limit(1);
-    if (!taken) return candidate;
-    candidate = `${root}-${n++}`;
-  }
-}
-
 export async function registerDealerAction(
   _prev: DealerFormState,
   formData: FormData,
@@ -85,7 +68,7 @@ export async function registerDealerAction(
     return { error: "Please fix the highlighted fields.", fieldErrors };
   }
 
-  const slug = await uniqueSlug(parsed.data.businessName);
+  const root = slugify(parsed.data.businessName, { lower: true, strict: true }) || "dealer";
   const whatsapp = parsed.data.whatsapp
     ? normalizePkPhone(parsed.data.whatsapp)
     : null;
@@ -97,16 +80,21 @@ export async function registerDealerAction(
   }
 
   await db.transaction(async (tx) => {
-    await tx.insert(dealers).values({
-      userId: user.id,
-      businessName: parsed.data.businessName,
-      slug,
-      cityId: parsed.data.cityId,
-      address: parsed.data.address ?? null,
-      landline: parsed.data.landline ?? null,
-      whatsapp,
-      about: parsed.data.about ?? null,
-    });
+    // The unique index arbitrates concurrent claims, including uncommitted slugs.
+    for (let suffix = 1; ; suffix++) {
+      const slug = suffix === 1 ? root : `${root}-${suffix}`;
+      const [created] = await tx.insert(dealers).values({
+        userId: user.id,
+        businessName: parsed.data.businessName,
+        slug,
+        cityId: parsed.data.cityId,
+        address: parsed.data.address ?? null,
+        landline: parsed.data.landline ?? null,
+        whatsapp,
+        about: parsed.data.about ?? null,
+      }).onConflictDoNothing({ target: dealers.slug }).returning({ id: dealers.id });
+      if (created) break;
+    }
 
     await tx.update(users).set({ type: "dealer" }).where(eq(users.id, user.id));
   });
