@@ -79,7 +79,20 @@ export async function registerDealerAction(
     };
   }
 
-  await db.transaction(async (tx) => {
+  const registration = await db.transaction(async (tx) => {
+    // Serialize registrations and closure on the owner before touching its dealer row.
+    const [account] = await tx.select({
+      id: users.id,
+      isBanned: users.isBanned,
+      closedAt: users.closedAt,
+      anonymizedAt: users.anonymizedAt,
+    }).from(users).where(eq(users.id, user.id)).for("no key update").limit(1);
+    if (!account || account.isBanned || account.closedAt || account.anonymizedAt) return "unavailable";
+
+    const [existingDealer] = await tx.select({ id: dealers.id })
+      .from(dealers).where(eq(dealers.userId, user.id)).limit(1);
+    if (existingDealer) return "existing";
+
     // The unique index arbitrates concurrent claims, including uncommitted slugs.
     for (let suffix = 1; ; suffix++) {
       const slug = suffix === 1 ? root : `${root}-${suffix}`;
@@ -97,9 +110,13 @@ export async function registerDealerAction(
     }
 
     await tx.update(users).set({ type: "dealer" }).where(eq(users.id, user.id));
+    return "created";
   });
 
-  revalidatePath("/dealers");
+  if (registration === "unavailable") {
+    return { error: "This account is unavailable. Please sign in again." };
+  }
+  if (registration === "created") revalidatePath("/dealers");
   redirect("/dashboard/dealer");
 }
 

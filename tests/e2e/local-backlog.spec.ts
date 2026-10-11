@@ -172,9 +172,11 @@ test("concurrent same-name dealer registration claims distinct slugs without a s
   try {
     await signIn(page, accounts[0].email, "/dealers/register");
     await signIn(secondPage, accounts[1].email, "/dealers/register");
-    for (const entry of [page, secondPage]) {
+    const cities = await sql`SELECT id FROM cities ORDER BY id LIMIT 2`;
+    expect(cities).toHaveLength(2);
+    for (const [index, entry] of [page, secondPage].entries()) {
       await entry.locator('input[name="businessName"]').fill(tag);
-      await entry.locator('select[name="cityId"]').selectOption({ index: 1 });
+      await entry.locator('select[name="cityId"]').selectOption(String(cities[index].id));
     }
     let ready!: () => void;
     const held = new Promise<void>(resolve => { ready = resolve; });
@@ -183,24 +185,29 @@ test("concurrent same-name dealer registration claims distinct slugs without a s
     blocker = sql.begin(async tx => {
       const [backend] = await tx`SELECT pg_backend_pid() pid`;
       blockerPid = backend.pid;
-      await tx`SELECT id FROM users WHERE id=${accounts[0].id} FOR UPDATE`;
+      // A may claim the slug but cannot finish its city FK while this lock is held.
+      await tx`SELECT id FROM cities WHERE id=${cities[0].id} FOR UPDATE`;
       ready();
       await gate;
     });
     await held;
     firstSubmit = page.getByRole("button", { name: "Create dealer account" }).click();
+    let firstPid = 0;
     await expect.poll(async () => {
-      const [row] = await sql`SELECT count(*)::int n FROM pg_stat_activity
+      const [row] = await sql`SELECT pid FROM pg_stat_activity
         WHERE datname=current_database() AND wait_event_type='Lock'
           AND ${blockerPid}=ANY(pg_blocking_pids(pid)) AND query ILIKE '%insert into "dealers"%'`;
-      return row.n;
+      firstPid = Number(row?.pid ?? 0);
+      return firstPid;
     }, { timeout: 15000 }).toBeGreaterThan(0);
     secondSubmit = secondPage.getByRole("button", { name: "Create dealer account" }).click();
+    // Only B waiting on this test's uncommitted A slug claim proves the intended overlap.
     await expect.poll(async () => {
-      const [row] = await sql`SELECT count(*)::int n FROM pg_stat_activity
-        WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE '%insert into "dealers"%'`;
-      return row.n;
-    }, { timeout: 15000 }).toBeGreaterThanOrEqual(2);
+      const [row] = await sql`SELECT pid FROM pg_stat_activity
+        WHERE datname=current_database() AND pid<>${firstPid} AND wait_event_type='Lock'
+          AND ${firstPid}=ANY(pg_blocking_pids(pid)) AND query ILIKE '%insert into "dealers"%'`;
+      return Number(row?.pid ?? 0);
+    }, { timeout: 15000 }).toBeGreaterThan(0);
     release!();
     await Promise.all([blocker, firstSubmit, secondSubmit]);
     await expect(page).toHaveURL(/\/dashboard\/dealer(?:\?|$)/);
@@ -226,6 +233,83 @@ test("concurrent same-name dealer registration claims distinct slugs without a s
     await sql`DELETE FROM users WHERE id IN (${accounts[0].id},${accounts[1].id})`;
   }
 });
+
+for (const sameName of [true, false]) {
+  test(`concurrent dealer submissions on one account keep the first profile (${sameName ? "same" : "different"} names)`, async ({ page, browser }) => {
+    const tag = randomBytes(5).toString("hex");
+    const firstName = `Single Owner Motors ${tag}`;
+    const secondName = sameName ? firstName : `Other Owner Motors ${tag}`;
+    const firstSlug = firstName.toLowerCase().replaceAll(" ", "-");
+    const [seed] = await sql`SELECT password_hash FROM users WHERE email='acceptance-seller@example.invalid'`;
+    const [owner] = await sql`INSERT INTO users(email,name,password_hash,email_verified_at)
+      VALUES (${`single-owner-${tag}@example.invalid`},'Concurrent Dealer Owner',${seed.password_hash},NOW()) RETURNING id,email`;
+    const secondContext = await browser.newContext({ baseURL: process.env.ACCEPTANCE_BASE_URL ?? "http://127.0.0.1:3101" });
+    const secondPage = await secondContext.newPage();
+    let release: (() => void) | undefined;
+    let blocker: Promise<unknown> | undefined;
+    let firstSubmit: Promise<void> | undefined;
+    let secondSubmit: Promise<void> | undefined;
+    try {
+      await signIn(page, owner.email, "/dealers/register");
+      await signIn(secondPage, owner.email, "/dealers/register");
+      for (const [entry, name] of [[page, firstName], [secondPage, secondName]] as const) {
+        await entry.locator('input[name="businessName"]').fill(name);
+        await entry.locator('select[name="cityId"]').selectOption({ index: 1 });
+      }
+      let ready!: () => void;
+      const held = new Promise<void>(resolve => { ready = resolve; });
+      const gate = new Promise<void>(resolve => { release = resolve; });
+      let blockerPid = 0;
+      blocker = sql.begin(async tx => {
+        const [backend] = await tx`SELECT pg_backend_pid() pid`;
+        blockerPid = Number(backend.pid);
+        await tx`SELECT id FROM users WHERE id=${owner.id} FOR UPDATE`;
+        ready();
+        await gate;
+      });
+      await held;
+      firstSubmit = page.getByRole("button", { name: "Create dealer account" }).click();
+      let firstPid = 0;
+      await expect.poll(async () => {
+        const [row] = await sql`SELECT pid FROM pg_stat_activity
+          WHERE datname=current_database() AND wait_event_type='Lock'
+            AND ${blockerPid}=ANY(pg_blocking_pids(pid))
+            AND query ILIKE '%from "users"%' AND query ILIKE '%for no key update%'`;
+        firstPid = Number(row?.pid ?? 0);
+        return firstPid;
+      }, { timeout: 15000 }).toBeGreaterThan(0);
+      secondSubmit = secondPage.getByRole("button", { name: "Create dealer account" }).click();
+      await expect.poll(async () => {
+        const [row] = await sql`SELECT pid FROM pg_stat_activity
+          WHERE datname=current_database() AND pid<>${firstPid} AND wait_event_type='Lock'
+            AND ${firstPid}=ANY(pg_blocking_pids(pid))
+            AND query ILIKE '%from "users"%' AND query ILIKE '%for no key update%'`;
+        return Number(row?.pid ?? 0);
+      }, { timeout: 15000 }).toBeGreaterThan(0);
+      release!();
+      await Promise.all([blocker, firstSubmit, secondSubmit]);
+      await expect(page).toHaveURL(/\/dashboard\/dealer(?:\?|$)/);
+      await expect(secondPage).toHaveURL(/\/dashboard\/dealer(?:\?|$)/);
+      const rows = await sql`SELECT d.slug,d.business_name,u.type FROM dealers d JOIN users u ON u.id=d.user_id WHERE d.user_id=${owner.id}`;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ slug: firstSlug, business_name: firstName, type: "dealer" });
+      for (const entry of [page, secondPage]) {
+        await entry.goto("/dealers/register");
+        await expect(entry).toHaveURL(/\/dashboard\/dealer(?:\?|$)/);
+      }
+      expect((await sql`SELECT count(*)::int n FROM dealers WHERE user_id=${owner.id}`)[0].n).toBe(1);
+    } finally {
+      release?.();
+      await blocker?.catch(() => {});
+      await firstSubmit?.catch(() => {});
+      await secondSubmit?.catch(() => {});
+      await secondContext.close();
+      await sql`DELETE FROM sessions WHERE user_id=${owner.id}`;
+      await sql`DELETE FROM dealers WHERE user_id=${owner.id}`;
+      await sql`DELETE FROM users WHERE id=${owner.id}`;
+    }
+  });
+}
 
 for (const service of ["inspection", "assistance"] as const) {
   test(`${service} admin follows every intermediate lifecycle step with auditable customer history`, async ({ page, isMobile }) => {
