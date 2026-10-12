@@ -23,7 +23,7 @@ const STATUS_STYLE: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-800",
   pending_review: "bg-amber-100 text-amber-800",
   sold: "bg-slate-200 text-slate-700",
-  expired: "bg-slate-100 text-slate-500",
+  expired: "bg-slate-100 text-slate-700",
   rejected: "bg-red-100 text-red-800",
   removed: "bg-red-200 text-red-900",
 };
@@ -122,7 +122,7 @@ export default async function DashboardPage({searchParams}:{searchParams:Promise
                     {r.title}
                   </Link>
                   <span
-                    className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[r.status] ?? "bg-slate-100"}`}
+                    className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[r.status] ?? "bg-slate-100 text-slate-700"}`}
                   >
                     {r.status.replace("_", " ")}
                   </span>

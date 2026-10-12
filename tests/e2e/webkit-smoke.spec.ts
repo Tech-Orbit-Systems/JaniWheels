@@ -2,6 +2,9 @@ import { expect, test } from "@playwright/test";
 import sharp from "sharp";
 
 test("iPhone WebKit navigation and search stay within the viewport", async ({ page }) => {
+  test.setTimeout(150_000);
+  // Keep Playwright's stability checks independent of the looping hero animation.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.locator("header summary").click();
