@@ -2,6 +2,7 @@ import { headers, cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSession, getSessionAccount, safeEqual } from "@/lib/auth/session";
 import { safeReturnPath } from "@/lib/auth/return-path";
+import { clientIp } from "@/lib/security/rate-limit";
 import {
   exchangeGoogleCode,
   GoogleAuthError,
@@ -55,10 +56,7 @@ export async function GET(request: Request) {
     await createSession(userId, {
       userAgent: h.get("user-agent") ?? undefined,
       ip:
-        h.get("cf-connecting-ip") ??
-        h.get("x-real-ip") ??
-        h.get("x-forwarded-for")?.split(",")[0].trim() ??
-        undefined,
+        clientIp(h) ?? undefined,
     });
   } catch (error) {
     if (error instanceof GoogleAuthError) loginError(error.code);

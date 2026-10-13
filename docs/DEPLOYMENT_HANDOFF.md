@@ -1,6 +1,6 @@
 # JaniWheels V1 deployment handoff
 
-Updated: 8 October 2026. This document is for the external team that will
+Updated: 13 October 2026. This document is for the external team that will
 provision hosting and deploy JaniWheels. The development team supplies the
 source, migrations, configuration contract and acceptance runbooks. The
 deployment team owns infrastructure setup, secrets, DNS changes, live provider
@@ -9,9 +9,9 @@ checks, monitoring, backups and the release record.
 ## What to hand over
 
 - Repository: `https://github.com/Tech-Orbit-Systems/JaniWheels`. Deploy a
-  reviewed, merged `main` commit and record its full SHA. PR #6 and its current
-  feature branch are not a production release until independent review, required
-  checks and merge are complete.
+  reviewed, merged `main` commit and record its full SHA. PR #7 has merged;
+  any newer prelaunch changes require their own checks, independent review and
+  merge before they become part of a release.
 - Runtime: persistent Node.js server (Node 22 recommended; minimum 20.11),
   PostgreSQL, HTTPS and durable Cloudflare Images. Next.js 15 uses `npm ci`,
   `npm run build` and `npm run start`; a static-file or PHP-only cPanel account
@@ -28,7 +28,8 @@ checks, monitoring, backups and the release record.
 - Operational runbooks: `docs/DEPLOYMENT.md`, `docs/ADMIN_BOOTSTRAP.md`,
   `docs/PRIVATE_MEDIA.md`, `docs/ALERT_DELIVERY.md`,
   `docs/RETENTION_DECISIONS.md`, `docs/OPERATIONS.md` and
-  `docs/REGRESSION_CHECKLIST.md`.
+  `docs/REGRESSION_CHECKLIST.md`. The local evidence and remaining launch gates
+  are recorded in `docs/PREHOSTING_ACCEPTANCE.md`.
 
 ## Infrastructure and configuration
 
@@ -41,6 +42,7 @@ checks, monitoring, backups and the release record.
 | Email | Verify the sending domain with Resend and set `RESEND_API_KEY` and `EMAIL_FROM`. Test registration, password reset and saved-search delivery in a controlled mailbox. The old cPanel mailbox/data does not require migration, per the owner's 8 October 2026 confirmation. |
 | Google | Set OAuth client ID/secret and register the exact `https://janiwheels.com/api/auth/google/callback` redirect. Configure a restricted Maps browser key if Maps is enabled. |
 | Secrets | Generate distinct, strong `SESSION_SECRET` and `CRON_SECRET` values for staging and production. Set every required variable from `.env.example` in the host's secret manager. |
+| Proxy security | Route all traffic through the trusted HTTPS proxy, block direct app-port access, and overwrite one client-IP header on every request. Set `TRUSTED_PROXY_IP_HEADER` to that exact header. Verify a forged client header cannot change the app's observed IP or bypass source rate limits. Cap `/api/upload` at 52 MiB, limit simultaneous uploads per source, and enforce request-read/connection timeouts at the proxy. |
 | Jobs | Configure authenticated scheduled calls for `expire-listings`, `purge-expired`, `saved-search-alerts` and `deliver-search-alerts`. Enable `retention-cleanup` and `retention-media` only after the approved preview, 30-day backup and independent deletion-ledger setup. Monitor job failures and backlog. |
 | Recovery | Configure actual rolling 30-day encrypted backups and independent restricted deletion-ledger export. Rehearse restore and deletion replay before clearing maintenance mode. `BACKUP_RETENTION_DAYS=30` is a validation setting, not backup configuration. |
 | Monitoring | Monitor `/api/health` externally, application errors, database, job failures, email backlog and provider errors. Name the incident recipient. |

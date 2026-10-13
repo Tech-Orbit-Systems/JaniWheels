@@ -25,6 +25,8 @@ test("banned listing owners cannot match or deliver alerts to a different buyer"
     await queueSavedSearchAlerts();
     assert.equal((await sql`SELECT count(*)::int n FROM saved_search_notifications WHERE saved_search_id=${search.id}`)[0].n,1);
     await sql`UPDATE users SET is_banned=true WHERE id=${seller.id}`;
+    // Allow for small differences between the database and application clocks.
+    await sql`UPDATE saved_search_notifications SET next_attempt_at=NOW()-INTERVAL '1 second' WHERE saved_search_id=${search.id}`;
     let sent=0;
     await deliverSavedSearchAlerts(async(payload)=>{if(payload.to.includes(tag+'-buyer@example.invalid')) sent++;},25);
     assert.equal(sent,0);

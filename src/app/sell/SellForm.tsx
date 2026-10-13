@@ -7,6 +7,7 @@ import {
 } from "@/lib/listings/sell-actions";
 import { MapLocationPicker } from "@/components/MapLocationPicker";
 import { FeatureMultiSelect } from "@/components/FeatureMultiSelect";
+import { uploadPhotos } from "@/lib/images/upload-client";
 
 interface Option {
   id: number;
@@ -82,20 +83,13 @@ export function SellForm({
 
   async function upload(files: FileList | null) {
     if (!files?.length) return;
+    if (imageKeys.length + files.length > 30) { setUploadError("An ad can have up to 30 photos."); return; }
     setUploading(true);
     setUploadError(null);
-
-    const body = new FormData();
-    Array.from(files).forEach((f) => body.append("files", f));
-
     try {
-      const res = await fetch("/api/upload", { method: "POST", body });
-      const data = await res.json();
-      if (data.keys?.length) setImageKeys((k) => [...k, ...data.keys]);
-      if (data.errors?.length) setUploadError(data.errors.join(" "));
-      if (!res.ok) setUploadError(data.error ?? "Upload failed.");
-    } catch {
-      setUploadError("Upload failed. Check your connection.");
+      const result = await uploadPhotos(files);
+      if (result.keys.length) setImageKeys((keys) => [...keys, ...result.keys]);
+      if (result.errors.length) setUploadError(result.errors.join(" "));
     } finally {
       setUploading(false);
     }

@@ -17,8 +17,15 @@ Configure the values documented in `.env.example`. At minimum:
 - `SESSION_SECRET`
 - `IMAGE_PROVIDER` and the selected provider credentials
 - `CRON_SECRET`
+- `TRUSTED_PROXY_IP_HEADER` for the header overwritten by the last trusted proxy
 
 Do not use local filesystem uploads on an ephemeral host.
+Block direct access to the Node port and overwrite the configured client-IP
+header at the HTTPS proxy. Reject `/api/upload` requests above 52 MiB there,
+limit simultaneous uploads per source, and set request-read and connection
+timeouts. The application also limits upload
+body bytes without relying on `Content-Length`, but the proxy must stop excess
+traffic before it reaches Node.
 Runtime configuration is validated at startup. Run `npm run check:deployment`
 before launch for the stricter public HTTPS/provider/secret checks. It prints
 only variable names and corrections. Passing it does not prove provider access.

@@ -11,7 +11,7 @@ import { normalizePkPhone } from "@/lib/format";
 import { removeStoredImage, storeImage } from "@/lib/images/storage";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createSession, getCurrentUser } from "@/lib/auth/session";
-import { ACCOUNT_LIMITS, allowAccountAction } from "@/lib/security/rate-limit";
+import { ACCOUNT_LIMITS, allowAccountAction, clientIp } from "@/lib/security/rate-limit";
 
 export interface AccountFormState {
   success?: string;
@@ -135,7 +135,7 @@ export async function changePasswordAction(
   });
   await createSession(account.id, {
     userAgent: h.get("user-agent") ?? undefined,
-    ip: h.get("cf-connecting-ip") ?? h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0].trim() ?? undefined,
+    ip: clientIp(h) ?? undefined,
   });
   return { success: "Password changed. Other signed-in devices were logged out." };
 }

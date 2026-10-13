@@ -27,10 +27,12 @@ export function environmentIssues(env: Record<string, string | undefined>, launc
     catch { issues.push("Retention requires a valid DATABASE_URL"); }
   }
   if (env.BACKUP_RETENTION_DAYS && env.BACKUP_RETENTION_DAYS!=="30") issues.push("Approved rolling backup retention is 30 days");
+  if (env.TRUSTED_PROXY_IP_HEADER && !["cf-connecting-ip", "x-real-ip", "x-forwarded-for"].includes(env.TRUSTED_PROXY_IP_HEADER)) issues.push("TRUSTED_PROXY_IP_HEADER must name a supported proxy-overwritten IP header");
   if (launch) {
     for (const key of ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "RESEND_API_KEY", "EMAIL_FROM", "CRON_SECRET"]) required(key);
     if ((env.CRON_SECRET?.length ?? 0) < 32) issues.push("Launch CRON_SECRET must contain at least 32 characters");
     if (provider !== "cloudflare") issues.push("Launch requires durable Cloudflare image storage");
+    required("TRUSTED_PROXY_IP_HEADER");
     if (env.ACCEPTANCE_EMAIL_DIR) issues.push("Acceptance email capture must be disabled for launch");
     if (env.RESTORE_REPLAY_REQUIRED==="true") issues.push("Complete deletion replay before ending restore maintenance");
   }

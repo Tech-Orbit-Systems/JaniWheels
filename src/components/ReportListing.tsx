@@ -19,7 +19,7 @@ const REASONS = [
  *
  * The people best placed to spot a scam are buyers who have just been
  * scammed by it, and they will not create a login to tell you. Abuse is
- * handled by one-report-per-person and a high auto-hide threshold, not by
+ * handled by one-report-per-account or trusted source and an auto-hide threshold, not by
  * making reporting hard.
  */
 export function ReportListing({ listingId }: { listingId: number }) {

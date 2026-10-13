@@ -5,6 +5,7 @@ import { BatteryCharging, Bike, Camera, MapPin, ShieldCheck, Zap } from "lucide-
 import { createBikeListingAction, type SellState } from "@/lib/listings/sell-actions";
 import { MapLocationPicker } from "@/components/MapLocationPicker";
 import { FeatureMultiSelect } from "@/components/FeatureMultiSelect";
+import { uploadPhotos } from "@/lib/images/upload-client";
 
 type Option = { id: number; name: string };
 type MakeOption = Option & { isElectric: boolean };
@@ -44,15 +45,13 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
 
   async function upload(files: FileList | null) {
     if (!files?.length) return;
+    if (imageKeys.length + files.length > 30) { setUploadError("An ad can have up to 30 photos."); return; }
     setUploading(true); setUploadError(null);
-    const body = new FormData();
-    Array.from(files).forEach((file) => body.append("files", file));
     try {
-      const response = await fetch("/api/upload", { method: "POST", body });
-      const data = await response.json();
-      if (data.keys?.length) setImageKeys((keys) => [...keys, ...data.keys].slice(0, 30));
-      if (!response.ok || data.errors?.length) setUploadError(data.error ?? data.errors?.join(" ") ?? "Upload failed.");
-    } catch { setUploadError("Upload failed. Check your connection."); }
+      const result = await uploadPhotos(files);
+      if (result.keys.length) setImageKeys((keys) => [...keys, ...result.keys]);
+      if (result.errors.length) setUploadError(result.errors.join(" "));
+    }
     finally { setUploading(false); }
   }
 

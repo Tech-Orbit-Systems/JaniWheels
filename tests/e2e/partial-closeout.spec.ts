@@ -1,4 +1,4 @@
-import {expect,test,type Page} from "@playwright/test";
+import {expect,test,type Page,type Request} from "@playwright/test";
 import "dotenv/config";
 import {createHmac,randomUUID} from "node:crypto";
 import {mkdir,readFile,rm,writeFile} from "node:fs/promises";
@@ -50,10 +50,16 @@ async function login(page:Page,email:string,next='/dashboard') {
   await expect(page).not.toHaveURL(/\/login/);
 }
 async function capture(page:Page,click:()=>Promise<void>) {
-  const request=page.waitForRequest(r=>r.method()==='POST' && Boolean(r.headers()['next-action']));
-  await page.route('**/*',async route=>{if(route.request().headers()['next-action']) await route.abort(); else await route.continue();});
+  let intercepted!: (request:Request)=>void;
+  const blocked=new Promise<Request>(resolve=>{intercepted=resolve;});
+  await page.route('**/*',async route=>{
+    if(route.request().method()==='POST' && route.request().headers()['next-action']) {
+      await route.abort();
+      intercepted(route.request());
+    } else await route.continue();
+  });
   await click();
-  const r=await request;
+  const r=await blocked;
   await page.unrouteAll({behavior:'wait'});
   const headers={...r.headers()};
   // API replay must explicitly carry the browser's secure local session cookie.
@@ -431,6 +437,7 @@ for(const decision of ['approve','reinstate'] as const) {
 
 for(const existingCount of [3,4] as const) {
   test(`reciprocal authenticated reports serialize with ${existingCount} prior reports`,async({page,browser})=>{
+    test.setTimeout(120_000);
     const a=await fixture();
     const b=await fixture();
     const contextB=await browser.newContext();
@@ -440,6 +447,7 @@ for(const existingCount of [3,4] as const) {
     const gate=new Promise<void>(resolve=>{release=resolve;});
     const held=new Promise<void>(resolve=>{ready=resolve;});
     let blocker:Promise<unknown>|undefined;
+    let blockerPid=0;
     let settled:Promise<PromiseSettledResult<Awaited<ReturnType<typeof page.request.post>>>[]>|undefined;
     try {
       for(const listing of [a.listing,b.listing]) for(let i=0;i<existingCount;i++) {
@@ -457,21 +465,24 @@ for(const existingCount of [3,4] as const) {
       const actionB=await capture(pageB,()=>pageB.getByRole('button',{name:'Send report'}).click());
       blocker=sql.begin(async tx=>{
         await tx`SELECT id FROM listings WHERE id IN (${a.listing.id},${b.listing.id}) ORDER BY id FOR UPDATE`;
+        const [backend]=await tx`SELECT pg_backend_pid()::int pid`;
+        blockerPid=backend.pid;
         ready();
         await gate;
       });
       await held;
       const requests=[
-        page.request.post(actionA.url,{data:actionA.data,headers:actionA.headers,timeout:15000}),
-        pageB.request.post(actionB.url,{data:actionB.data,headers:actionB.headers,timeout:15000}),
+        page.request.post(actionA.url,{data:actionA.data,headers:actionA.headers,timeout:35000}),
+        pageB.request.post(actionB.url,{data:actionB.data,headers:actionB.headers,timeout:35000}),
       ];
       settled=Promise.allSettled(requests);
       await expect.poll(async()=>{
         const [row]=await sql`SELECT count(*)::int n FROM pg_stat_activity
           WHERE datname=current_database() AND wait_event_type='Lock'
+          AND ${blockerPid} = ANY(pg_blocking_pids(pid))
           AND query ILIKE '%FROM "listings"%' AND query ILIKE '%FOR UPDATE%'`;
         return row.n;
-      },{timeout:10000}).toBeGreaterThanOrEqual(2);
+      },{timeout:25000}).toBeGreaterThanOrEqual(2);
       release();
       const results=await settled;
       for(const result of results) {

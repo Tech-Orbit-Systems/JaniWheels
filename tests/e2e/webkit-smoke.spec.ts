@@ -1,6 +1,17 @@
 import { expect, test } from "@playwright/test";
 import sharp from "sharp";
 
+test("iPhone WebKit default-motion search tabs respond to a real tap", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(false);
+  await page.getByRole("tab", { name: "Auto Parts" }).tap();
+  await expect(page.getByRole("tab", { name: "Auto Parts" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "Search Parts" }).tap();
+  await expect(page).toHaveURL(/\/auto-parts(?:\?|$)/);
+});
+
 test("iPhone WebKit navigation and search stay within the viewport", async ({ page }) => {
   test.setTimeout(150_000);
   // Keep Playwright's stability checks independent of the looping hero animation.

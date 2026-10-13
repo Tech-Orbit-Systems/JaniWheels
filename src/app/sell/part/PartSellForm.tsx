@@ -4,6 +4,7 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { Boxes, Camera, CarFront, MapPin, PackageCheck, Tags } from "lucide-react";
 import { createPartListingAction, type SellState } from "@/lib/listings/sell-actions";
 import { MapLocationPicker } from "@/components/MapLocationPicker";
+import { uploadPhotos } from "@/lib/images/upload-client";
 
 type Option = { id: number; name: string };
 type Category = Option & { parentId: number | null };
@@ -36,14 +37,13 @@ export function PartSellForm({ categories, makes, cities }: { categories: Catego
 
   async function upload(files: FileList | null) {
     if (!files?.length) return;
+    if (imageKeys.length + files.length > 30) { setUploadError("An ad can have up to 30 photos."); return; }
     setUploading(true); setUploadError(null);
-    const body = new FormData(); Array.from(files).forEach((file) => body.append("files", file));
     try {
-      const response = await fetch("/api/upload", { method: "POST", body });
-      const data = await response.json();
-      if (data.keys?.length) setImageKeys((keys) => [...keys, ...data.keys].slice(0, 30));
-      if (!response.ok || data.errors?.length) setUploadError(data.error ?? data.errors?.join(" ") ?? "Upload failed.");
-    } catch { setUploadError("Upload failed. Check your connection."); }
+      const result = await uploadPhotos(files);
+      if (result.keys.length) setImageKeys((keys) => [...keys, ...result.keys]);
+      if (result.errors.length) setUploadError(result.errors.join(" "));
+    }
     finally { setUploading(false); }
   }
 

@@ -10,7 +10,7 @@ import { normalizePkPhone } from "@/lib/format";
 import { issueEmailVerification } from "./email-verification";
 import { hashPassword, verifyPassword } from "./password";
 import { createSession, destroySession } from "./session";
-import { allowAuthAttempt, AUTH_LIMITS, clearRateLimit } from "@/lib/security/rate-limit";
+import { allowAuthAttempt, AUTH_LIMITS, clearRateLimit, clientIp } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "./return-path";
 import { logSafeError } from "@/lib/operations/safe-error";
 
@@ -50,11 +50,7 @@ async function requestMeta() {
   const h = await headers();
   return {
     userAgent: h.get("user-agent") ?? undefined,
-    ip:
-      h.get("cf-connecting-ip") ??
-      h.get("x-real-ip") ??
-      h.get("x-forwarded-for")?.split(",")[0].trim() ??
-      undefined,
+    ip: clientIp(h) ?? undefined,
   };
 }
 
