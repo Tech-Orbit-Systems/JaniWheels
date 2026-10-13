@@ -22,6 +22,9 @@ test("six photos upload in bounded batches while invalid bulk requests leave no 
   await sql`UPDATE users SET phone=${`+923${String(owner.id).padStart(9, "0")}`} WHERE id=${owner.id}`;
   const photo = await sharp({ create: { width: 24, height: 24, channels: 3, background: "#557744" } }).png().toBuffer();
   const requests: string[] = [];
+  let releaseFirstUpload: () => void = () => {};
+  const firstUploadGate = new Promise<void>((resolve) => { releaseFirstUpload = resolve; });
+  let firstUploadGated = false;
   page.on("request", (request) => { if (request.method() === "POST" && request.url().endsWith("/api/upload")) requests.push(request.url()); });
   try {
     await page.goto("/login?next=/sell/part");
@@ -29,10 +32,18 @@ test("six photos upload in bounded batches while invalid bulk requests leave no 
     await page.getByLabel("Password").fill("AcceptanceOnly123!");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe("/sell/part");
-    await page.locator('input[type="file"]').setInputFiles(Array.from({ length: 6 }, (_, index) => ({
+    await page.route("**/api/upload", async (route) => {
+      if (!firstUploadGated) { firstUploadGated = true; await firstUploadGate; }
+      await route.continue();
+    });
+    const fileInput = page.locator('input[type="file"]');
+    await fileInput.setInputFiles(Array.from({ length: 6 }, (_, index) => ({
       name: `photo-${index}.png`, mimeType: "image/png", buffer: photo,
     })));
+    await expect(fileInput).toBeDisabled();
+    releaseFirstUpload();
     await expect(page.getByText("6 photos added")).toBeVisible();
+    await expect(fileInput).toBeEnabled();
     expect(requests).toHaveLength(2);
     const accepted = await sql`SELECT storage_key FROM pending_uploads WHERE user_id=${owner.id}`;
     expect(accepted).toHaveLength(6);
@@ -52,6 +63,7 @@ test("six photos upload in bounded batches while invalid bulk requests leave no 
     const after = await sql`SELECT storage_key FROM pending_uploads WHERE user_id=${owner.id}`;
     expect(after).toHaveLength(6);
   } finally {
+    releaseFirstUpload();
     const rows = await sql`SELECT storage_key FROM pending_uploads WHERE user_id=${owner.id}`;
     for (const row of rows) {
       await sql`DELETE FROM pending_uploads WHERE storage_key=${row.storage_key}`;

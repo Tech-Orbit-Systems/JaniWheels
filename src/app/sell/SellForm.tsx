@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   createCarListingAction,
   type SellState,
@@ -54,6 +54,7 @@ export function SellForm({
   const [areas, setAreas] = useState<Option[]>([]);
   const [imageKeys, setImageKeys] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const uploadInProgress = useRef(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isUnregistered, setIsUnregistered] = useState(false);
   const [hasAuctionSheet, setHasAuctionSheet] = useState(false);
@@ -82,8 +83,9 @@ export function SellForm({
   }, [cityId]);
 
   async function upload(files: FileList | null) {
-    if (!files?.length) return;
+    if (!files?.length || uploadInProgress.current) return;
     if (imageKeys.length + files.length > 30) { setUploadError("An ad can have up to 30 photos."); return; }
+    uploadInProgress.current = true;
     setUploading(true);
     setUploadError(null);
     try {
@@ -91,6 +93,7 @@ export function SellForm({
       if (result.keys.length) setImageKeys((keys) => [...keys, ...result.keys]);
       if (result.errors.length) setUploadError(result.errors.join(" "));
     } finally {
+      uploadInProgress.current = false;
       setUploading(false);
     }
   }
@@ -263,6 +266,7 @@ export function SellForm({
             type="file"
             accept="image/*"
             multiple
+            disabled={uploading}
             onChange={(e) => upload(e.target.files)}
             className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-medium"
           />
