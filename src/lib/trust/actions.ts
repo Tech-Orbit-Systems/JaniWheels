@@ -19,6 +19,7 @@ import {
 import { isInspectionStatus, validateInspectionUpdate } from "./inspection-policy";
 import { ACCOUNT_LIMITS, allowAccountAction, allowPublicAction } from "@/lib/security/rate-limit";
 import { publicListingEligibility } from "@/lib/listings/public-eligibility";
+import { anonymousReportId } from "./report-identity";
 
 /**
  * Trust actions: reporting bad listings, booking an inspection, and the
@@ -68,29 +69,32 @@ export async function reportListingAction(
   }
 
   const user = await getCurrentUser();
+  const requestHeaders = await headers();
   const jar = await cookies();
-  let anonId = user ? null : (jar.get("jw_anon")?.value ?? null);
-  if (!user && !anonId) {
-    anonId = randomBytes(16).toString("hex");
-    jar.set("jw_anon", anonId, {
+  let cookieId = user ? null : (jar.get("jw_anon")?.value ?? null);
+  if (!user && !cookieId && !process.env.TRUSTED_PROXY_IP_HEADER) {
+    cookieId = randomBytes(16).toString("hex");
+    jar.set("jw_anon", cookieId, {
       httpOnly: true,
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 365,
     });
   }
+  const anonId = user ? null : anonymousReportId(requestHeaders, cookieId);
+  if (!user && !anonId) return { error: "Reporting is temporarily unavailable. Please try again later." };
 
   if (!await allowPublicAction(
     "listing-report",
     user ? `user:${user.id}` : `anon:${anonId}`,
-    await headers(),
+    requestHeaders,
     { max: 5, sourceMax: 100, windowMs: 60 * 60_000 },
   )) {
     return { error: "Too many reports. Please try again later." };
   }
 
-  // One report per person per listing. Without this, a competitor can file
-  // fifty reports and trip any automated threshold you set.
+  // One report per account or trusted network source per listing. A client can
+  // clear its cookie, so the cookie is only a local fallback before proxy setup.
   const [existing] = await db
     .select({ id: listingReports.id })
     .from(listingReports)

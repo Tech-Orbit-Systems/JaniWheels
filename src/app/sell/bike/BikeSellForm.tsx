@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { BatteryCharging, Bike, Camera, MapPin, ShieldCheck, Zap } from "lucide-react";
 import { createBikeListingAction, type SellState } from "@/lib/listings/sell-actions";
 import { MapLocationPicker } from "@/components/MapLocationPicker";
 import { FeatureMultiSelect } from "@/components/FeatureMultiSelect";
+import { uploadPhotos } from "@/lib/images/upload-client";
 
 type Option = { id: number; name: string };
 type MakeOption = Option & { isElectric: boolean };
@@ -24,6 +25,7 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
   const [areas, setAreas] = useState<Option[]>([]);
   const [imageKeys, setImageKeys] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const uploadInProgress = useRef(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const visibleMakes = useMemo(() => makes.filter((make) => make.isElectric === electric), [makes, electric]);
@@ -43,17 +45,16 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
   }, [cityId]);
 
   async function upload(files: FileList | null) {
-    if (!files?.length) return;
+    if (!files?.length || uploadInProgress.current) return;
+    if (imageKeys.length + files.length > 30) { setUploadError("An ad can have up to 30 photos."); return; }
+    uploadInProgress.current = true;
     setUploading(true); setUploadError(null);
-    const body = new FormData();
-    Array.from(files).forEach((file) => body.append("files", file));
     try {
-      const response = await fetch("/api/upload", { method: "POST", body });
-      const data = await response.json();
-      if (data.keys?.length) setImageKeys((keys) => [...keys, ...data.keys].slice(0, 30));
-      if (!response.ok || data.errors?.length) setUploadError(data.error ?? data.errors?.join(" ") ?? "Upload failed.");
-    } catch { setUploadError("Upload failed. Check your connection."); }
-    finally { setUploading(false); }
+      const result = await uploadPhotos(files);
+      if (result.keys.length) setImageKeys((keys) => [...keys, ...result.keys]);
+      if (result.errors.length) setUploadError(result.errors.join(" "));
+    }
+    finally { uploadInProgress.current = false; setUploading(false); }
   }
 
   const error = (field: string) => state.fieldErrors?.[field];
@@ -138,7 +139,7 @@ export function BikeSellForm({ makes, cities, features }: { makes: MakeOption[];
       </FormSection>
 
       <FormSection icon={Camera} title="Photos" hint="Add clear left, right, front, rear, meter and document/label photos.">
-        <input type="file" aria-label="Choose bike photos" accept="image/*" multiple onChange={(e) => upload(e.target.files)} className="block w-full rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-bold file:text-white" />
+        <input type="file" aria-label="Choose bike photos" accept="image/*" multiple disabled={uploading} onChange={(e) => upload(e.target.files)} className="block w-full rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-bold file:text-white" />
         {uploading && <p className="text-sm text-slate-500">Uploading…</p>}{uploadError && <ErrorText>{uploadError}</ErrorText>}{error("imageKeys") && <ErrorText>{error("imageKeys")}</ErrorText>}
         {imageKeys.length > 0 && <p className="text-sm font-bold text-blue-700">{imageKeys.length} photo{imageKeys.length === 1 ? "" : "s"} added</p>}
         {imageKeys.map((key) => <input key={key} type="hidden" name="imageKeys" value={key} />)}

@@ -75,3 +75,7 @@ npm run sweep
 
 See `docs/PROJECT.md` for architecture and `docs/DEPLOYMENT.md` for deployment
 requirements.
+
+For a Windows developer working without an assistant, see the
+[self-service developer guide](docs/DEVELOPER_SELF_SERVICE_GUIDE.md) for manual
+database/server setup, troubleshooting, code changes, tests and GitHub workflow.

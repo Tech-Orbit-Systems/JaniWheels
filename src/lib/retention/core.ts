@@ -271,20 +271,23 @@ export async function exportLedger(sql: Sql): Promise<RetentionLedger> {
   return sql.begin(async tx => {
   await tx`SELECT pg_advisory_xact_lock(${LOCK})`;
   const rows = await tx`SELECT resource,resource_id,action,occurred_at::text AS occurred_at FROM retention_receipts ORDER BY id`;
-  const [identity] = await tx`SELECT instance_id FROM retention_identity WHERE id=1`;
+  const [identity] = await tx`SELECT instance_id,clock_timestamp() AS generated_at FROM retention_identity WHERE id=1`;
   if (!identity) throw new RetentionError("Retention identity is missing; apply migrations.");
-  return { version: 1, instanceId: identity.instance_id, generatedAt: new Date().toISOString(), receipts: rows.map(r => ({ resource: r.resource, resource_id: r.resource_id, action: r.action, occurred_at: r.occurred_at })) };
+  // Compare receipt and export times on the same database clock during replay.
+  return { version: 1, instanceId: identity.instance_id, generatedAt: identity.generated_at.toISOString(), receipts: rows.map(r => ({ resource: r.resource, resource_id: r.resource_id, action: r.action, occurred_at: r.occurred_at })) };
   });
 }
 
 export async function replayLedger(sql: Sql, ledger: RetentionLedger, operator: string) {
-  if (ledger.version !== 1 || !Array.isArray(ledger.receipts) || !operator.trim() || !Number.isFinite(Date.parse(ledger.generatedAt)) || Date.parse(ledger.generatedAt)>Date.now()) throw new RetentionError("Invalid restore ledger.");
+  if (ledger.version !== 1 || !Array.isArray(ledger.receipts) || !operator.trim() || !Number.isFinite(Date.parse(ledger.generatedAt))) throw new RetentionError("Invalid restore ledger.");
   for (const row of ledger.receipts) {
     const actions: Record<string,string[]> = {account:["close","restore","redact"],listing:["seller-delete","redact"],inspection:["redact"],assistance:["redact"],report:["delete"],moderation:["delete"],alert:["redact"],lead:["delete"]};
     if (!actions[row.resource]?.includes(row.action) || !Number.isSafeInteger(row.resource_id) || row.resource_id < 1 || !Number.isFinite(Date.parse(row.occurred_at)) || Date.parse(row.occurred_at)>Date.parse(ledger.generatedAt)) throw new RetentionError("Invalid restore ledger entry.");
   }
   return sql.begin(async tx => {
     await tx`SELECT pg_advisory_xact_lock(${LOCK})`;
+    const [clock] = await tx`SELECT clock_timestamp() AS db_time`;
+    if (Date.parse(ledger.generatedAt) > clock.db_time.getTime()) throw new RetentionError("Invalid restore ledger.");
     const [identity] = await tx`SELECT instance_id FROM retention_identity WHERE id=1`;
     if (!identity || identity.instance_id!==ledger.instanceId) throw new RetentionError("Restore ledger belongs to a different database instance.");
     await tx`LOCK TABLE users,listings,inspections,sell_assistance_requests,listing_reports,moderation_log,saved_search_notifications,lead_events IN SHARE ROW EXCLUSIVE MODE`;

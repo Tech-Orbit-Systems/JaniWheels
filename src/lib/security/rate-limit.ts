@@ -3,6 +3,8 @@ import { createHmac } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { rateLimitBuckets } from "@/db/schema/security";
+import { clientIp } from "./client-ip";
+export { clientIp } from "./client-ip";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -39,15 +41,6 @@ function bucketKey(scope: string, subject: string, period: number): string {
   return createHmac("sha256", secret())
     .update(`${scope}\0${subject}\0${period}`)
     .digest("hex");
-}
-
-/** Only configured reverse proxies may supply these headers in production. */
-export function clientIp(headers: Headers): string | null {
-  const raw = headers.get("cf-connecting-ip")
-    ?? headers.get("x-real-ip")
-    ?? headers.get("x-forwarded-for")?.split(",")[0];
-  const ip = raw?.trim();
-  return ip && ip.length <= 45 ? ip : null;
 }
 
 export async function consumeRateLimit({

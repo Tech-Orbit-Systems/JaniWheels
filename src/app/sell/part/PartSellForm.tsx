@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { Boxes, Camera, CarFront, MapPin, PackageCheck, Tags } from "lucide-react";
 import { createPartListingAction, type SellState } from "@/lib/listings/sell-actions";
 import { MapLocationPicker } from "@/components/MapLocationPicker";
+import { uploadPhotos } from "@/lib/images/upload-client";
 
 type Option = { id: number; name: string };
 type Category = Option & { parentId: number | null };
@@ -18,6 +19,7 @@ export function PartSellForm({ categories, makes, cities }: { categories: Catego
   const [areas, setAreas] = useState<Option[]>([]);
   const [imageKeys, setImageKeys] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const uploadInProgress = useRef(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => { if (!makeId) return setModels([]); fetch(`/api/taxonomy?makeId=${makeId}`).then((r) => r.json()).then((data) => setModels(data.models ?? [])); }, [makeId]);
@@ -35,16 +37,16 @@ export function PartSellForm({ categories, makes, cities }: { categories: Catego
   }, [categories]);
 
   async function upload(files: FileList | null) {
-    if (!files?.length) return;
+    if (!files?.length || uploadInProgress.current) return;
+    if (imageKeys.length + files.length > 30) { setUploadError("An ad can have up to 30 photos."); return; }
+    uploadInProgress.current = true;
     setUploading(true); setUploadError(null);
-    const body = new FormData(); Array.from(files).forEach((file) => body.append("files", file));
     try {
-      const response = await fetch("/api/upload", { method: "POST", body });
-      const data = await response.json();
-      if (data.keys?.length) setImageKeys((keys) => [...keys, ...data.keys].slice(0, 30));
-      if (!response.ok || data.errors?.length) setUploadError(data.error ?? data.errors?.join(" ") ?? "Upload failed.");
-    } catch { setUploadError("Upload failed. Check your connection."); }
-    finally { setUploading(false); }
+      const result = await uploadPhotos(files);
+      if (result.keys.length) setImageKeys((keys) => [...keys, ...result.keys]);
+      if (result.errors.length) setUploadError(result.errors.join(" "));
+    }
+    finally { uploadInProgress.current = false; setUploading(false); }
   }
 
   const error = (field: string) => state.fieldErrors?.[field];
@@ -89,7 +91,7 @@ export function PartSellForm({ categories, makes, cities }: { categories: Catego
       <FormSection icon={MapPin} title="Part location"><div className="grid gap-4 sm:grid-cols-2"><Field label="City" error={error("cityId")}><select name="cityId" value={cityId} onChange={(e) => setCityId(e.target.value)} className={selectClass} required><option value="">Select city</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></Field><Field label="Area"><select name="areaId" className={selectClass} disabled={!areas.length}><option value="">Select area</option>{areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select></Field></div><Field label="City / town not listed" hint="Enter it for this ad, and select its nearest official city or district above for search."><input name="customCityName" maxLength={80} className={inputClass} placeholder="Town or municipality" /></Field><Field label="Locality / area not listed" hint="Saved only on this ad."><input name="customAreaName" maxLength={80} className={inputClass} placeholder="Market, sector or village" /></Field><MapLocationPicker /></FormSection>
 
       <FormSection icon={Camera} title="Part photos" hint="Photograph the actual item, packaging, labels, connectors, mounting points and any damage.">
-        <input type="file" aria-label="Choose part photos" accept="image/*" multiple onChange={(e) => upload(e.target.files)} className="block w-full rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-extrabold file:text-white" />
+        <input type="file" aria-label="Choose part photos" accept="image/*" multiple disabled={uploading} onChange={(e) => upload(e.target.files)} className="block w-full rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-extrabold file:text-white" />
         {uploading && <p className="text-sm text-slate-500">Uploading…</p>}{uploadError && <ErrorText>{uploadError}</ErrorText>}{error("imageKeys") && <ErrorText>{error("imageKeys")}</ErrorText>}{imageKeys.length > 0 && <p className="text-sm font-bold text-blue-700">{imageKeys.length} photo{imageKeys.length === 1 ? "" : "s"} added</p>}{imageKeys.map((key) => <input key={key} type="hidden" name="imageKeys" value={key} />)}
       </FormSection>
 

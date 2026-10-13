@@ -8,12 +8,14 @@ import { and, eq, gt, sql } from "drizzle-orm";
 import { allowPublicAction } from "@/lib/security/rate-limit";
 import { permitsMutationOrigin } from "@/lib/security/origin";
 import { logSafeError } from "@/lib/operations/safe-error";
+import { boundedFormData } from "@/lib/security/bounded-form-data";
 
 export const runtime = "nodejs";
 
 const MAX_UPLOADS_PER_HOUR = 60;
 const MAX_BYTES_PER_HOUR = 300 * 1024 * 1024;
-const MAX_REQUEST_BYTES = 30 * MAX_UPLOAD_BYTES + 2 * 1024 * 1024;
+const MAX_FILES_PER_REQUEST = 5;
+const MAX_REQUEST_BYTES = MAX_FILES_PER_REQUEST * MAX_UPLOAD_BYTES + 2 * 1024 * 1024;
 
 /**
  * Image upload endpoint for the listing wizard.
@@ -40,14 +42,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Upload request is too large." }, { status: 413 });
   }
 
-  const formData = await request.formData();
+  let formData: FormData | null;
+  try {
+    formData = await boundedFormData(request, MAX_REQUEST_BYTES);
+  } catch (error) {
+    if (error instanceof RangeError && error.message === "UPLOAD_REQUEST_TOO_LARGE") {
+      return NextResponse.json({ error: "Upload request is too large." }, { status: 413 });
+    }
+    return NextResponse.json({ error: "Invalid upload request." }, { status: 400 });
+  }
+  if (!formData) return NextResponse.json({ error: "Upload a multipart form." }, { status: 415 });
   const files = formData.getAll("files").filter((f): f is File => f instanceof File);
 
   if (files.length === 0) {
     return NextResponse.json({ error: "No files received." }, { status: 400 });
   }
-  if (files.length > 30) {
-    return NextResponse.json({ error: "Too many files." }, { status: 400 });
+  if (files.length > MAX_FILES_PER_REQUEST) {
+    return NextResponse.json({ error: "Upload up to five files at a time." }, { status: 400 });
   }
   const requestBytes = files.reduce((total, file) => total + file.size, 0);
   if (files.some((file) => file.size === 0 || file.size > MAX_UPLOAD_BYTES)) {

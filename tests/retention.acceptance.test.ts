@@ -114,6 +114,7 @@ test("approved retention respects recovery, holds, cutoff, retries and restore r
     assert.ok(removed>=1);
     const ledger = await exportLedger(sql);
     await assert.rejects(replayLedger(sql,{...ledger,instanceId:randomUUID()},tag),/different database/);
+    await assert.rejects(replayLedger(sql,{...ledger,generatedAt:new Date(Date.now()+86_400_000).toISOString()},tag),/Invalid restore ledger/);
     await assert.rejects(replayLedger(sql,{...ledger,receipts:[{resource:'account',resource_id:owner.id,action:'delete',occurred_at:ledger.generatedAt}]},tag),/Invalid/);
     // Simulate old backup rows reappearing, then replay current deletion receipts.
     await sql`UPDATE users SET name='restored backup',email=${tag+'@example.invalid'},closed_at=NULL,anonymized_at=NULL WHERE id=${owner.id}`;
@@ -206,6 +207,7 @@ test("restore replay preserves later moderation and suppresses old pending alert
     assert.equal((await sql`SELECT status FROM listings WHERE id=${listing.id}`)[0].status,'rejected');
     const ledger = await exportLedger(sql);
     ledger.receipts = ledger.receipts.filter(row => row.resource === 'account' && row.resource_id === owner.id);
+    assert.ok(ledger.receipts.every(row => Date.parse(row.occurred_at) <= Date.parse(ledger.generatedAt)));
 
     // A backup from during closure contains its close receipt and the later moderation decision.
     await sql`UPDATE users SET closed_at=${closed.closed_at},closure_state=${sql.json(closed.closure_state)} WHERE id=${owner.id}`;

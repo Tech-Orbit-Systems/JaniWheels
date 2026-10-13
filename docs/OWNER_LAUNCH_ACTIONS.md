@@ -1,6 +1,6 @@
 # JaniWheels: owner launch checklist
 
-Updated: 8 October 2026. A retention policy and B1 badge decision are approved; no repeat approval is needed. Local development acceptance is distinct from production acceptance. PR #6 remains under review; a push does not merge it. The owner has assigned hosting and deployment to an external team. Give that team `DEPLOYMENT_HANDOFF.md` and the reviewed repository release; ask it to return the launch evidence listed there.
+Updated: 13 October 2026. A retention policy and B1 badge decision are approved; no repeat approval is needed. Local development acceptance is distinct from production acceptance. PR #7 has merged. Any newer prelaunch branch needs checks, independent review and a separate merge decision. The owner has assigned hosting and deployment to an external team. Give that team `DEPLOYMENT_HANDOFF.md` and the reviewed repository release; ask it to return the launch evidence listed there.
 
 ## 1. Hosting and database access
 
@@ -32,7 +32,7 @@ Reference: [Google Maps key setup](https://developers.google.com/maps/documentat
 
 ## 5. Independent PR review and protected main
 
-**Aap ka step:** Repository administrator se required checks/protection configure karwayein aur PR #6 ka independent review arrange karein. Review ke baad main merge ko separate action samjhein.
+**Aap ka step:** Repository administrator se required checks/protection configure karwayein aur har naye prelaunch PR ka independent review arrange karein. Review ke baad main merge ko separate action samjhein.
 
 **Us ke baad development:** Review fixes, latest head checks, approved merge and release verification. Current local evidence/tracker feature branch par maintained hai.
 
@@ -42,7 +42,7 @@ Reference: [Google Maps key setup](https://developers.google.com/maps/documentat
 
 **Us ke baad development:** Reported code issues fix karke same flows recheck. External deployment team live environment defects resolve karegi. Desktop/mobile browser automation actual camera, touch, assistive technology aur device acceptance ka substitute nahi hai.
 
-QA note: Full Linux CI run 49 mein WebKit navigation/upload pass hain. Windows par concurrent local suites ke dauran Auto Parts tab ki stability wait timeout hui; local WebKit upload pass hai. Actual iPhone par homepage navigation/search ko bhi acceptance mein include karein. Overlapping local run ko full local pass claim nahi kiya gaya.
+QA note: Teen local WebKit smokes pass hain, jin mein default-motion tap/navigation aur photo upload shamil hain. Actual iPhone par homepage navigation/search ko bhi acceptance mein include karein. Local WebKit pass ko real-device pass na samjhein.
 
 ## 7. Production-sized load and final launch
 

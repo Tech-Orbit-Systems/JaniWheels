@@ -1,11 +1,12 @@
 "use client";
 
 import Image from "@/components/StoredImage";
-import { startTransition, useActionState, useState, type FormEvent } from "react";
+import { startTransition, useActionState, useRef, useState, type FormEvent } from "react";
 import { Camera, ChevronLeft, ChevronRight, MapPin, Save, Trash2 } from "lucide-react";
 import { updateListingAction } from "@/lib/listings/manage-actions";
 import type { SellState } from "@/lib/listings/sell-actions";
 import { MapLocationPicker } from "@/components/MapLocationPicker";
+import { uploadPhotos } from "@/lib/images/upload-client";
 
 type Option = { id: number; name: string };
 type Listing = {
@@ -60,6 +61,7 @@ export function ListingEditForm({ listing, cities, initialAreas, images: origina
   const [hasAuctionSheet, setHasAuctionSheet] = useState(Boolean(listing.hasAuctionSheet));
   const [imageKeys, setImageKeys] = useState(originalImages);
   const [uploading, setUploading] = useState(false);
+  const uploadInProgress = useRef(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const electric = bikeType.startsWith("electric-");
@@ -78,17 +80,16 @@ export function ListingEditForm({ listing, cities, initialAreas, images: origina
   async function changeCompatibleMake(value: string) { setCompatibleMakeId(value); setCompatibleModelId(""); setCompatibleModels(value ? await load(`/api/taxonomy?makeId=${value}`, "models") : []); }
 
   async function upload(files: FileList | null) {
-    if (!files?.length) return;
+    if (!files?.length || uploadInProgress.current) return;
     if (imageKeys.length + files.length > 30) { setUploadError("An ad can have up to 30 photos."); return; }
+    uploadInProgress.current = true;
     setUploading(true); setUploadError(null);
-    const body = new FormData(); Array.from(files).forEach((file) => body.append("files", file));
     try {
-      const response = await fetch("/api/upload", { method: "POST", body });
-      const data = await response.json();
-      if (data.keys?.length) setImageKeys((keys) => [...keys, ...data.keys].slice(0, 30));
-      if (!response.ok || data.errors?.length) setUploadError(data.error ?? data.errors?.join(" ") ?? "Upload failed.");
-    } catch { setUploadError("Upload failed. Check your connection."); }
-    finally { setUploading(false); }
+      const result = await uploadPhotos(files);
+      if (result.keys.length) setImageKeys((keys) => [...keys, ...result.keys]);
+      if (result.errors.length) setUploadError(result.errors.join(" "));
+    }
+    finally { uploadInProgress.current = false; setUploading(false); }
   }
 
   function move(from: number, to: number) {
@@ -197,7 +198,7 @@ export function ListingEditForm({ listing, cities, initialAreas, images: origina
         <div className="relative aspect-[4/3] bg-slate-100"><Image src={`/uploads/${key}`} alt={`Ad photo ${index + 1}`} fill sizes="200px" className="object-cover" />{index === 0 && <span className="absolute left-2 top-2 rounded bg-blue-600 px-2 py-0.5 text-[10px] font-extrabold text-white">PRIMARY</span>}</div>
         <div className="flex items-center justify-between p-1.5"><button type="button" onClick={() => move(index, index - 1)} disabled={index === 0} className="rounded p-1 text-slate-600 disabled:opacity-25"><ChevronLeft size={17} /></button><button type="button" onClick={() => setImageKeys((keys) => keys.filter((item) => item !== key))} className="rounded p-1 text-red-600"><Trash2 size={16} /></button><button type="button" onClick={() => move(index, index + 1)} disabled={index === imageKeys.length - 1} className="rounded p-1 text-slate-600 disabled:opacity-25"><ChevronRight size={17} /></button></div>
       </div>)}</div>
-      <input type="file" accept="image/*" multiple onChange={(event) => upload(event.target.files)} className="block w-full rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-extrabold file:text-white" />
+      <input type="file" accept="image/*" multiple disabled={uploading} onChange={(event) => upload(event.target.files)} className="block w-full rounded-xl border border-dashed border-blue-300 bg-blue-50 p-4 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-extrabold file:text-white" />
       {uploading && <p className="text-sm text-slate-500">Uploading and optimizing…</p>}{uploadError && <ErrorText>{uploadError}</ErrorText>}{error("imageKeys") && <ErrorText>{error("imageKeys")}</ErrorText>}
       {imageKeys.map((key) => <input key={key} type="hidden" name="imageKeys" value={key} />)}
     </Section>
